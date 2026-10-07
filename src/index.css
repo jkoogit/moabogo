@@ -1,0 +1,384 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  }
+  
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* =========================================================================
+   MoaBogo UI Design System - Semantic Theme Tokens
+   1. html.light : 주간(라이트) - 화이트
+   2. html.dark  : 야간(다크)   - 뉴트럴 딥 그레이 (그레이 블렌딩 & 시맨틱 식별성 보장)
+   3. html.dawn  : 여명(블루)   - 심해 미드나잇 딥 청색/네이비
+   ========================================================================= */
+
+html.light {
+  color-scheme: light;
+}
+
+html.dark,
+html.dawn {
+  color-scheme: dark;
+}
+
+/* Base Body Backgrounds */
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html.dark body {
+  background-color: #121214;
+  color: #f4f4f5;
+}
+
+html.dawn body {
+  background-color: #070d1e;
+  color: #e2e8f0;
+}
+
+/* =========================================================================
+   1. 야간 (다크) : 딥 그레이 베이스 & 시맨틱 목적별 텍스트/라벨 식별성 강화
+   목적 분류:
+    - 정보(Info / Notice): 톤다운된 스카이/슬레이트 블루 블렌드
+    - 안내(Guide / Meta): 정제된 실버/징크 그레이
+    - 경고/주의(Warning): 부드러운 웜 앰버
+    - 완료/정상(Success): 차분한 소프트 세이지 그린
+    - 위험/반려(Error): 은은한 덜 레드/로즈
+    - 자금/이동(Asset): 딥 그레이시 바이올렛
+   ========================================================================= */
+
+/* 기본 컨테이너 & 카드 */
+html.dark .bg-slate-50 {
+  background-color: #121214 !important; /* 딥 그레이 메인 캔버스 */
+}
+
+html.dark .bg-white,
+html.dark .bg-slate-100 {
+  background-color: #1a1a1e !important; /* 카드 타일 */
+}
+
+html.dark .bg-slate-200 {
+  background-color: #27272a !important;
+}
+
+/* 1px 미세 테두리 */
+html.dark .border-slate-200 {
+  border-color: #27272a !important;
+}
+
+html.dark .border-slate-100 {
+  border-color: #1f1f23 !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #27272a !important;
+}
+
+/* -------------------------------------------------------------------------
+   [시맨틱 텍스트 계층 & 목적별 식별성 규칙]
+   ------------------------------------------------------------------------- */
+/* 1) 헤더 및 중요 수치 (최고 식별성) */
+html.dark .text-slate-900 {
+  color: #f4f4f6 !important;
+}
+
+/* 2) 섹션 부제목 및 카드 라벨 */
+html.dark .text-slate-800 {
+  color: #e4e4e7 !important;
+}
+
+/* 3) 일반 본문 텍스트 */
+html.dark .text-slate-700 {
+  color: #d4d4d8 !important;
+}
+
+/* 4) 카드 메타 라벨 & 분류 명칭 (차분하면서도 명확한 중간 톤) */
+html.dark .text-slate-600 {
+  color: #a1a1aa !important;
+}
+
+/* 5) 카드 상단 안내 라벨 (예: '모아목표', '모아당번', '모아머니') */
+html.dark .text-slate-500 {
+  color: #8e8e93 !important;
+  font-weight: 600;
+}
+
+/* 6) 부가 설명 및 캡션 (가독성 유지하는 로우톤) */
+html.dark .text-slate-400 {
+  color: #71717a !important;
+}
+
+/* -------------------------------------------------------------------------
+   [목적별 라벨 & 텍스트 강조 - 식별성 향상]
+   ------------------------------------------------------------------------- */
+/* [경고 / 주의 / 대기 (Warning)] */
+html.dark .text-amber-600,
+html.dark .text-amber-700 {
+  color: #fbbf24 !important; /* 눈부심 없는 따뜻한 골드 앰버 */
+}
+html.dark .text-amber-500 {
+  color: #fcd34d !important;
+}
+
+/* [안내 / 정보 (Info / Notice)] */
+html.dark .text-indigo-600,
+html.dark .text-indigo-700 {
+  color: #a5b4fc !important; /* 그레이 톤과 자연스럽게 녹아드는 소프트 라벤더 블루 */
+}
+html.dark .text-indigo-500 {
+  color: #c7d2fe !important;
+}
+
+/* [자금 / 상환 (Money & Assets)] */
+html.dark .text-purple-700,
+html.dark .text-purple-600 {
+  color: #d8b4fe !important; /* 과하지 않은 소프트 바이올렛 */
+}
+
+/* [완료 / 승인 (Success)] */
+html.dark .text-emerald-700,
+html.dark .text-emerald-600 {
+  color: #86efac !important;
+}
+
+/* [반려 / 실패 (Error / Danger)] */
+html.dark .text-rose-700,
+html.dark .text-rose-600 {
+  color: #fda4af !important;
+}
+
+/* -------------------------------------------------------------------------
+   [시맨틱 뱃지 (ELM-STT-01, ELM-CNT-01) - 톤온톤 식별성]
+   배경은 딥 차콜 베이스로 톤다운하고, 테두리와 텍스트에 목적별 색조를 부여
+   ------------------------------------------------------------------------- */
+/* 1) 완료 / 승인 (EMERALD) */
+html.dark .bg-emerald-50 {
+  background-color: #14231b !important;
+  color: #6ee7b7 !important;
+  border-color: #1f3d2e !important;
+}
+
+/* 2) 대기 / 주의 (AMBER) */
+html.dark .bg-amber-50 {
+  background-color: #241f14 !important;
+  color: #fcd34d !important;
+  border-color: #42361b !important;
+}
+
+/* 3) 실패 / 반려 (ROSE) */
+html.dark .bg-rose-50 {
+  background-color: #251417 !important;
+  color: #fda4af !important;
+  border-color: #441f26 !important;
+}
+
+/* 4) 자산이동 / 요청 (PURPLE) */
+html.dark .bg-purple-50 {
+  background-color: #1f1629 !important;
+  color: #d8b4fe !important;
+  border-color: #37234d !important;
+}
+
+/* 5) 진행중 / 정보안내 (INDIGO) */
+html.dark .bg-indigo-50 {
+  background-color: #191c2b !important;
+  color: #a5b4fc !important;
+  border-color: #2c3352 !important;
+}
+
+/* 6) 일반 대기 / 기본 메타 (SLATE) */
+html.dark .bg-slate-100 {
+  background-color: #222227 !important;
+  color: #d4d4d8 !important;
+  border-color: #33333a !important;
+}
+
+/* 건수 카운트 뱃지 (ELM-CNT-01) */
+html.dark .bg-slate-100.text-slate-600 {
+  background-color: #1f1f23 !important;
+  color: #a1a1aa !important;
+  border-color: #2e2e34 !important;
+}
+
+/* -------------------------------------------------------------------------
+   [다크 모드 인터랙티브 버튼 & 제어]
+   ------------------------------------------------------------------------- */
+html.dark .bg-indigo-600,
+html.dark .bg-indigo-700 {
+  background-color: #323544 !important; /* 슬레이트 그레이 + 은은한 인디고 터치 */
+  color: #e0e7ff !important;
+  border: 1px solid #454961 !important;
+}
+html.dark .bg-indigo-600:hover,
+html.dark .bg-indigo-700:hover {
+  background-color: #3f4357 !important;
+  border-color: #555b79 !important;
+}
+
+html.dark .bg-purple-600,
+html.dark .bg-purple-700 {
+  background-color: #362f42 !important; /* 슬레이트 그레이 + 은은한 퍼플 터치 */
+  color: #f3e8ff !important;
+  border: 1px solid #4d3f61 !important;
+}
+html.dark .bg-purple-600:hover,
+html.dark .bg-purple-700:hover {
+  background-color: #443a54 !important;
+}
+
+html.dark .bg-blue-600,
+html.dark .bg-blue-500 {
+  background-color: #2d3648 !important;
+  color: #eff6ff !important;
+  border: 1px solid #3f4c66 !important;
+}
+
+/* 입력 필드 & 포커스 */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #151518 !important;
+  color: #f4f4f6 !important;
+  border-color: #2e2e34 !important;
+}
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #4b4b55 !important;
+  box-shadow: 0 0 0 2px rgba(82, 82, 91, 0.25) !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #585862 !important;
+}
+
+/* 네비게이션 & 바텀바 */
+html.dark nav {
+  background-color: rgba(18, 18, 22, 0.96) !important;
+  border-color: #27272a !important;
+}
+
+
+/* =========================================================================
+   2. 여명 (블루) - 미드나잇 딥 네이비 & 오션 블루 시맨틱 규격
+   ========================================================================= */
+
+html.dawn .bg-slate-50 {
+  background-color: #070d1e !important; /* 딥 네이비 메인 배경 */
+}
+
+html.dawn .bg-white,
+html.dawn .bg-slate-100 {
+  background-color: #0d1b3a !important; /* 심해 블루 카드 배경 */
+}
+
+html.dawn .bg-slate-200 {
+  background-color: #162a56 !important;
+}
+
+html.dawn .text-slate-900 {
+  color: #f0f6fc !important;
+}
+
+html.dawn .text-slate-800 {
+  color: #e1ecf9 !important;
+}
+
+html.dawn .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+html.dawn .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+html.dawn .text-slate-500 {
+  color: #7dd3fc !important; /* 여명 모드 카테고리 라벨: 아이스 블루 */
+}
+
+html.dawn .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.dawn .border-slate-200 {
+  border-color: #1e3a6d !important;
+}
+
+html.dawn .border-slate-100 {
+  border-color: #14284d !important;
+}
+
+html.dawn .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e3a6d !important;
+}
+
+/* 여명 블루 버튼 */
+html.dawn .bg-indigo-600,
+html.dawn .bg-indigo-700 {
+  background-color: #1d4ed8 !important;
+  color: #eff6ff !important;
+  border: 1px solid #3b82f6 !important;
+}
+html.dawn .bg-indigo-600:hover,
+html.dawn .bg-indigo-700:hover {
+  background-color: #2563eb !important;
+}
+
+html.dawn .bg-purple-600,
+html.dawn .bg-purple-700 {
+  background-color: #2b3a67 !important;
+  color: #eff6ff !important;
+  border: 1px solid #3d528f !important;
+}
+
+html.dawn .bg-indigo-50 {
+  background-color: #13244a !important;
+  color: #93c5fd !important;
+  border-color: #1e3a6d !important;
+}
+
+html.dawn .text-indigo-600,
+html.dawn .text-indigo-700,
+html.dawn .text-indigo-500 {
+  color: #60a5fa !important;
+}
+
+html.dawn input,
+html.dawn select,
+html.dawn textarea {
+  background-color: #0a1329 !important;
+  color: #f0f6fc !important;
+  border-color: #1e3a6d !important;
+}
+
+html.dawn input::placeholder,
+html.dawn textarea::placeholder {
+  color: #475569 !important;
+}
+
+html.dawn nav {
+  background-color: rgba(10, 20, 44, 0.95) !important;
+  border-color: #1e3a6d !important;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
