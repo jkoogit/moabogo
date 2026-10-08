@@ -1,87 +1,91 @@
-# 모아보고 (MoaBogo) 프로젝트 문서 
+# 모아보고 (MoaBogo) 프로젝트 문서 가이드 (README-docs.md)
+
+- **문서 ID**: `000000` (`docs/README-docs.md`)
+- **버전**: v1.3
+- **최종 수정일**: 2026-10-07
 
 ---
 
-## 프로젝트 문서에 정리할 초안내용
+## 📌 1. 프로젝트 문서 관리 프로세스 및 지침
 
-
-1. **카테고리검토**: 작성내용을 바탕으로 적절한 카테고리 선정
-2. **작성내용분석**: 작성영역의 초안을 분석하여 정리할 내용 검토
-3. **작성내용 다듬기**: 참고내용 문구 대상 문서의 위치로 링크설정
-4. **최종검토**: 대상문서 수정시 수정이력 작성
-
+1. **카테고리 검토**: 작성 내용을 바탕으로 `docs/` 내 적절한 주제별 폴더 선정
+2. **작성 내용 분석**: 분석 영역의 초안을 검토하여 정합성 및 영향도 점검
+3. **작성 내용 다듬기**: 참조 문서 간 상호 링크 설정 및 공통 토큰/타입 정합성 유지
+4. **최종 검토**: 대상 문서 수정 시 반드시 문서 말미에 작업 이력 표 작성
+5. **AI 에이전트 지침**: 루트 `/AGENT.md` 및 `00.인프라/00.문서관리/01.문서관리정책.md` 준수
 
 ---
 
-### [작성내용]
+## 📂 2. 저장소 전체 문서 체계도
+
+```text
+docs/
+├── README-docs.md                               # 본 문서 가이드 (000000)
+├── 00.인프라/
+│   ├── 00.문서관리/
+│   │   └── 01.문서관리정책.md                     # 문서 ID 명명 및 작업 이력 규칙 (000001)
+│   ├── 01.바이브코딩/
+│   │   └── 01.moabogo-vibe-coding-master-docs.md # 바이브 코딩 마스터 통합 문서 (000101)
+│   ├── 02.Docker/
+│   │   └── 01.Docker정책.md                      # Docker 컨테이너 운영 및 OOM 가드레일 (000201)
+│   ├── 03.Cloudflare/
+│   │   └── 01.Cloudflare정책.md                  # Cloudflare Tunnel 무포트포워딩 보안 (000301)
+│   ├── 04.Ubuntu/
+│   │   └── 01.Ubuntu정책.md                      # 노트북 24/7 무중단 OS/하드웨어 정책 (000401)
+│   ├── 05.PostgreSQL/
+│   │   └── 01.PostgreSQL정책.md                  # 단일 노드 PostgreSQL 16 튜닝 & 백업 (000501)
+│   └── 06.Git/
+│       └── 01.Git정책.md                         # Git 형상관리 & 브랜치 전략 (000601)
+├── 01.프로젝트/
+│   └── 01-prd-spec.md                           # 제품 요구사항 정의서 (PRD) (010001)
+├── 02.아키텍처/
+│   └── 01-architecture-spec.md                  # 시스템/인프라 및 FSD/DDD 아키텍처 (020001)
+├── 03.디자인/
+│   ├── 01-design-api-spec.md                    # LETO 디자인 & API 규격서 (030001)
+│   ├── 02-UI디자인정책-이미지.md                  # 테마 토큰 및 UI 정렬 가이드 (030002)
+│   ├── 03-화면목록정의서.md                       # 정규 13개 화면 정의서 (030003)
+│   └── 04-공통요소정의서.md                       # 14종 공통 원자 토큰 정의서 (030004)
+├── 04.데이터/
+│   ├── 01.데이터설계.md                          # 7대 감사컬럼 및 접속 환경 정의 (040001)
+│   └── 02-erd-schema.sql                        # PostgreSQL 16 DDL 스크립트 (11개 테이블) (040002)
+├── 07.회고/
+│   └── 0001-01_세션회고-아키텍처전환.md           # [세션 0001] 정규 아키텍처 승격 회고
+├── 08.리뷰/
+│   ├── 0001-01_이슈리뷰-디자인정책개선및학습.md    # [세션 0001] 디자인 시스템 현황 및 개선 가이드
+│   ├── 0001-02_이슈리뷰-아키텍처및코드리뷰.md      # [세션 0001] 아키텍처 진단 및 코드 리뷰
+│   └── 0001-03_이슈리뷰-사각지대및예방자료.md      # [세션 0001] 잠재 리스크 분석
+└── 09.참고/
+    └── 0001-01_261006_화면검토/
+        └── 261006_화면검토.md                    # [세션 0001] 초기 화면 검토 자료
+```
+
 ---
 
-#### 대상 : 전체문서
-1. 문서이력 보완
+## 🚀 3. 최근 반영 및 검토 완료 내역
 
-#### 대상 : docs\04.데이터\01-erd-schema.sql
-1. 테이블 메타정보 속성추가 : 등록자, 등록일시, 등록시스템, 수정자, 수정일시, 수정시스템, 버전
+1. **[완료] 00.인프라 5대 핵심 정책 문서 전수 신규 수립**:
+   - `02.Docker`: 노트북 단일 노드 3대 컨테이너(DB, OCR, App) 격리 및 OOM 방지 가드레일 (000201)
+   - `03.Cloudflare`: Cloudflare Tunnel 기반 무포트포워딩 네트워크 보안 및 524 타임아웃 방어 (000301)
+   - `04.Ubuntu`: 노트북 덮개 닫힘 방지, 슬립 차단, tmpfs RAM 디스크 및 자동 복구 정책 (000401)
+   - `05.PostgreSQL`: 30 커넥션 제한, 256MB 버퍼 튜닝, 격리 스키마 및 자동 덤프 백업 정책 (000501)
+   - `06.Git`: Git Flow 브랜치 전략, Conventional Commits 규약 및 AGENT.md 연동 (000601)
+2. **[완료] 11개 전 테이블 7대 필수 감사 컬럼 반영 (`04.데이터/02-erd-schema.sql`)**:
+   - `created_sys`, `created_at`, `created_by`, `updated_sys`, `updated_at`, `updated_by`, `version` 적용 완료
+3. **[완료] 11개 전 도메인 테이블 상세 컬럼 정의서, 데이터 사전 및 통합 Mermaid ERD 완성 (`04.데이터/01.데이터설계.md`)**:
+   - 복합 인덱스 전략, 낙관적 락(OCC), 외래키 Cascade 정책 및 회계 분리(is_asset_transfer) 명세화 완료 (040001)
+4. **[완료] 제품 요구사항 정의서(PRD) v2.0 상세화 (`01.프로젝트/01-prd-spec.md`)**:
+   - 핵심 유스케이스(UC-01~UC-07), 모아당번 3단계 상태머신 전이 매트릭스, 게스트 소급 매핑 및 이중계상 방지 회계 규칙 완성 (010001)
+5. **[완료] AI 에이전트 지침서 표준 수립 (`/AGENT.md`)**:
+   - `[0000_00]` 세션ID+응답순번 표기, `#태스크처리` 사전 승인 가드레일, 마크다운 코드블록 프롬프트 제안 규격화
 
-#### 검토 : 
-1. 아키텍처 검토 : ocr 성능을 고려한 전환 검토
-1.1 고정 : db[우분투서버도커설치서비스], ocr[우분투서버도커설치서비스]
-   - db : 외부에 포트노출을 우려한 cloudflare_tunnel 구성
-1.2 기존 : (문서방향)
-   - 클라우드서비스 : cloudtype, aws, gcp, 네이버, 디지털오션 (저비용서비스)
-   - 내부네트워크서비스 : qnap nas
-1.2 신규 : 
-   - 단일인프라 : 우분투서버도커설치서비스 - 배포인프라구성필요
-1.3 결정 : 단일인프라방향으로 의사결정을 하고 관련문서 내용 다음버전으로 현행화
+---
 
+## 4. 작업 이력 (History)
 
-#### 검토 : 아키텍처
-1. 백엔드 : Spring Boot (Kotlin + Spring Data JPA)
-2. 프론트 : React + Vite (PWA) + Tailwind CSS + Zustand
-   * **디자인 시스템**: LETO 톤앤매너 (Bento Grid Layout, `⌘K` 커맨드 팔레트, 1px Subtle Border).
-   * **상태 관리 &amp; API Layer**:
-      * **UI Local/Global State**: `Zustand` (가벼우며 객체지향적 스토어 분리 용이).
-      * **Server State**: `TanStack Query (React Query)` (캐싱, 낙관적 업데이트, 오프라인 재연결 수신).
-   * **프론트엔드 레이어링 (FSD / DDD-Lite)**:
-      * `entities/`: 가계부, 지출, 정산 등 도메인 모델 및 Pure Function.
-      * `features/`: OCR 영수증 스캔, 당번 수동 승인 등 유즈케이스 단위 컴포넌트.
-      * `widgets/`: Bento Grid 위젯, ⌘K 모달 등 종합 UI 컴포넌트.
-3. 데이터베이스, 영속성: PostgreSQL 16 + TypeORM
-      * **PostgreSQL 16**: JSONB 지원으로 정산 게임 세부 결과 및 OCR 상대좌표(`box_normalized`) 데이터를 유연하게 저장.
-      * **Domain Entity vs Persistence Entity 분리**:
-         * DB 테이블과 매핑되는 ORM 클래스(`TransactionOrmEntity`)와 순수 비즈니스 도메인 객체(`TransactionDomain`)를 매퍼(Mapper) 함수로 분리하여 **DB 스키마가 변경되어도 비즈니스 로직에 영향을 주지 않도록 설계**합니다.
-4. 핵심 로직 격리를 위한 백엔드 디렉토리 구조 예시
-   AI(바이브 코딩) 프롬프트 제공 시 지정하기 가장 좋은 표준 폴더 구조
-   ```
-   src/
-   ├── domain/                      # 🧠 [100% 순수 도메인 - 외부 의존성 0%]
-   │   ├── ledger/
-   │   │   ├── model/               # Ledger, Transaction, Money (Value Object)
-   │   │   ├── service/             # InternalTransferPolicy (이중계상 방지 서비스)
-   │   │   └── repository/          # LedgerRepository.interface.ts (Port)
-   │   ├── ocr/
-   │   │   ├── model/               # ParsedReceipt, NormalizedBox
-   │   │   └── port/                # OcrEngine.interface.ts (Port)
-   │   └── duty/
-   │       └── model/               # MoaDuty, DutyStatus (ASSIGNED -> ENDED -> COMPLETED)
-   │
-   ├── application/                 # ⚙️ [유즈케이스 & 서비스 레이어]
-   │   ├── use-case/
-   │   │   ├── ProcessReceiptOcrUseCase.ts
-   │   │   └── SettleGroupExpenseUseCase.ts
-   │   └── dto/                     # Request / Response DTOs
-   │
-   ├── infrastructure/              # 🔌 [외부 어댑터 구현체]
-   │   ├── persistence/
-   │   │   ├── postgres/            # TypeORM Entities & Repositories
-   │   │   └── mapper/              # OrmToDomainMapper.ts
-   │   ├── ocr/
-   │   │   ├── EasyOcrHttpAdapter.ts # 로컬 Docker FastAPI 호출
-   │   │   └── UserApiKeyOcrAdapter.ts # 2차 개인 OpenAI/Vision Key 호출
-   │   └── external/
-   │       └── PaymentDeepLinkAdapter.ts # 토스/카카오페이 딥링크 생성기
-   │
-   └── presentation/                # 🌐 [API 엔드포인트]
-      └── http/
-         ├── LedgerController.ts
-         └── OcrController.ts
-   ```         
+| 작업일자 | 이슈ID | 태스크 | 작업자 | 작업내용 | 사용 AI 모델명 | 에이전트 | 참고링크 |
+| :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: |
+| 2026-10-07 | 0001 | DOCS-INIT | jkoogit | 초기 문서 가이드 및 검토 항목 초안 작성 | - | - | docs/ |
+| 2026-10-07 | 0002 | TASK-ALIGN | AI Studio Agent | 문서 디렉토리 맵 전수 현행화, 감사 컬럼/인프라 결정사항 완료 반영 | models/gemini-3.8-flash | AI Studio | /AGENT.md |
+| 2026-10-07 | 0002 | INFRA-ALL | AI Studio Agent | 00.인프라 하위 5대 정책 문서(Docker, Cloudflare, Ubuntu, PostgreSQL, Git) 신규 수립 및 문서 맵 현행화 | models/gemini-3.8-flash | AI Studio | docs/00.인프라/ |
+| 2026-10-08 | 0002 | DATA-DESIGN | AI Studio Agent | 04.데이터/01.데이터설계.md에 11개 테이블 컬럼 정의서, 데이터 사전, 복합 인덱스 및 통합 Mermaid ERD 완성 | models/gemini-3.8-flash | AI Studio | docs/04.데이터/01.데이터설계.md |
+| 2026-10-08 | 0002 | PRD-EXPAND | AI Studio Agent | 01.프로젝트/01-prd-spec.md에 유스케이스, 당번 상태머신, 게스트 소급 매핑 및 이중계상 방지 회계 규칙 완성 | models/gemini-3.8-flash | AI Studio | docs/01.프로젝트/01-prd-spec.md |
