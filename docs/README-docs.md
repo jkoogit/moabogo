@@ -75,8 +75,8 @@ docs/
    - 복합 인덱스 전략, 낙관적 락(OCC), 외래키 Cascade 정책 및 회계 분리(is_asset_transfer) 명세화 완료 (040001)
 4. **[완료] 제품 요구사항 정의서(PRD) v2.0 상세화 (`01.프로젝트/01-prd-spec.md`)**:
    - 핵심 유스케이스(UC-01~UC-07), 모아당번 3단계 상태머신 전이 매트릭스, 게스트 소급 매핑 및 이중계상 방지 회계 규칙 완성 (010001)
-5. **[완료] AI 에이전트 지침서 표준 수립 (`/AGENT.md`)**:
-   - `[0000_00]` 세션ID+응답순번 표기, `#태스크처리` 사전 승인 가드레일, 마크다운 코드블록 프롬프트 제안 규격화
+5. **[완료] AI 에이전트 지침서 표준 수립 (`/AGENTS.md` v2.2)**:
+   - 세션/태스크/루프 3계층 하네스 전이 머신, 대화턴 전수 영속화, 3-Tier 모델 쿼터, Git Push/PR 머지 규약, 모아보고 금전관리 3대 원칙 및 당번 직교 3상태머신 반영
 
 ---
 
@@ -89,3 +89,4 @@ docs/
 | 2026-10-07 | 0002 | INFRA-ALL | AI Studio Agent | 00.인프라 하위 5대 정책 문서(Docker, Cloudflare, Ubuntu, PostgreSQL, Git) 신규 수립 및 문서 맵 현행화 | models/gemini-3.8-flash | AI Studio | docs/00.인프라/ |
 | 2026-10-08 | 0002 | DATA-DESIGN | AI Studio Agent | 04.데이터/01.데이터설계.md에 11개 테이블 컬럼 정의서, 데이터 사전, 복합 인덱스 및 통합 Mermaid ERD 완성 | models/gemini-3.8-flash | AI Studio | docs/04.데이터/01.데이터설계.md |
 | 2026-10-08 | 0002 | PRD-EXPAND | AI Studio Agent | 01.프로젝트/01-prd-spec.md에 유스케이스, 당번 상태머신, 게스트 소급 매핑 및 이중계상 방지 회계 규칙 완성 | models/gemini-3.8-flash | AI Studio | docs/01.프로젝트/01-prd-spec.md |
+| 2026-10-08 | 0002 | AGENT-GOV | AI Studio Agent | purePDFrend 규약 참조하여 모아보고 맞춤형 AGENTS.md v2.2 하네스 및 거버넌스 규약 수립 (중복 AGENT.md 정리) | models/gemini-3.8-flash | AI Studio | /AGENTS.md |
