@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *, [data-theme=dark], [data-theme=dark] *));
 
 @layer base {
   body {
@@ -12,17 +13,17 @@
 
 /* =========================================================================
    MoaBogo UI Design System - Semantic Theme Tokens
-   1. html.light : 주간(라이트) - 화이트
-   2. html.dark  : 야간(다크)   - 뉴트럴 딥 그레이 (그레이 블렌딩 & 시맨틱 식별성 보장)
-   3. html.dawn  : 여명(블루)   - 심해 미드나잇 딥 청색/네이비
+   1. html.light : 주간(라이트) - 클린 화이트 / 뉴트럴
+   2. html.dark  : 야간(다크)   - 뉴트럴 딥 그레이 (#121214)
+   3. html.dawn  : 여명(블루)   - 산뜻하고 시원한 오션 스카이 블루 (#eef5fc / #2563eb)
    ========================================================================= */
 
-html.light {
+html.light,
+html.dawn {
   color-scheme: light;
 }
 
-html.dark,
-html.dawn {
+html.dark {
   color-scheme: dark;
 }
 
@@ -38,8 +39,8 @@ html.dark body {
 }
 
 html.dawn body {
-  background-color: #070d1e;
-  color: #e2e8f0;
+  background-color: #dceaf6;
+  color: #0b2545;
 }
 
 /* =========================================================================
@@ -266,105 +267,117 @@ html.dark nav {
 
 
 /* =========================================================================
-   2. 여명 (블루) - 미드나잇 딥 네이비 & 오션 블루 시맨틱 규격
+   2. 여명 (블루) - 산뜻하고 시원한 오션 스카이 블루 시맨틱 규격 (다크와 화이트 모두와 완벽 차별화)
    ========================================================================= */
 
-html.dawn .bg-slate-50 {
-  background-color: #070d1e !important; /* 딥 네이비 메인 배경 */
+html.dawn {
+  color-scheme: light;
 }
 
-html.dawn .bg-white,
+html.dawn body {
+  background-color: #e4effc !important; /* 산뜻한 아이스 블루 캔버스 메인 배경 */
+  color: #0d2746 !important;
+}
+
+html.dawn .bg-slate-50 {
+  background-color: #e4effc !important; /* 소프트 아이스 블루 메인 배경 */
+}
+
+html.dawn .bg-white {
+  background-color: #f0f7ff !important; /* 은은한 파스텔 블루빛 카드 배경 (순백색 탈피, 화사하고 부드러운 블루) */
+}
+
 html.dawn .bg-slate-100 {
-  background-color: #0d1b3a !important; /* 심해 블루 카드 배경 */
+  background-color: #dcebfb !important; /* 차분하고 시원한 톤온톤 블루 보조 배경 */
 }
 
 html.dawn .bg-slate-200 {
-  background-color: #162a56 !important;
-}
-
-html.dawn .text-slate-900 {
-  color: #f0f6fc !important;
-}
-
-html.dawn .text-slate-800 {
-  color: #e1ecf9 !important;
-}
-
-html.dawn .text-slate-700 {
-  color: #cbd5e1 !important;
-}
-
-html.dawn .text-slate-600 {
-  color: #94a3b8 !important;
-}
-
-html.dawn .text-slate-500 {
-  color: #7dd3fc !important; /* 여명 모드 카테고리 라벨: 아이스 블루 */
-}
-
-html.dawn .text-slate-400 {
-  color: #64748b !important;
+  background-color: #cde2fa !important;
 }
 
 html.dawn .border-slate-200 {
-  border-color: #1e3a6d !important;
+  border-color: #aed2f8 !important; /* 맑고 선명한 스카이블루 테두리 */
 }
 
 html.dawn .border-slate-100 {
-  border-color: #14284d !important;
+  border-color: #cce3fa !important;
 }
 
 html.dawn .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #1e3a6d !important;
+  border-color: #cce3fa !important;
+}
+
+html.dawn .text-slate-900 {
+  color: #0d2746 !important; /* 딥 네이비 최고 식별성 헤더 */
+}
+
+html.dawn .text-slate-800 {
+  color: #173868 !important; /* 오션 네이비 카드 라벨 */
+}
+
+html.dawn .text-slate-700 {
+  color: #1e4277 !important;
+}
+
+html.dawn .text-slate-600 {
+  color: #2b568e !important;
+}
+
+html.dawn .text-slate-500 {
+  color: #2563eb !important; /* 여명 모드 카테고리 라벨: 비비드 블루 */
+}
+
+html.dawn .text-slate-400 {
+  color: #5587c6 !important;
 }
 
 /* 여명 블루 버튼 */
 html.dawn .bg-indigo-600,
 html.dawn .bg-indigo-700 {
-  background-color: #1d4ed8 !important;
-  color: #eff6ff !important;
-  border: 1px solid #3b82f6 !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
 }
 html.dawn .bg-indigo-600:hover,
 html.dawn .bg-indigo-700:hover {
-  background-color: #2563eb !important;
+  background-color: #1d4ed8 !important;
 }
 
 html.dawn .bg-purple-600,
 html.dawn .bg-purple-700 {
-  background-color: #2b3a67 !important;
-  color: #eff6ff !important;
-  border: 1px solid #3d528f !important;
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid #4338ca !important;
 }
 
 html.dawn .bg-indigo-50 {
-  background-color: #13244a !important;
-  color: #93c5fd !important;
-  border-color: #1e3a6d !important;
+  background-color: #e0effe !important;
+  color: #1d4ed8 !important;
+  border-color: #aed2f8 !important;
 }
 
 html.dawn .text-indigo-600,
 html.dawn .text-indigo-700,
 html.dawn .text-indigo-500 {
-  color: #60a5fa !important;
+  color: #2563eb !important;
 }
 
 html.dawn input,
 html.dawn select,
 html.dawn textarea {
-  background-color: #0a1329 !important;
-  color: #f0f6fc !important;
-  border-color: #1e3a6d !important;
+  background-color: #f6faff !important;
+  color: #0d2746 !important;
+  border-color: #aed2f8 !important;
 }
 
 html.dawn input::placeholder,
 html.dawn textarea::placeholder {
-  color: #475569 !important;
+  color: #7da5d8 !important;
 }
 
 html.dawn nav {
-  background-color: rgba(10, 20, 44, 0.95) !important;
-  border-color: #1e3a6d !important;
+  background-color: rgba(240, 247, 255, 0.96) !important;
+  border-color: #aed2f8 !important;
 }
 
 /* Custom scrollbars */

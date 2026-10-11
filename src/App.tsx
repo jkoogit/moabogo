@@ -41,12 +41,45 @@ import {
 
 export default function App() {
   const { resolvedTheme } = useTheme();
-  const [currentScreen, setCurrentScreen] = useState<string>('SCR-DSH-01');
+  const [currentScreen, setCurrentScreen] = useState<string>('SCR-GNT-01');
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
 
   // Screen Registry Definition
   const screens = [
+    {
+      id: 'SCR-GNT-01',
+      name: '비로그인 게스트 홈 (1/N & 게임)',
+      category: '회원 / 게스트',
+      comp: (
+        <SCR_GNT_01_비로그인게스트홈
+          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
+          onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-AUT-02',
+      name: '로그인 & 오프라인 세션',
+      category: '회원 / 게스트',
+      comp: (
+        <SCR_AUT_02_로그인오프라인세션
+          onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
+          onSuccessLogin={() => setCurrentScreen('SCR-DSH-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-AUT-01',
+      name: '회원가입 (3초 가입/Zero-Onboarding)',
+      category: '회원 / 게스트',
+      comp: (
+        <SCR_AUT_01_회원가입
+          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
+          onSuccessSignup={() => setCurrentScreen('SCR-DSH-01')}
+        />
+      ),
+    },
     {
       id: 'SCR-DSH-01',
       name: '메인 대시보드 (Bento Grid)',
@@ -88,39 +121,6 @@ export default function App() {
       name: '빠른 수행등록 (사진인증 & 당번)',
       category: '빠른 입력',
       comp: <SCR_QCK_02_빠른수행등록 />,
-    },
-    {
-      id: 'SCR-GNT-01',
-      name: '비로그인 게스트 홈 (1/N & 게임)',
-      category: '회원 / 게스트',
-      comp: (
-        <SCR_GNT_01_비로그인게스트홈
-          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
-          onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
-        />
-      ),
-    },
-    {
-      id: 'SCR-AUT-02',
-      name: '로그인 & 오프라인 세션',
-      category: '회원 / 게스트',
-      comp: (
-        <SCR_AUT_02_로그인오프라인세션
-          onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
-          onSuccessLogin={() => setCurrentScreen('SCR-DSH-01')}
-        />
-      ),
-    },
-    {
-      id: 'SCR-AUT-01',
-      name: '회원가입 (3초 가입/Zero-Onboarding)',
-      category: '회원 / 게스트',
-      comp: (
-        <SCR_AUT_01_회원가입
-          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
-          onSuccessSignup={() => setCurrentScreen('SCR-DSH-01')}
-        />
-      ),
     },
     {
       id: 'SCR-SET-01',

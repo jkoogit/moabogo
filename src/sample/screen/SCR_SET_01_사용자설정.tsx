@@ -168,26 +168,26 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               onClick={() => setTheme('dawn')}
               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                 theme === 'dawn'
-                  ? 'border-sky-500 bg-sky-950/30 shadow-sm'
+                  ? 'border-blue-500 bg-blue-50/80 shadow-sm'
                   : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-950 text-sky-400 flex items-center justify-center shrink-0 border border-blue-800">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
                     <span className="text-xs font-bold text-slate-900 block leading-tight">여명 (블루)</span>
-                    <span className="text-[10px] text-slate-500">미드나잇 청색</span>
+                    <span className="text-[10px] text-slate-500">오션 스카이 블루</span>
                   </div>
                 </div>
                 {theme === 'dawn' && (
-                  <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
                 )}
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                깊고 고요한 심해 미드나잇 딥 네이비 청색 배경
+                산뜻하고 시원한 오션 스카이 블루(#edf4fc / #2563eb) 컬러웨이
               </p>
             </div>
 

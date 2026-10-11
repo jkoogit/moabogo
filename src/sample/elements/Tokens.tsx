@@ -921,24 +921,42 @@ export const ElmSld03: React.FC<{
   showNavButtons?: boolean;
   stepWidth?: number;
   className?: string;
-}> = ({ children, showNavButtons = true, stepWidth = 240, className = '' }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  externalRef?: React.RefObject<HTMLDivElement | null>;
+}> = ({ children, showNavButtons = true, stepWidth = 240, className = '', externalRef }) => {
+  const localContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = externalRef || localContainerRef;
   const [isDragging, setIsDragging] = useState(false);
   const isDown = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
 
-  // 휠 이벤트: 상하 휠을 가로 이동으로 변환 & 배경 스크롤 전파 완전 차단
+  // 휠 이벤트: 컨테이너 가로 오버플로우가 있는 경우 마우스 휠(deltaY 또는 deltaX)을 가로 스크롤로 완벽 변환 (자석/snap 없이 부드럽게 유지)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 1) return; // 오버플로우가 없으면 기본 페이지 스크롤 허용
 
-      const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
-      el.scrollLeft += delta * 1.2;
+      // 마우스 휠은 일반적으로 deltaY(상하), 트랙패드는 deltaX(좌우)를 발생시킴
+      const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
+      if (rawDelta === 0) return;
+
+      // 휠 델타 정규화 (부드럽고 직관적인 스크롤)
+      const multiplier = e.deltaMode === 1 ? 24 : 1;
+      const delta = rawDelta * multiplier;
+
+      const atStart = el.scrollLeft <= 0;
+      const atEnd = el.scrollLeft >= maxScroll - 1;
+
+      // 가로 스크롤 가능한 구간에서는 브라우저 상하 스크롤을 방지하고 가로 슬라이드 실행
+      if ((delta > 0 && !atEnd) || (delta < 0 && !atStart)) {
+        e.preventDefault();
+        e.stopPropagation();
+        el.scrollLeft += delta;
+      }
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
@@ -947,34 +965,22 @@ export const ElmSld03: React.FC<{
     };
   }, []);
 
-  // 자석(Magnetic Snap) 효과: 가장 가까운 자식 요소 위치로 부드럽게 정렬
-  const snapToNearest = () => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const childrenElements = Array.from(el.children) as HTMLElement[];
-    if (childrenElements.length === 0) return;
-
-    const currentScroll = el.scrollLeft;
-    let closestOffset = 0;
-    let minDiff = Infinity;
-
-    childrenElements.forEach((child) => {
-      const offset = child.offsetLeft - el.offsetLeft;
-      const diff = Math.abs(currentScroll - offset);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestOffset = offset;
+  // 전역 마우스 업 감지 (컨테이너 밖에서 마우스 뗄 때 안전 복원)
+  useEffect(() => {
+    const onWindowMouseUp = () => {
+      if (isDown.current) {
+        isDown.current = false;
+        setIsDragging(false);
       }
-    });
+    };
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => window.removeEventListener('mouseup', onWindowMouseUp);
+  }, []);
 
-    el.scrollTo({ left: closestOffset, behavior: 'smooth' });
-  };
-
-  // 마우스 드래그 핸들러
+  // 마우스 드래그 핸들러 (자석 기능 해제: 드래그한 위치에 자연스럽게 유지)
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
     isDown.current = true;
+    hasDraggedRef.current = false;
     setIsDragging(true);
     const el = containerRef.current;
     if (!el) return;
@@ -984,55 +990,67 @@ export const ElmSld03: React.FC<{
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDown.current) return;
-    e.preventDefault();
-    e.stopPropagation();
     const el = containerRef.current;
     if (!el) return;
     const x = e.pageX - el.offsetLeft;
     const walk = (x - startXRef.current) * 1.5;
-    el.scrollLeft = scrollLeftRef.current - walk;
+    if (Math.abs(walk) > 4) {
+      hasDraggedRef.current = true;
+      el.scrollLeft = scrollLeftRef.current - walk;
+    }
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handleMouseUp = () => {
     if (!isDown.current) return;
-    e.stopPropagation();
     isDown.current = false;
     setIsDragging(false);
-    snapToNearest();
   };
 
   const handleMouseLeave = () => {
     if (isDown.current) {
       isDown.current = false;
       setIsDragging(false);
-      snapToNearest();
     }
   };
 
-  // 터치(모바일) 드래그 핸들러
+  // 터치(모바일) 드래그 핸들러: 상하 스와이프는 브라우저 수직 스크롤 허용
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   const touchScrollLeft = useRef(0);
+  const isHorizontalTouch = useRef<boolean | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
     const el = containerRef.current;
     if (!el) return;
     touchStartX.current = e.touches[0].pageX;
+    touchStartY.current = e.touches[0].pageY;
     touchScrollLeft.current = el.scrollLeft;
+    hasDraggedRef.current = false;
+    isHorizontalTouch.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    e.stopPropagation();
     const el = containerRef.current;
     if (!el) return;
     const x = e.touches[0].pageX;
-    const walk = (x - touchStartX.current) * 1.2;
-    el.scrollLeft = touchScrollLeft.current - walk;
+    const y = e.touches[0].pageY;
+    const diffX = x - touchStartX.current;
+    const diffY = y - touchStartY.current;
+
+    if (isHorizontalTouch.current === null && (Math.abs(diffX) > 5 || Math.abs(diffY) > 5)) {
+      isHorizontalTouch.current = Math.abs(diffX) > Math.abs(diffY);
+    }
+
+    if (isHorizontalTouch.current) {
+      // 가로 터치일 때만 스크롤 제어
+      e.stopPropagation();
+      hasDraggedRef.current = true;
+      el.scrollLeft = touchScrollLeft.current - diffX * 1.2;
+    }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    snapToNearest();
+  const handleTouchEnd = () => {
+    isHorizontalTouch.current = null;
   };
 
   // 버튼 명시적 클릭 이동 (한 개 요소/stepWidth 단위)
@@ -1060,7 +1078,7 @@ export const ElmSld03: React.FC<{
           <button
             type="button"
             onClick={handleNavPrev}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 z-20 w-8 h-8 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
             title="이전 항목 (1개 이동)"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -1068,7 +1086,7 @@ export const ElmSld03: React.FC<{
           <button
             type="button"
             onClick={handleNavNext}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 z-20 w-8 h-8 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
             title="다음 항목 (1개 이동)"
           >
             <ChevronRight className="w-4 h-4" />
@@ -1076,7 +1094,7 @@ export const ElmSld03: React.FC<{
         </>
       )}
 
-      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap, 드래그 & 휠 지원 */}
+      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 완전 해제, 드래그 & 휠 즉각 반영 */}
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
@@ -1086,10 +1104,17 @@ export const ElmSld03: React.FC<{
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`w-full flex items-center gap-3 overflow-x-auto py-2 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+        onClickCapture={(e) => {
+          if (hasDraggedRef.current) {
+            e.stopPropagation();
+            e.preventDefault();
+            hasDraggedRef.current = false;
+          }
+        }}
+        className={`w-full flex items-center gap-3 overflow-x-auto py-2 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none ${
           isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
         }`}
-        style={{ scrollBehavior: isDragging ? 'auto' : 'smooth' }}
+        style={{ scrollBehavior: 'auto', scrollSnapType: 'none' }}
       >
         {children}
       </div>

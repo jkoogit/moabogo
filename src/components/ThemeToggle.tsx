@@ -41,9 +41,9 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
     {
       mode: 'dawn',
       label: '여명 (블루)',
-      subtext: '미드나잇 청색',
-      icon: <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />,
-      colorDot: 'bg-blue-900 border border-sky-500',
+      subtext: '오션 스카이 블루',
+      icon: <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />,
+      colorDot: 'bg-blue-500 border border-blue-300',
     },
     {
       mode: 'system',
@@ -63,7 +63,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
           resolvedTheme === 'dawn'
-            ? 'bg-blue-950/80 hover:bg-blue-900 text-sky-200 border-blue-800 hover:border-blue-700'
+            ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 hover:border-blue-300 shadow-2xs'
             : resolvedTheme === 'dark'
             ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border-zinc-700 hover:border-zinc-600'
             : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-300 shadow-2xs'
@@ -79,7 +79,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
         <div
           className={`absolute right-0 mt-1.5 w-44 rounded-xl border shadow-2xl z-50 py-1 text-xs transition-all animate-in fade-in slide-in-from-top-1 ${
             resolvedTheme === 'dawn'
-              ? 'bg-slate-900 border-blue-900 text-slate-200 divide-y divide-blue-950/80'
+              ? 'bg-white border-blue-200 text-slate-800 shadow-blue-100/50 divide-y divide-blue-50'
               : resolvedTheme === 'dark'
               ? 'bg-zinc-900 border-zinc-700 text-zinc-200 divide-y divide-zinc-800'
               : 'bg-white border-slate-200 text-slate-800 shadow-slate-200/50 divide-y divide-slate-100'
@@ -99,12 +99,12 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
                   className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${
                     active
                       ? resolvedTheme === 'dawn'
-                        ? 'bg-blue-900/40 text-sky-300 font-bold'
+                        ? 'bg-blue-50 text-blue-700 font-bold'
                         : resolvedTheme === 'dark'
                         ? 'bg-zinc-800 text-zinc-100 font-bold'
                         : 'bg-indigo-50 text-indigo-700 font-bold'
                       : resolvedTheme === 'dawn'
-                      ? 'hover:bg-blue-950 text-slate-300'
+                      ? 'hover:bg-blue-50/70 text-slate-700'
                       : resolvedTheme === 'dark'
                       ? 'hover:bg-zinc-800 text-zinc-300'
                       : 'hover:bg-slate-50 text-slate-600'
@@ -123,7 +123,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
                     <span
                       className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                         resolvedTheme === 'dawn'
-                          ? 'bg-sky-400'
+                          ? 'bg-blue-600'
                           : resolvedTheme === 'dark'
                           ? 'bg-zinc-300'
                           : 'bg-indigo-600'
