@@ -45,7 +45,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const resolvedTheme: 'light' | 'dark' | 'dawn' =
     theme === 'system' ? (systemIsDark ? 'dark' : 'light') : theme;
 
-  const isDark = resolvedTheme === 'dark' || resolvedTheme === 'dawn';
+  // 야간(다크) 모드만 순수 다크로 취급 (여명 블루는 산뜻하고 시원한 별도 오션 블루 팔레트)
+  const isDark = resolvedTheme === 'dark';
 
   const setTheme = (mode: ThemeMode) => {
     setThemeState(mode);
