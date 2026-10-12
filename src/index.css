@@ -395,3 +395,42 @@ html.dawn nav {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
+
+/* =========================================================================
+   3. 텍스트 선택(Selection) 고대비 가독성 보장 규칙 (포커스 & 드래그 선택 시 글자 명확 표시)
+   ========================================================================= */
+::selection {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+input::selection,
+textarea::selection {
+  background-color: #6366f1 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+html.dark ::selection {
+  background-color: #4338ca !important;
+  color: #ffffff !important;
+}
+
+html.dark input::selection,
+html.dark textarea::selection {
+  background-color: #6366f1 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+html.dawn ::selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+html.dawn input::selection,
+html.dawn textarea::selection {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
