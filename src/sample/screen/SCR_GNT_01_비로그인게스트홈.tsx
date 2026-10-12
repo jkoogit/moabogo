@@ -786,10 +786,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </span>
             <div>
               <h2 className="text-base sm:text-lg font-bold leading-tight">
-                로그인 없이 바로 하는 모임 정산 & 게임
+                모임 정산 & 파티 게임
               </h2>
               <p className={`text-xs mt-0.5 ${resolvedTheme === 'dawn' ? 'text-blue-600' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                원하는 게임 탭을 선택하고 인원수와 가중치를 설정해 보세요.
+                원하는 게임 탭을 선택하고 인원수와 옵션을 설정해 보세요.
               </p>
             </div>
           </div>
@@ -913,66 +913,108 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     lang="ko"
                     onFocus={(e) => e.target.select()}
                   />
-                  {/* 만원/천원 증감 퀵 버튼 (요청 7번) */}
-                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustAmount(10000)}
-                      className={`px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
-                        resolvedTheme === 'dawn'
-                          ? 'bg-blue-100/80 border-blue-300 text-blue-800'
-                          : isDark
-                          ? 'bg-indigo-950/50 border-indigo-700/60 text-indigo-300'
-                          : 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                      }`}
-                    >
-                      +1만원
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustAmount(-10000)}
-                      disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 10000}
-                      className="px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs disabled:opacity-30 cursor-pointer active:scale-95"
-                    >
-                      -1만원
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustAmount(1000)}
-                      className={`px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
-                        resolvedTheme === 'dawn'
-                          ? 'bg-sky-100/80 border-sky-300 text-sky-800'
-                          : isDark
-                          ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
-                          : 'bg-slate-100 border-slate-300 text-slate-800'
-                      }`}
-                    >
-                      +1천원
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustAmount(-1000)}
-                      disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 1000}
-                      className="px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs disabled:opacity-30 cursor-pointer active:scale-95"
-                    >
-                      -1천원
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustAmount(50000)}
-                      className="px-2 py-1 text-xs rounded-lg border font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                    >
-                      +5만원
-                    </button>
-                    {amount && (
+                  {/* 만원/천원 증감 퀵 인디케이터 (11.2 개선: 좌측 고정 인디케이터 + 중앙 슬라이드 휠 칩 + 우측 고정 초기화) */}
+                  <div className="flex items-center justify-between gap-2 pt-1 w-full overflow-hidden">
+                    {/* 1. 좌측정렬 고정: [+ 만원 -] [+ 천원 -] 인디케이터 그룹 */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 만원 인디케이터 */}
+                      <div
+                        className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
+                          resolvedTheme === 'dawn'
+                            ? 'bg-blue-100/80 border-blue-300 text-blue-900'
+                            : isDark
+                            ? 'bg-indigo-950/60 border-indigo-700/60 text-indigo-300'
+                            : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustAmount(10000)}
+                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                          title="1만원 증가"
+                        >
+                          + 만원
+                        </button>
+                        <div className="w-[1px] h-3.5 bg-current opacity-20" />
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustAmount(-10000)}
+                          disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 10000}
+                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                          title="1만원 감소"
+                        >
+                          -
+                        </button>
+                      </div>
+
+                      {/* 천원 인디케이터 */}
+                      <div
+                        className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
+                          resolvedTheme === 'dawn'
+                            ? 'bg-sky-100/80 border-sky-300 text-sky-900'
+                            : isDark
+                            ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+                            : 'bg-slate-100 border-slate-300 text-slate-800'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustAmount(1000)}
+                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                          title="1천원 증가"
+                        >
+                          + 천원
+                        </button>
+                        <div className="w-[1px] h-3.5 bg-current opacity-20" />
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustAmount(-1000)}
+                          disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 1000}
+                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                          title="1천원 감소"
+                        >
+                          -
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. 중앙 영역: {1만원, 3만원, 5만원, 8만원, 10만원} 프리셋 칩 (가로 스크롤 삭제 및 유연한 래핑) */}
+                    <div className="flex-1 min-w-0 flex items-center justify-center gap-1 flex-wrap py-0.5">
+                      {[
+                        { label: '1만원', val: 10000 },
+                        { label: '3만원', val: 30000 },
+                        { label: '5만원', val: 50000 },
+                        { label: '8만원', val: 80000 },
+                        { label: '10만원', val: 100000 },
+                      ].map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          onClick={() => handleAdjustAmount(chip.val)}
+                          className={`px-2 py-1 text-xs rounded-lg border font-medium whitespace-nowrap transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
+                            resolvedTheme === 'dawn'
+                              ? 'bg-white/80 border-blue-200 text-blue-900 hover:bg-blue-50'
+                              : isDark
+                              ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          +{chip.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 3. 우측정렬 고정: 초기화 버튼 */}
+                    <div className="shrink-0">
                       <button
                         type="button"
                         onClick={() => setAmount('')}
-                        className="px-2 py-1 text-xs rounded-lg border text-rose-500 border-rose-200/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer font-medium"
+                        disabled={!amount}
+                        className="px-2.5 py-1 text-xs rounded-lg border text-rose-500 border-rose-200/60 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer font-medium whitespace-nowrap"
                       >
                         초기화
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -1346,13 +1388,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 {/* 3-A. 사다리 제어 & 주사위 셔플 헤더 바 */}
                 <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3 px-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 shrink-0">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>사다리 전 기둥 균등 분포 (3~4줄 보장)</span>
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium break-keep">
-                      {shuffleNotice || '모든 기둥 간격에 3~4개의 가로줄이 빈틈없이 완벽하게 균등 배치되어 있습니다.'}
-                    </span>
+                    {shuffleNotice && (
+                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 break-keep animate-in fade-in">
+                        {shuffleNotice}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
@@ -1361,17 +1401,17 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       onClick={handleShuffleGoals}
                       disabled={isLadderTracing}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
-                      title="당첨 및 통과 목표의 순서를 무작위로 섞습니다"
+                      title="당첨 및 통과 목표의 순서를 무작위로 재배치합니다"
                     >
                       <span className="text-sm">🎯</span>
-                      <span className="whitespace-nowrap">목표 셔플</span>
+                      <span className="whitespace-nowrap">목표 재배치</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleShuffleLadder}
                       disabled={isLadderTracing}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
-                      title="사다리 가로줄을 새로운 무작위 배치로 섞습니다"
+                      title="사다리 가로줄을 새로운 무작위 배치로 재배치합니다"
                     >
                       <span
                         className="text-sm inline-block transition-transform duration-500"
@@ -1379,7 +1419,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       >
                         🎲
                       </span>
-                      <span className="whitespace-nowrap">주사위 셔플 (사다리 재배치)</span>
+                      <span className="whitespace-nowrap">사다리 재배치</span>
                     </button>
                   </div>
                 </div>
@@ -2015,8 +2055,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       })()}
                     </div>
 
-                    {/* 1 & 2. 결과 닫기 버튼 및 다시 사다리 타기 (재배치 후 즉시 실행) */}
+                    {/* 1 & 2. 다시 사다리 타기 (주 액션 전방 배치) 및 결과 닫기 (후방 배치) */}
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handlePlayAgain}
+                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                        <span className="whitespace-nowrap">다시 사다리 타기</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setLadderResult(null)}
@@ -2024,14 +2072,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       >
                         <X className="w-3.5 h-3.5 shrink-0" />
                         <span className="whitespace-nowrap">결과 닫기</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handlePlayAgain}
-                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-                        <span className="whitespace-nowrap">다시 사다리 타기</span>
                       </button>
                     </div>
                   </div>

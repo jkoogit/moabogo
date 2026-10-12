@@ -25,9 +25,14 @@ import {
   ArrowRightLeft,
   Calendar,
   Layers,
+  ChevronLeft,
 } from 'lucide-react';
 
-export const SCR_LED_01_그룹가계부관리상세: React.FC = () => {
+interface SCR_LED_01_Props {
+  onBack?: () => void;
+}
+
+export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> = ({ onBack }) => {
   const [activeLedgerType, setActiveLedgerType] = useState<'GROUP' | 'PERSONAL' | 'INSTANCE'>('GROUP');
   const [searchWord, setSearchWord] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
@@ -43,14 +48,17 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC = () => {
     { id: 'g1', name: '게스트 정현우', role: 'VIEWER', isGuest: true },
   ]);
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim()) return;
 
     if (activeLedgerType === 'GROUP' && isGuest) {
-      alert('[정책 가드레일] 정규 그룹 가계부는 정식 가입 회원만 참여할 수 있습니다. (개별/인스턴스 가계부는 게스트 허용)');
+      setErrorMessage('[정책 가드레일] 정규 그룹 가계부는 정식 가입 회원만 참여할 수 있습니다. (개별/인스턴스 가계부는 게스트 허용)');
       return;
     }
+    setErrorMessage(null);
 
     setMembers([
       ...members,
@@ -69,15 +77,27 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC = () => {
     <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50 min-h-screen text-slate-900">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
-              SCR-LED-01
-            </span>
-            <ElmTyp01
-              title="가계부 관리 및 구성원 RBAC 상세"
-              subtitle="그룹 가계부(회원필수) vs 개별/인스턴스(게스트허용) 정책 분리"
-            />
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 hover:border-indigo-400 text-slate-700 hover:text-indigo-600 transition-all shadow-2xs cursor-pointer flex items-center justify-center shrink-0"
+              title="대시보드로 돌아가기"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                SCR-LED-01
+              </span>
+              <ElmTyp01
+                title="가계부 관리 및 구성원 RBAC 상세"
+                subtitle="그룹 가계부(회원필수) vs 개별/인스턴스(게스트허용) 정책 분리"
+              />
+            </div>
           </div>
         </div>
 
@@ -90,7 +110,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC = () => {
             <span>구성원 관리 ({members.length}명)</span>
           </button>
           <button
-            onClick={() => alert('새 가계부 생성 모달 호출')}
+            onClick={() => setErrorMessage('새 가계부 등록은 상단 모달 및 대시보드 책꽂이에서 지원됩니다.')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -98,6 +118,13 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-800 text-xs font-bold flex items-center justify-between">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+      )}
 
       {/* Ledger Type Switcher & Policy Notice */}
       <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3">

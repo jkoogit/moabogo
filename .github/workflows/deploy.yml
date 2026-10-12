@@ -46,3 +46,9 @@ jobs:
           tags: ${{ steps.tagger.outputs.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          
+      - name: Trigger Instant Watchtower Deployment
+        run: |
+          curl -X POST \
+               -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+               https://wt.moabogo.com/v1/update
