@@ -55,12 +55,13 @@ const PRESET_CHARACTERS = [
 const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑'];
 const LADDER_COL_WIDTH = 84; // 사다리 열 고정 폭 (84px 완벽 통일)
 
-// 목표 기본 텍스트 생성: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)...
+// 목표 기본 텍스트 생성: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)... (안전 범위 보장)
 const generateDefaultLadderGoals = (total: number, winners: number) => {
   let selectIdx = 1;
   let passIdx = 1;
+  const safeWinners = Math.max(1, Math.min(total - 1, winners));
   return Array.from({ length: total }, (_, i) => {
-    if (i < winners) {
+    if (i < safeWinners) {
       return { text: `선택 ${selectIdx++}`, icon: '🎁' };
     } else {
       return { text: `통과 ${passIdx++}`, icon: '💨' };
@@ -200,6 +201,38 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     );
   };
 
+  // 7. 정산 만원 프리셋 슬라이드 드래그/휠 스크롤 Ref & 핸들러
+  const presetScrollRef = React.useRef<HTMLDivElement>(null);
+  const isDraggingPresetRef = React.useRef(false);
+  const presetStartXRef = React.useRef(0);
+  const presetScrollLeftRef = React.useRef(0);
+
+  const handlePresetWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+  };
+
+  const handlePresetMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    isDraggingPresetRef.current = true;
+    if (presetScrollRef.current) {
+      presetStartXRef.current = e.pageX - presetScrollRef.current.offsetLeft;
+      presetScrollLeftRef.current = presetScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handlePresetMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingPresetRef.current || !presetScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - presetScrollRef.current.offsetLeft;
+    const walk = (x - presetStartXRef.current) * 1.5;
+    presetScrollRef.current.scrollLeft = presetScrollLeftRef.current - walk;
+  };
+
+  const handlePresetMouseUpOrLeave = () => {
+    isDraggingPresetRef.current = false;
+  };
+
   // 7. 정산 금액 만원/천원 증감 핸들러
   const handleAdjustAmount = (delta: number) => {
     const cur = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
@@ -245,6 +278,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   // 1 & 2 & 3. 발자국 추적용 ElmSld03 Ref 및 목적 도착 1초 팝업 & 일시정지 제어 상태
   const ladderSliderRef = useRef<HTMLDivElement>(null);
+
+  // 4-C. 사다리 카메라 추적: 출발/도착 시 안전 앵커링 (메인 이동은 애니메이션 루프 내 선제 예측 추적)
   const [arrivalPopup, setArrivalPopup] = useState<{
     member: Participant;
     result: { goalIndex: number; text: string; icon: string; isWinner: boolean };
@@ -268,17 +303,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     };
   }, []);
 
-  // 목표 칸 수 동기화: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)... 순번 유지
+  // 목표 칸 수 및 당첨인원 실시간 동기화: winnerCount 변경 시 다중 당첨 슬롯(🎁) 즉각 반영
   useEffect(() => {
-    setLadderGoals((prev) => {
-      const needed = members.length;
-      if (prev.length === needed) {
-        return prev;
-      }
-      return generateDefaultLadderGoals(needed, winnerCount);
-    });
-    if (winnerCount >= members.length) {
-      setWinnerCount(Math.max(1, members.length - 1));
+    const needed = members.length;
+    const safeWinners = Math.max(1, Math.min(needed - 1, winnerCount));
+    setLadderGoals(generateDefaultLadderGoals(needed, safeWinners));
+    if (winnerCount >= needed) {
+      setWinnerCount(Math.max(1, needed - 1));
     }
   }, [members.length, winnerCount]);
 
@@ -501,6 +532,17 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
       const currentMember = members[idx];
       setActiveTracingMemberIndex(idx);
+
+      // 출발 참가자 위치로 카메라 가로 스크롤 선제 이동
+      if (ladderSliderRef.current) {
+        const el = ladderSliderRef.current;
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (maxScroll > 0) {
+          const startX = idx * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
+          const targetScroll = Math.max(0, Math.min(maxScroll, startX - el.clientWidth / 2));
+          el.scrollTo({ left: targetScroll, behavior: 'smooth' });
+        }
+      }
       const memberPoints = paths[currentMember.id] || [];
       const trailHistory: { x: number; y: number }[] = [];
 
@@ -512,6 +554,28 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           setCurrentTracerPosition(pt);
           trailHistory.push(pt);
           setCurrentTracedTrail([...trailHistory]);
+
+          // 한 템포 앞선 예측형 선제 카메라 추적 (Pre-emptive Lookahead Camera Tracking)
+          // 마크가 도착하기 전에 6~8스텝 앞선 미래 경로를 미리 내다보고 화면을 선제적으로 이동
+          if (ladderSliderRef.current) {
+            const el = ladderSliderRef.current;
+            const maxScroll = el.scrollWidth - el.clientWidth;
+            if (maxScroll > 0) {
+              const lookaheadIdx = Math.min(memberPoints.length - 1, stepIdx + 7);
+              const futureX = memberPoints[lookaheadIdx]?.x ?? pt.x;
+              // 이동 방향(좌 또는 우)으로 시야를 35px 더 선제 확보하여 마크가 항상 화면 중심에 안착되도록 리드
+              const leadOffset = futureX > pt.x ? 35 : futureX < pt.x ? -35 : 0;
+              const targetCenterScroll = futureX + leadOffset - el.clientWidth / 2;
+              const clampedScroll = Math.max(0, Math.min(maxScroll, targetCenterScroll));
+
+              // 프레임 틱 단위 신속 보간 (선제적으로 화면을 앞당겨 토큰보다 먼저 뷰포트 확보)
+              const diff = clampedScroll - el.scrollLeft;
+              if (Math.abs(diff) > 1.5) {
+                el.scrollLeft += diff * 0.4;
+              }
+            }
+          }
+
           stepIdx++;
         } else {
           if (stepIntervalRef.current) {
@@ -913,111 +977,127 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     lang="ko"
                     onFocus={(e) => e.target.select()}
                   />
-                  {/* 만원/천원 증감 퀵 인디케이터 (11.2 개선: 좌측 고정 인디케이터 + 중앙 슬라이드 휠 칩 + 우측 고정 초기화) */}
-                  <div className="flex items-center justify-between gap-2 pt-1 w-full overflow-hidden">
-                    {/* 1. 좌측정렬 고정: [+ 만원 -] [+ 천원 -] 인디케이터 그룹 */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {/* 만원 인디케이터 */}
-                      <div
-                        className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
-                          resolvedTheme === 'dawn'
-                            ? 'bg-blue-100/80 border-blue-300 text-blue-900'
-                            : isDark
-                            ? 'bg-indigo-950/60 border-indigo-700/60 text-indigo-300'
-                            : 'bg-indigo-50 border-indigo-200 text-indigo-800'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleAdjustAmount(10000)}
-                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-                          title="1만원 증가"
+                  {/* 만원/천원 증감 퀵 인디케이터 (PC·태블릿·모바일 통일: 1행 인디케이터+초기화 / 2행 만원단위 슬라이드 휠 칩) */}
+                  <div className="flex flex-col gap-2 pt-1 w-full overflow-hidden">
+                    {/* 1행: 좌측 [+ 만원 -] [+ 천원 -] 인디케이터 & 우측 초기화 버튼 */}
+                    <div className="flex items-center justify-between gap-2 w-full shrink-0">
+                      {/* 좌측 인디케이터 그룹 */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* 만원 인디케이터 */}
+                        <div
+                          className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
+                            resolvedTheme === 'dawn'
+                              ? 'bg-blue-100/80 border-blue-300 text-blue-900'
+                              : isDark
+                              ? 'bg-indigo-950/60 border-indigo-700/60 text-indigo-300'
+                              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                          }`}
                         >
-                          + 만원
-                        </button>
-                        <div className="w-[1px] h-3.5 bg-current opacity-20" />
-                        <button
-                          type="button"
-                          onClick={() => handleAdjustAmount(-10000)}
-                          disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 10000}
-                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
-                          title="1만원 감소"
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustAmount(10000)}
+                            className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                            title="1만원 증가"
+                          >
+                            + 만원
+                          </button>
+                          <div className="w-[1px] h-3.5 bg-current opacity-20" />
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustAmount(-10000)}
+                            disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 10000}
+                            className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                            title="1만원 감소"
+                          >
+                            -
+                          </button>
+                        </div>
+                        {/* 천원 인디케이터 */}
+                        <div
+                          className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
+                            resolvedTheme === 'dawn'
+                              ? 'bg-sky-100/80 border-sky-300 text-sky-900'
+                              : isDark
+                              ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+                              : 'bg-slate-100 border-slate-300 text-slate-800'
+                          }`}
                         >
-                          -
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustAmount(1000)}
+                            className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                            title="1천원 증가"
+                          >
+                            + 천원
+                          </button>
+                          <div className="w-[1px] h-3.5 bg-current opacity-20" />
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustAmount(-1000)}
+                            disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 1000}
+                            className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                            title="1천원 감소"
+                          >
+                            -
+                          </button>
+                        </div>
                       </div>
 
-                      {/* 천원 인디케이터 */}
-                      <div
-                        className={`inline-flex items-center rounded-lg border overflow-hidden shadow-2xs ${
-                          resolvedTheme === 'dawn'
-                            ? 'bg-sky-100/80 border-sky-300 text-sky-900'
-                            : isDark
-                            ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
-                            : 'bg-slate-100 border-slate-300 text-slate-800'
-                        }`}
-                      >
+                      {/* 우측 초기화 버튼 */}
+                      <div className="shrink-0">
                         <button
                           type="button"
-                          onClick={() => handleAdjustAmount(1000)}
-                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-                          title="1천원 증가"
+                          onClick={() => setAmount('')}
+                          disabled={!amount}
+                          className="px-2.5 py-1 text-xs rounded-lg border text-rose-500 border-rose-200/60 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer font-medium whitespace-nowrap"
+                          title="입력 금액 초기화"
                         >
-                          + 천원
-                        </button>
-                        <div className="w-[1px] h-3.5 bg-current opacity-20" />
-                        <button
-                          type="button"
-                          onClick={() => handleAdjustAmount(-1000)}
-                          disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 1000}
-                          className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
-                          title="1천원 감소"
-                        >
-                          -
+                          초기화
                         </button>
                       </div>
                     </div>
 
-                    {/* 2. 중앙 영역: {1만원, 3만원, 5만원, 8만원, 10만원} 프리셋 칩 (가로 스크롤 삭제 및 유연한 래핑) */}
-                    <div className="flex-1 min-w-0 flex items-center justify-center gap-1 flex-wrap py-0.5">
+                    {/* 2행: 만원단위 슬라이드드래그휠 영역 (PC·태블릿·모바일 통일 전폭 w-full) */}
+                    <div
+                      ref={presetScrollRef}
+                      onWheel={handlePresetWheel}
+                      onMouseDown={handlePresetMouseDown}
+                      onMouseMove={handlePresetMouseMove}
+                      onMouseUp={handlePresetMouseUpOrLeave}
+                      onMouseLeave={handlePresetMouseUpOrLeave}
+                      className="w-full flex items-center gap-1.5 overflow-x-auto py-1 px-1 cursor-grab active:cursor-grabbing select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      title="마우스 휠 또는 좌우 드래그로 탐색할 수 있습니다."
+                    >
                       {[
                         { label: '1만원', val: 10000 },
+                        { label: '2만원', val: 20000 },
                         { label: '3만원', val: 30000 },
                         { label: '5만원', val: 50000 },
+                        { label: '7만원', val: 70000 },
                         { label: '8만원', val: 80000 },
                         { label: '10만원', val: 100000 },
+                        { label: '20만원', val: 200000 },
+                        { label: '30만원', val: 300000 },
+                        { label: '50만원', val: 500000 },
                       ].map((chip) => (
                         <button
                           key={chip.label}
                           type="button"
                           onClick={() => handleAdjustAmount(chip.val)}
-                          className={`px-2 py-1 text-xs rounded-lg border font-medium whitespace-nowrap transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
+                          className={`shrink-0 px-2.5 py-1 text-xs rounded-lg border font-semibold whitespace-nowrap transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer ${
                             resolvedTheme === 'dawn'
-                              ? 'bg-white/80 border-blue-200 text-blue-900 hover:bg-blue-50'
+                              ? 'bg-white/90 border-blue-200 text-blue-900 hover:bg-blue-50 hover:border-blue-400'
                               : isDark
-                              ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                              ? 'bg-zinc-800/90 border-zinc-700 text-zinc-200 hover:bg-zinc-700 hover:border-indigo-500'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300'
                           }`}
                         >
                           +{chip.label}
                         </button>
                       ))}
                     </div>
-
-                    {/* 3. 우측정렬 고정: 초기화 버튼 */}
-                    <div className="shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        disabled={!amount}
-                        className="px-2.5 py-1 text-xs rounded-lg border text-rose-500 border-rose-200/60 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer font-medium whitespace-nowrap"
-                      >
-                        초기화
-                      </button>
-                    </div>
                   </div>
                 </div>
-
                 {/* 정산 인원수 */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1091,7 +1171,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         <span>{m.avatar}</span>
                         <input
                           type="text"
+                          lang="ko"
                           value={m.name}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
                           className="w-16 bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500"
                         />
@@ -1456,10 +1538,12 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               >
                                 {m.avatar}
                               </span>
-                              {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea */}
+                              {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea (포커스온 전체선택) */}
                               <textarea
                                 rows={2}
+                                lang="ko"
                                 value={m.name}
+                                onFocus={(e) => e.target.select()}
                                 onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
                                 className="text-[11px] font-bold text-center w-[76px] bg-transparent outline-none resize-none overflow-hidden leading-tight break-words py-0.5 border-b border-transparent focus:border-indigo-500"
                               />
@@ -2134,7 +2218,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       onChange={(e) => setUseRouletteWeight(e.target.checked)}
                       className="w-4 h-4 text-indigo-600 rounded-sm"
                     />
-                    <span className="text-xs font-bold">확률 가중치 설정</span>
+                    <span className="text-xs font-bold">확률 가중치 및 참가자 이름 설정</span>
                   </label>
 
                   {useRouletteWeight && (
@@ -2149,13 +2233,23 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                           return (
                             <div
                               key={m.id}
-                              className="flex items-center justify-between p-2 rounded-lg border bg-black/10"
+                              className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10"
                             >
-                              <span className="flex items-center gap-1.5 text-xs font-bold">
-                                <span>{m.avatar}</span>
-                                <span>{m.name}</span>
-                              </span>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <span className="text-base">{m.avatar}</span>
+                                <input
+                                  type="text"
+                                  lang="ko"
+                                  inputMode="text"
+                                  autoCapitalize="none"
+                                  autoCorrect="off"
+                                  value={m.name}
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                                  className="w-20 sm:w-28 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => updateMemberWeight(m.id, -1)}
@@ -2219,7 +2313,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             }`}
                           >
                             <span>{m.avatar}</span>
-                            <span>{m.name}</span>
+                            <input
+                              type="text"
+                              lang="ko"
+                              value={m.name}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                              className="w-16 sm:w-20 bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500 text-center"
+                            />
                           </span>
                         </div>
                       );
