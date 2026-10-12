@@ -5,11 +5,21 @@ import { Layers } from 'lucide-react';
 export const MoaLogo: React.FC<{
   className?: string;
   showTag?: boolean;
-}> = ({ className = '', showTag = true }) => {
+  onClick?: () => void;
+}> = ({ className = '', showTag = true, onClick }) => {
   const { resolvedTheme } = useTheme();
 
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`flex items-center gap-2.5 select-none transition-all ${
+        onClick ? 'cursor-pointer hover:opacity-85 active:scale-95' : ''
+      } ${className}`}
+      title={onClick ? '모아보고 홈으로 이동' : undefined}
+    >
       {/* Visual Icon Badge - Theme Aware Semantic Styling */}
       <div
         className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold shrink-0 transition-all ${

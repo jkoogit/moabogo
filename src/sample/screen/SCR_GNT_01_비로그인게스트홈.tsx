@@ -52,8 +52,67 @@ const PRESET_CHARACTERS = [
   { avatar: '🐸', color: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-100 border-green-300 dark:bg-green-950/40 dark:border-green-800' },
 ];
 
-const TARGET_ICONS = ['🎁', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑'];
+const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑'];
 const LADDER_COL_WIDTH = 84; // 사다리 열 고정 폭 (84px 완벽 통일)
+
+// 목표 기본 텍스트 생성: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)...
+const generateDefaultLadderGoals = (total: number, winners: number) => {
+  let selectIdx = 1;
+  let passIdx = 1;
+  return Array.from({ length: total }, (_, i) => {
+    if (i < winners) {
+      return { text: `선택 ${selectIdx++}`, icon: '🎁' };
+    } else {
+      return { text: `통과 ${passIdx++}`, icon: '💨' };
+    }
+  });
+};
+
+// 기본 사다리 가로줄 동적 생성 함수 (전체 기둥 간격마다 3~4개씩 빈틈없이 완벽 균등 분포 보장 & 행 충돌 0% 보장 알고리즘)
+const generateLadderRungs = (cols: number, seed: number) => {
+  const rows = 10;
+  const rungs: { col: number; row: number }[] = [];
+
+  // 시드 기반 균일 의사 난수 생성기
+  let s = (seed * 41 + cols * 67 + 101) % 233280;
+  const pseudoRand = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+
+  // 주사위 시드에 따라 간격별 시작 위상을 무작위로 결정
+  const phaseOffset = pseudoRand() > 0.5 ? 1 : 0;
+
+  // 1단계: 모든 인접 기둥 간격(c: 0 ~ cols - 2)에 대해 3~4개의 가로줄을 균등하게 생성
+  for (let c = 0; c < cols - 1; c++) {
+    const isEvenColGroup = (c + phaseOffset) % 2 === 0;
+    const candidateRows = isEvenColGroup ? [0, 2, 4, 6, 8] : [1, 3, 5, 7, 9];
+
+    const shuffled = [...candidateRows].sort(() => pseudoRand() - 0.5);
+    const pickCount = pseudoRand() > 0.35 ? 3 : 4;
+    const selected = shuffled.slice(0, pickCount);
+
+    selected.forEach((r) => {
+      rungs.push({ col: c, row: r });
+    });
+  }
+
+  // 2단계: 다채로운 교차를 위해 안전한 빈 슬롯에 무작위 크로스 브릿지 추가 (충돌 검사 필수)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const alreadyHas = rungs.some((item) => item.row === r && item.col === c);
+      if (!alreadyHas) {
+        const leftHas = rungs.some((item) => item.row === r && item.col === c - 1);
+        const rightHas = rungs.some((item) => item.row === r && item.col === c + 1);
+        if (!leftHas && !rightHas && pseudoRand() > 0.72) {
+          rungs.push({ col: c, row: r });
+        }
+      }
+    }
+  }
+
+  return rungs;
+};
 
 export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   onGoLogin?: () => void;
@@ -141,6 +200,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     );
   };
 
+  // 7. 정산 금액 만원/천원 증감 핸들러
+  const handleAdjustAmount = (delta: number) => {
+    const cur = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
+    const next = Math.max(0, cur + delta);
+    setAmount(next > 0 ? next.toString() : '');
+  };
+
   const handleCopySettlementText = () => {
     const text = `[모아보고 인원정산]\n총 금액: ${settlementSummary.total.toLocaleString()}원 (${members.length}명)\n1인당 송금액: ${settlementSummary.perPerson.toLocaleString()}원\n함께 정산해요!`;
     navigator.clipboard?.writeText(text);
@@ -153,13 +219,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // ---------------------------------------------------------------------------
   const [useLadderWeight, setUseLadderWeight] = useState<boolean>(false);
   const [winnerCount, setWinnerCount] = useState<number>(1);
-  const [ladderGoals, setLadderGoals] = useState<{ text: string; icon: string }[]>([
-    { text: '커피 쏘기', icon: '☕' },
-    { text: '통과', icon: '❌' },
-    { text: '간식 쏘기', icon: '🍗' },
-    { text: '통과', icon: '❌' },
-    { text: '통과', icon: '❌' },
-  ]);
+  const [ladderGoals, setLadderGoals] = useState<{ text: string; icon: string }[]>(() =>
+    generateDefaultLadderGoals(5, 1)
+  );
   const [ladderResult, setLadderResult] = useState<{
     [memberId: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean };
   } | null>(null);
@@ -171,13 +233,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [currentTracedTrail, setCurrentTracedTrail] = useState<{ x: number; y: number }[]>([]);
   const [revealedGoals, setRevealedGoals] = useState<{ [memberId: string]: boolean }>({});
 
-  // 3. 사다리 속도 조절 5단계 옵션 (0.5x 2배 느림 ~ 1.5x 1.5배 빠름)
+  // 3. 사다리 속도 조절 5단계 옵션 (괄호 표기 제거)
   const LADDER_SPEED_OPTIONS = [
-    { value: 0.5, label: '0.5x (2배 느림)', interval: 40 },
+    { value: 0.5, label: '0.5x', interval: 40 },
     { value: 0.75, label: '0.75x', interval: 27 },
-    { value: 1.0, label: '1.0x (보통)', interval: 20 },
+    { value: 1.0, label: '1.0x', interval: 20 },
     { value: 1.25, label: '1.25x', interval: 16 },
-    { value: 1.5, label: '1.5x (1.5배 빠름)', interval: 13 },
+    { value: 1.5, label: '1.5x', interval: 13 },
   ];
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
 
@@ -192,30 +254,28 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   } | null>(null);
   const [isArrivalPaused, setIsArrivalPaused] = useState<boolean>(false);
   const [arrivalCountdown, setArrivalCountdown] = useState<number>(100);
+  const stepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const arrivalTimerRef = useRef<NodeJS.Timeout | null>(null);
   const arrivalIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const nextStepActionRef = useRef<(() => void) | null>(null);
 
-  // 언마운트 시 도착 타이머 정리
+  // 언마운트 시 사다리 타이머 및 인터벌 정리
   useEffect(() => {
     return () => {
+      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
       if (arrivalTimerRef.current) clearTimeout(arrivalTimerRef.current);
       if (arrivalIntervalRef.current) clearInterval(arrivalIntervalRef.current);
     };
   }, []);
 
-  // 목표 칸 수 동기화
+  // 목표 칸 수 동기화: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)... 순번 유지
   useEffect(() => {
     setLadderGoals((prev) => {
       const needed = members.length;
-      if (prev.length < needed) {
-        const added = Array.from({ length: needed - prev.length }).map((_, i) => ({
-          text: (prev.length + i) < winnerCount ? '당첨 🎁' : '통과',
-          icon: (prev.length + i) < winnerCount ? '🎁' : '❌',
-        }));
-        return [...prev, ...added];
+      if (prev.length === needed) {
+        return prev;
       }
-      return prev.slice(0, needed);
+      return generateDefaultLadderGoals(needed, winnerCount);
     });
     if (winnerCount >= members.length) {
       setWinnerCount(Math.max(1, members.length - 1));
@@ -234,34 +294,64 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     );
   };
 
-  // 사다리 가로줄 동적 생성
+  // 3-1. 사다리 주사위 셔플 시드 및 알림 상태
+  const [ladderSeed, setLadderSeed] = useState<number>(() => Math.floor(Math.random() * 1000000));
+  const [isDiceRolling, setIsDiceRolling] = useState<boolean>(false);
+  const [shuffleNotice, setShuffleNotice] = useState<string | null>(null);
+  const [revealedGoalCols, setRevealedGoalCols] = useState<{
+    [col: number]: { memberName: string; avatar: string; isWinner: boolean };
+  }>({});
+
+  // 기본 사다리 가로줄 동적 생성
   const ladderRungs = useMemo(() => {
-    const cols = members.length;
-    const rungs: { col: number; row: number }[] = [];
-    const rows = 8;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols - 1; c++) {
-        const prevColHas = rungs.some((item) => item.row === r && item.col === c - 1);
-        if (!prevColHas && ((r * 3 + c * 2 + 1) % 3 === 0 || (r + c) % 2 === 0)) {
-          rungs.push({ col: c, row: r });
-        }
-      }
-    }
-    return rungs;
-  }, [members.length]);
+    return generateLadderRungs(members.length, ladderSeed);
+  }, [members.length, ladderSeed]);
+
+  // 주사위 셔플 (사다리 가로줄 균형 무작위 재배치)
+  const handleShuffleLadder = () => {
+    if (isLadderTracing) return;
+    setIsDiceRolling(true);
+    setLadderSeed((prev) => prev + Math.floor(Math.random() * 500000) + 1);
+    setLadderResult(null);
+    setRevealedGoals({});
+    setRevealedGoalCols({});
+    setArrivalPopup(null);
+    setShuffleNotice('🎲 주사위를 굴려 모든 사다리 경로가 완벽한 균형으로 새롭게 재배치되었습니다!');
+    setTimeout(() => {
+      setIsDiceRolling(false);
+    }, 450);
+    setTimeout(() => {
+      setShuffleNotice(null);
+    }, 3000);
+  };
+
+  // 목표(당첨/통과) 순서 무작위 셔플
+  const handleShuffleGoals = () => {
+    if (isLadderTracing) return;
+    setLadderGoals((prev) => [...prev].sort(() => Math.random() - 0.5));
+    setLadderResult(null);
+    setRevealedGoals({});
+    setRevealedGoalCols({});
+    setArrivalPopup(null);
+    setShuffleNotice('🎯 당첨 및 통과 목표 위치가 무작위로 섞였습니다!');
+    setTimeout(() => {
+      setShuffleNotice(null);
+    }, 2500);
+  };
 
   // 3 & 4. 정확한 X, Y 웨이포인트 경로 계산 및 부드러운 스텝 보간 (LADDER_COL_WIDTH = 84px)
-  const computeLadderPaths = () => {
+  const computeLadderPaths = (customRungs?: { col: number; row: number }[]) => {
     const cols = members.length;
-    const rows = 8;
+    const rows = 10;
+    const activeRungs = customRungs || ladderRungs;
     const results: { [id: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean } } = {};
     const paths: { [id: string]: { x: number; y: number }[] } = {};
 
     const colWidth = LADDER_COL_WIDTH;
     const startY = 12;
-    const endY = 238;
+    const endY = 244;
     const getX = (col: number) => col * colWidth + colWidth / 2;
-    const getRungY = (r: number) => 32 + r * 25;
+    const getRungY = (r: number) => 28 + r * 22;
 
     members.forEach((member, startCol) => {
       let currentCol = startCol;
@@ -274,7 +364,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         waypoints.push({ x: getX(currentCol), y: rungY });
 
         // 오른쪽 다리가 있는가?
-        const rightRung = ladderRungs.some((item) => item.row === r && item.col === currentCol);
+        const rightRung = activeRungs.some((item) => item.row === r && item.col === currentCol);
         if (rightRung) {
           currentCol += 1;
           waypoints.push({ x: getX(currentCol), y: rungY });
@@ -282,7 +372,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         }
 
         // 왼쪽 다리가 있는가?
-        const leftRung = ladderRungs.some((item) => item.row === r && item.col === currentCol - 1);
+        const leftRung = activeRungs.some((item) => item.row === r && item.col === currentCol - 1);
         if (leftRung) {
           currentCol -= 1;
           waypoints.push({ x: getX(currentCol), y: rungY });
@@ -310,8 +400,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       densePoints.push(waypoints[waypoints.length - 1]);
       paths[member.id] = densePoints;
 
-      const finalGoal = ladderGoals[currentCol] || { text: '통과', icon: '❌' };
-      const isWinner = finalGoal.text.includes('당첨') || finalGoal.icon === '🎁' || finalGoal.icon === '☕';
+      const finalGoal = ladderGoals[currentCol] || { text: '통과 1', icon: '💨' };
+      const isWinner = finalGoal.text.includes('선택') || finalGoal.text.includes('당첨') || finalGoal.icon === '🎁' || finalGoal.icon === '☕';
       results[member.id] = {
         goalIndex: currentCol,
         text: finalGoal.text,
@@ -323,31 +413,80 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     return { results, paths };
   };
 
-  // 4. 사다리 실행 애니메이션: 부드럽게 한 명씩 이동 + 발자국 화면 스크롤 추적 + 목적 도착 1초 팝업 (일시정지 지원)
-  const handlePlayLadder = (skipTrace = false) => {
-    if (arrivalTimerRef.current) clearTimeout(arrivalTimerRef.current);
-    if (arrivalIntervalRef.current) clearInterval(arrivalIntervalRef.current);
+  // 4. 사다리 즉시 생략 및 최종 결과 바로 표시 (사다리 진행 중간 언제든 즉시 종료 지원)
+  const handleSkipToResult = () => {
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
+    }
+    if (arrivalTimerRef.current) {
+      clearTimeout(arrivalTimerRef.current);
+      arrivalTimerRef.current = null;
+    }
+    if (arrivalIntervalRef.current) {
+      clearInterval(arrivalIntervalRef.current);
+      arrivalIntervalRef.current = null;
+    }
+    nextStepActionRef.current = null;
+
+    setArrivalPopup(null);
+    setIsArrivalPaused(false);
+    setIsLadderTracing(false);
+    setActiveTracingMemberIndex(null);
+    setCurrentTracerPosition(null);
+    setCurrentTracedTrail([]);
+
+    const { results } = computeLadderPaths();
+    const allRev: { [id: string]: boolean } = {};
+    const allGoalCols: { [col: number]: { memberName: string; avatar: string; isWinner: boolean } } = {};
+    members.forEach((m) => {
+      allRev[m.id] = true;
+      if (results[m.id]) {
+        allGoalCols[results[m.id].goalIndex] = {
+          memberName: m.name,
+          avatar: m.avatar,
+          isWinner: results[m.id].isWinner,
+        };
+      }
+    });
+
+    setRevealedGoals(allRev);
+    setRevealedGoalCols(allGoalCols);
+    setLadderResult(results);
+  };
+
+  // 기존 호환용 alias
+  const handleSkipAllArrivals = handleSkipToResult;
+
+  // 4-B. 사다리 실행 애니메이션: 부드럽게 한 명씩 이동 + 발자국 표시 (게임 실행 시 화면/스크롤 불필요 이동 차단)
+  const handlePlayLadder = (skipTrace = false, customRungs?: { col: number; row: number }[]) => {
+    if (skipTrace) {
+      handleSkipToResult();
+      return;
+    }
+
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
+    }
+    if (arrivalTimerRef.current) {
+      clearTimeout(arrivalTimerRef.current);
+      arrivalTimerRef.current = null;
+    }
+    if (arrivalIntervalRef.current) {
+      clearInterval(arrivalIntervalRef.current);
+      arrivalIntervalRef.current = null;
+    }
     setArrivalPopup(null);
     setIsArrivalPaused(false);
 
-    const { results, paths } = computeLadderPaths();
-
-    if (skipTrace) {
-      setLadderResult(results);
-      setIsLadderTracing(false);
-      setActiveTracingMemberIndex(null);
-      setCurrentTracerPosition(null);
-      setCurrentTracedTrail([]);
-      const allRev: { [id: string]: boolean } = {};
-      members.forEach((m) => { allRev[m.id] = true; });
-      setRevealedGoals(allRev);
-      return;
-    }
+    const { results, paths } = computeLadderPaths(customRungs);
 
     setIsLadderTracing(true);
     setLadderResult(null);
     setCurrentTracedTrail([]);
     setRevealedGoals({});
+    setRevealedGoalCols({});
 
     // 한 명씩 순차적으로 사다리 타기
     const animateMember = (idx: number) => {
@@ -366,29 +505,34 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       const trailHistory: { x: number; y: number }[] = [];
 
       let stepIdx = 0;
-      const stepInterval = setInterval(() => {
+      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = setInterval(() => {
         if (stepIdx < memberPoints.length) {
           const pt = memberPoints[stepIdx];
           setCurrentTracerPosition(pt);
           trailHistory.push(pt);
           setCurrentTracedTrail([...trailHistory]);
-
-          // 1. 사다리 실행 시 아이콘 이동 발자국을 따라 슬라이더 화면이 실시간 자동 추적 (카메라 스크롤)
-          if (ladderSliderRef.current) {
-            const container = ladderSliderRef.current;
-            if (container.scrollWidth > container.clientWidth) {
-              const targetScroll = pt.x - container.clientWidth / 2;
-              container.scrollLeft = Math.max(0, targetScroll);
-            }
-          }
-
           stepIdx++;
         } else {
-          clearInterval(stepInterval);
+          if (stepIntervalRef.current) {
+            clearInterval(stepIntervalRef.current);
+            stepIntervalRef.current = null;
+          }
           // 해당 참가자의 목표 결과 공개
           setRevealedGoals((prev) => ({ ...prev, [currentMember.id]: true }));
 
           const currentResult = results[currentMember.id];
+          if (currentResult) {
+            setRevealedGoalCols((prev) => ({
+              ...prev,
+              [currentResult.goalIndex]: {
+                memberName: currentMember.name,
+                avatar: currentMember.avatar,
+                isWinner: currentResult.isWinner,
+              },
+            }));
+          }
+
           const nextIdx = idx + 1;
           const isLast = nextIdx >= members.length;
 
@@ -443,6 +587,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     animateMember(0);
   };
 
+  // 2. 다시사다리타기: 배열을 무작위로 새로 재배치한 후 즉시 실행
+  const handlePlayAgain = () => {
+    const newSeed = Math.floor(Math.random() * 1000000);
+    setLadderSeed(newSeed);
+    const newRungs = generateLadderRungs(members.length, newSeed);
+    handlePlayLadder(false, newRungs);
+  };
+
   // 3. 목표 표시 팝업 일시정지 / 이어하기 제어 함수
   const handleTogglePauseArrival = () => {
     if (!isArrivalPaused) {
@@ -456,23 +608,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         nextStepActionRef.current();
       }
     }
-  };
-
-  // 전체 결과 즉시 건너뛰기
-  const handleSkipAllArrivals = () => {
-    if (arrivalTimerRef.current) clearTimeout(arrivalTimerRef.current);
-    if (arrivalIntervalRef.current) clearInterval(arrivalIntervalRef.current);
-    setArrivalPopup(null);
-    setIsArrivalPaused(false);
-    setIsLadderTracing(false);
-    setActiveTracingMemberIndex(null);
-    setCurrentTracerPosition(null);
-    setCurrentTracedTrail([]);
-    const allRev: { [id: string]: boolean } = {};
-    members.forEach((m) => { allRev[m.id] = true; });
-    setRevealedGoals(allRev);
-    const { results } = computeLadderPaths();
-    setLadderResult(results);
   };
 
   // ---------------------------------------------------------------------------
@@ -538,20 +673,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
       setSelectedTagger(chosen);
       setIsSpinning(false);
-      setTimeout(() => {
-        const participantArea = document.getElementById('roulette-participants-area');
-        const chosenMemberBadge = document.getElementById(`roulette-member-${chosen.id}`);
-        const winnerCard = document.getElementById('roulette-winner-card');
-
-        // 화살표/인디케이터가 위치한 참가자 영역 중간 지점으로 부드럽게 스크롤
-        if (participantArea) {
-          participantArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else if (chosenMemberBadge) {
-          chosenMemberBadge.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else if (winnerCard) {
-          winnerCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 50);
       return;
     }
 
@@ -566,15 +687,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     setTimeout(() => {
       setIsSpinning(false);
       setSelectedTagger(chosen);
-      setTimeout(() => {
-        const winnerCard = document.getElementById('roulette-winner-card');
-        const memberBadge = document.getElementById(`roulette-member-${chosen.id}`);
-        if (winnerCard) {
-          winnerCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else if (memberBadge) {
-          memberBadge.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 50);
     }, 2800);
   };
 
@@ -779,35 +891,88 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   resolvedTheme === 'dawn' ? 'bg-[#f0f7ff] border-[#bfdbfe]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-slate-50 border-slate-200/80'
                 }`}
               >
-                {/* 금액 입력 */}
+                {/* 금액 입력 & 만원/천원 증감 */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold flex items-center gap-1.5">
-                    <Coins className="w-4 h-4 text-indigo-400" />
-                    <span>총 결제 금액 (원)</span>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold flex items-center gap-1.5">
+                      <Coins className="w-4 h-4 text-indigo-400" />
+                      <span>총 결제 금액 (원)</span>
+                    </label>
+                    {amount && (
+                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                        ₩{parseInt(amount.replace(/[^0-9]/g, '') || '0', 10).toLocaleString()}원
+                      </span>
+                    )}
+                  </div>
                   <ElmInp01
                     value={amount}
                     onChange={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
                     placeholder="예: 84000"
                     type="text"
+                    inputMode="numeric"
+                    lang="ko"
+                    onFocus={(e) => e.target.select()}
                   />
-                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                    {[30000, 50000, 80000, 100000].map((preset) => (
+                  {/* 만원/천원 증감 퀵 버튼 (요청 7번) */}
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustAmount(10000)}
+                      className={`px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-blue-100/80 border-blue-300 text-blue-800'
+                          : isDark
+                          ? 'bg-indigo-950/50 border-indigo-700/60 text-indigo-300'
+                          : 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                      }`}
+                    >
+                      +1만원
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustAmount(-10000)}
+                      disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 10000}
+                      className="px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs disabled:opacity-30 cursor-pointer active:scale-95"
+                    >
+                      -1만원
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustAmount(1000)}
+                      className={`px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs hover:scale-102 active:scale-95 cursor-pointer ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-sky-100/80 border-sky-300 text-sky-800'
+                          : isDark
+                          ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+                          : 'bg-slate-100 border-slate-300 text-slate-800'
+                      }`}
+                    >
+                      +1천원
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustAmount(-1000)}
+                      disabled={(parseInt(amount.replace(/[^0-9]/g, '') || '0', 10)) < 1000}
+                      className="px-2.5 py-1 text-xs rounded-lg border font-bold transition-all shadow-2xs disabled:opacity-30 cursor-pointer active:scale-95"
+                    >
+                      -1천원
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustAmount(50000)}
+                      className="px-2 py-1 text-xs rounded-lg border font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                    >
+                      +5만원
+                    </button>
+                    {amount && (
                       <button
-                        key={preset}
                         type="button"
-                        onClick={() => setAmount(preset.toString())}
-                        className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors ${
-                          resolvedTheme === 'dawn'
-                            ? 'bg-white border-[#bfdbfe] text-blue-700 hover:bg-blue-50'
-                            : isDark
-                            ? 'bg-[#27272a] border-[#3f3f46] text-slate-300 hover:bg-[#3f3f46]'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 text-xs rounded-lg border text-rose-500 border-rose-200/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer font-medium"
                       >
-                        +{(preset / 10000)}만원
+                        초기화
                       </button>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -1130,7 +1295,12 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                 <span className="text-base">{m.avatar}</span>
                                 <input
                                   type="text"
+                                  lang="ko"
+                                  inputMode="text"
+                                  autoCapitalize="none"
+                                  autoCorrect="off"
                                   value={m.name}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
                                   className="w-20 sm:w-24 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
                                 />
@@ -1173,6 +1343,47 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   resolvedTheme === 'dawn' ? 'bg-[#eaf3fd] border-[#aed2f8]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-white border-indigo-100/80'
                 }`}
               >
+                {/* 3-A. 사다리 제어 & 주사위 셔플 헤더 바 */}
+                <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3 px-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 shrink-0">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>사다리 전 기둥 균등 분포 (3~4줄 보장)</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium break-keep">
+                      {shuffleNotice || '모든 기둥 간격에 3~4개의 가로줄이 빈틈없이 완벽하게 균등 배치되어 있습니다.'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleShuffleGoals}
+                      disabled={isLadderTracing}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
+                      title="당첨 및 통과 목표의 순서를 무작위로 섞습니다"
+                    >
+                      <span className="text-sm">🎯</span>
+                      <span className="whitespace-nowrap">목표 셔플</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShuffleLadder}
+                      disabled={isLadderTracing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
+                      title="사다리 가로줄을 새로운 무작위 배치로 섞습니다"
+                    >
+                      <span
+                        className="text-sm inline-block transition-transform duration-500"
+                        style={{ transform: isDiceRolling ? 'rotate(360deg)' : 'rotate(0deg)' }}
+                      >
+                        🎲
+                      </span>
+                      <span className="whitespace-nowrap">주사위 셔플 (사다리 재배치)</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* 5. 슬라이드 드래그 휠: 선택한 사다리 DIV 영역에만 타겟팅 (발자국 카메라 스크롤 추적) */}
                 <div className="w-full">
                   <ElmSld03 showNavButtons={false} stepWidth={LADDER_COL_WIDTH} externalRef={ladderSliderRef} className="w-full cursor-grab active:cursor-grabbing">
@@ -1217,6 +1428,24 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         })}
                       </div>
 
+                      {/* 1-B. 기둥 번호 인디케이터 (1번, 2번...) */}
+                      <div
+                        className="flex items-center pb-1 pt-1 select-none"
+                        style={{ width: `${members.length * LADDER_COL_WIDTH}px` }}
+                      >
+                        {members.map((_, col) => (
+                          <div
+                            key={`col_num_${col}`}
+                            className="flex justify-center"
+                            style={{ width: `${LADDER_COL_WIDTH}px` }}
+                          >
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200/90 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-300/50 dark:border-zinc-700/80">
+                              {col + 1}번
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
                       {/* 2. 중앙 SVG 사다리 선 (기둥 간격 LADDER_COL_WIDTH = 84px 완벽 일치) */}
                       <div
                         className="relative flex justify-center py-2"
@@ -1224,48 +1453,60 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       >
                         <svg
                           width={members.length * LADDER_COL_WIDTH}
-                          height={250}
-                          className={`rounded-xl border ${
+                          height={260}
+                          className={`rounded-xl border shadow-inner ${
                             resolvedTheme === 'dawn'
                               ? 'bg-blue-50/70 border-blue-200'
                               : isDark
                               ? 'bg-[#151518] border-[#27272a]'
-                              : 'bg-slate-50/70 border-slate-200/60'
+                              : 'bg-slate-50/80 border-slate-200/70'
                           }`}
                         >
-                          {/* 세로 기둥선 */}
+                          {/* 세로 기둥선 및 상하단 캡 */}
                           {members.map((_, col) => {
                             const x = col * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
+                            const pillarColor = resolvedTheme === 'dawn' ? '#3b82f6' : isDark ? '#52525b' : '#94a3b8';
+                            const capColor = resolvedTheme === 'dawn' ? '#1d4ed8' : isDark ? '#71717a' : '#64748b';
+
                             return (
-                              <line
-                                key={`v_${col}`}
-                                x1={x}
-                                y1={12}
-                                x2={x}
-                                y2={238}
-                                stroke={resolvedTheme === 'dawn' ? '#3b82f6' : isDark ? '#52525b' : '#94a3b8'}
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
+                              <g key={`v_${col}`}>
+                                <line
+                                  x1={x}
+                                  y1={12}
+                                  x2={x}
+                                  y2={244}
+                                  stroke={pillarColor}
+                                  strokeWidth="4"
+                                  strokeLinecap="round"
+                                />
+                                <circle cx={x} cy={12} r="3.5" fill={capColor} />
+                                <circle cx={x} cy={244} r="3.5" fill={capColor} />
+                              </g>
                             );
                           })}
 
-                          {/* 가로 발판 다리 */}
+                          {/* 균등 분포 가로 발판 다리 (양 끝 리벳 결합 도트로 완성도 극대화) */}
                           {ladderRungs.map((rung, i) => {
                             const x1 = rung.col * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
                             const x2 = (rung.col + 1) * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
-                            const y = 32 + rung.row * 25;
+                            const y = 28 + rung.row * 22;
+                            const rungColor = resolvedTheme === 'dawn' ? '#3b82f6' : isDark ? '#818cf8' : '#6366f1';
+                            const rivetColor = resolvedTheme === 'dawn' ? '#1d4ed8' : isDark ? '#a5b4fc' : '#4f46e5';
+
                             return (
-                              <line
-                                key={`rung_${i}`}
-                                x1={x1}
-                                y1={y}
-                                x2={x2}
-                                y2={y}
-                                stroke={resolvedTheme === 'dawn' ? '#60a5fa' : isDark ? '#818cf8' : '#6366f1'}
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
+                              <g key={`rung_${i}`}>
+                                <line
+                                  x1={x1}
+                                  y1={y}
+                                  x2={x2}
+                                  y2={y}
+                                  stroke={rungColor}
+                                  strokeWidth="4"
+                                  strokeLinecap="round"
+                                />
+                                <circle cx={x1} cy={y} r="3" fill={rivetColor} stroke="#ffffff" strokeWidth="1" />
+                                <circle cx={x2} cy={y} r="3" fill={rivetColor} stroke="#ffffff" strokeWidth="1" />
+                              </g>
                             );
                           })}
 
@@ -1278,7 +1519,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               strokeWidth="4"
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              opacity="0.8"
+                              opacity="0.85"
                             />
                           )}
 
@@ -1343,14 +1584,15 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         </svg>
                       </div>
 
-                      {/* 3. 하단 대상 목표 아이콘 (폭 84px 고정 & 줄바꿈 textarea) */}
+                      {/* 3. 하단 대상 목표 아이콘 (폭 84px 고정 & 줄바꿈 textarea & 도착 참가자 뱃지) */}
                       <div
                         className="flex items-start pt-2 pb-3 relative"
                         style={{ width: `${members.length * LADDER_COL_WIDTH}px` }}
                       >
                         {ladderGoals.slice(0, members.length).map((goal, idx) => {
                           const isOdd = idx % 2 === 1;
-                          const isRevealed = !!revealedGoals[members[idx]?.id];
+                          const landedMember = revealedGoalCols[idx];
+
                           return (
                             <div
                               key={`goal_${idx}`}
@@ -1359,13 +1601,27 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               }`}
                               style={{ width: `${LADDER_COL_WIDTH}px` }}
                             >
+                              {/* 도착자 실시간 뱃지 */}
+                              {landedMember && (
+                                <div
+                                  className={`mb-1 px-1.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-xs animate-in zoom-in-95 duration-150 ${
+                                    landedMember.isWinner
+                                      ? 'bg-rose-600 text-white ring-2 ring-rose-400 animate-pulse'
+                                      : 'bg-indigo-600 text-white'
+                                  }`}
+                                >
+                                  <span>{landedMember.avatar}</span>
+                                  <span className="truncate max-w-[45px]">{landedMember.memberName}</span>
+                                </div>
+                              )}
+
                               <div
                                 className={`flex flex-col items-center gap-1 p-1 rounded-xl border w-[76px] transition-all ${
-                                  isRevealed
-                                    ? 'ring-2 ring-indigo-500 scale-105'
-                                    : ''
-                                } ${
-                                  resolvedTheme === 'dawn'
+                                  landedMember
+                                    ? landedMember.isWinner
+                                      ? 'ring-2 ring-rose-500 scale-105 bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700'
+                                      : 'ring-2 ring-indigo-500 scale-105 bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700'
+                                    : resolvedTheme === 'dawn'
                                     ? 'bg-white border-[#bfdbfe] text-blue-900'
                                     : isDark
                                     ? 'bg-[#151518] border-[#27272a]'
@@ -1389,10 +1645,15 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                   ))}
                                 </select>
 
-                                {/* 3. 텍스트 줄바꿈 textarea */}
+                                {/* 3. 텍스트 줄바꿈 textarea (포커스 시 전체 선택 & 한글 자판) */}
                                 <textarea
                                   rows={2}
+                                  lang="ko"
+                                  inputMode="text"
+                                  autoCapitalize="none"
+                                  autoCorrect="off"
                                   value={goal.text}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     const text = e.target.value;
                                     setLadderGoals((prev) =>
@@ -1410,7 +1671,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </ElmSld03>
                 </div>
 
-                {/* 실행 액션: 속도 조절 & 사다리 타기 vs 건너뛰기 (버튼 레이어 정책: 텍스트 줄바꿈 방지 및 버튼 단위 개행) */}
+                {/* 실행 액션: 속도 조절 & 주사위 재배치 & 사다리 타기 vs 건너뛰기 (버튼 레이어 정책: 텍스트 줄바꿈 방지 및 버튼 단위 개행) */}
                 <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 mt-4 w-full">
                   {/* 3. 사다리그래프타기 버튼 앞 속도 조절 버튼 (2배 느린 0.5x부터 1.5배 빠른 1.5x까지 5단계 선택) */}
                   <div
@@ -1444,6 +1705,22 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
                   <button
                     type="button"
+                    onClick={handleShuffleLadder}
+                    disabled={isLadderTracing}
+                    className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold text-xs border border-slate-200 dark:border-zinc-700 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer shadow-xs active:scale-95"
+                    title="사다리 가로줄을 무작위로 새로 섞습니다"
+                  >
+                    <span
+                      className="inline-block transition-transform duration-500"
+                      style={{ transform: isDiceRolling ? 'rotate(360deg)' : 'rotate(0deg)' }}
+                    >
+                      🎲
+                    </span>
+                    <span>사다리 재배치</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handlePlayLadder(false)}
                     disabled={isLadderTracing}
                     className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer"
@@ -1453,12 +1730,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </button>
                   <button
                     type="button"
-                    onClick={() => handlePlayLadder(true)}
-                    disabled={isLadderTracing}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                    onClick={handleSkipToResult}
+                    className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer shadow-xs active:scale-95 ${
+                      isLadderTracing
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400 animate-pulse'
+                        : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-slate-700 dark:text-zinc-200'
+                    }`}
+                    title="사다리 타기 진행을 즉시 중단하고 최종 결과를 바로 확인합니다"
                   >
                     <FastForward className="w-4 h-4 shrink-0" />
-                    <span className="whitespace-nowrap">그래프 타기 생략</span>
+                    <span className="whitespace-nowrap">
+                      {isLadderTracing ? '⚡ 즉시 결과 보기 (생략)' : '그래프 타기 생략'}
+                    </span>
                   </button>
                 </div>
 
@@ -1732,14 +2015,25 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       })()}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handlePlayLadder(false)}
-                      className="mt-4 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-                      <span className="whitespace-nowrap">다시 사다리 타기</span>
-                    </button>
+                    {/* 1 & 2. 결과 닫기 버튼 및 다시 사다리 타기 (재배치 후 즉시 실행) */}
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setLadderResult(null)}
+                        className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5 shrink-0" />
+                        <span className="whitespace-nowrap">결과 닫기</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePlayAgain}
+                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                        <span className="whitespace-nowrap">다시 사다리 타기</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

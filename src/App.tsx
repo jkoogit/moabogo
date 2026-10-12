@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ElmNav01, ElmOff01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
+import { CommandPalette } from './components/CommandPalette';
+import { Ledger } from './types';
 
 // Sample Screens (All 13 screens with standard design token implementation)
 import { SCR_SMP_01_공통컴포넌트쇼케이스 } from './sample/screen/SCR_SMP_01_공통컴포넌트쇼케이스';
@@ -44,6 +46,28 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<string>('SCR-GNT-01');
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
+
+  // Mock Ledgers for Command Palette & Header Switcher
+  const initialLedgers: Ledger[] = [
+    { ledger_id: 'led-1', owner_id: 'user-1', ledger_name: '우리집 가계부 (가족 공유)', ledger_type: 'GROUP', is_instance: false, role: 'OWNER', created_at: '2026-01-01' },
+    { ledger_id: 'led-2', owner_id: 'user-1', ledger_name: '내 개인 가계부 (기본)', ledger_type: 'PERSONAL', is_instance: false, role: 'OWNER', created_at: '2026-01-01' },
+    { ledger_id: 'led-3', owner_id: 'user-2', ledger_name: '2026 동창회 모임 (인스턴스)', ledger_type: 'GROUP', is_instance: true, role: 'MEMBER', created_at: '2026-03-01' },
+  ];
+  const [activeLedger, setActiveLedger] = useState<Ledger>(initialLedgers[0]);
+
+  // Global ⌘K / Ctrl+K keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Screen Registry Definition
   const screens = [
@@ -53,8 +77,12 @@ export default function App() {
       category: '회원 / 게스트',
       comp: (
         <SCR_GNT_01_비로그인게스트홈
-          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
-          onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
+          onGoLogin={() => {
+            setCurrentScreen('SCR-AUT-02');
+          }}
+          onGoSignup={() => {
+            setCurrentScreen('SCR-AUT-01');
+          }}
         />
       ),
     },
@@ -65,7 +93,10 @@ export default function App() {
       comp: (
         <SCR_AUT_02_로그인오프라인세션
           onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
-          onSuccessLogin={() => setCurrentScreen('SCR-DSH-01')}
+          onSuccessLogin={() => {
+            setIsLoggedIn(true);
+            setCurrentScreen('SCR-DSH-01');
+          }}
         />
       ),
     },
@@ -76,7 +107,10 @@ export default function App() {
       comp: (
         <SCR_AUT_01_회원가입
           onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
-          onSuccessSignup={() => setCurrentScreen('SCR-DSH-01')}
+          onSuccessSignup={() => {
+            setIsLoggedIn(true);
+            setCurrentScreen('SCR-DSH-01');
+          }}
         />
       ),
     },
@@ -84,7 +118,15 @@ export default function App() {
       id: 'SCR-DSH-01',
       name: '메인 대시보드 (Bento Grid)',
       category: '핵심 서비스',
-      comp: <SCR_DSH_01_로그인메인대시보드 onNavigate={(id) => setCurrentScreen(id)} />,
+      comp: (
+        <SCR_DSH_01_로그인메인대시보드
+          onNavigate={(id) => setCurrentScreen(id)}
+          onOpenCommand={() => setIsCommandOpen(true)}
+          activeLedger={activeLedger}
+          onSelectLedger={(l) => setActiveLedger(l)}
+          ledgers={initialLedgers}
+        />
+      ),
     },
     {
       id: 'SCR-LED-01',
@@ -180,12 +222,16 @@ export default function App() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
-          {/* Left: Brand Identity */}
-          <MoaLogo />
+          {/* Left: Brand Identity with Click Navigation (Logged In: SCR-DSH-01, Guest: SCR-GNT-01) */}
+          <MoaLogo
+            onClick={() => {
+              setCurrentScreen(isLoggedIn ? 'SCR-DSH-01' : 'SCR-GNT-01');
+            }}
+          />
 
-          {/* Center: Global Screen Selector (13 Screens) */}
-          <div className="flex-1 max-w-sm sm:max-w-md mx-2">
-            <div className="relative">
+          {/* Center: Global Screen Selector (13 Screens) & ⌘K Quick Search Trigger */}
+          <div className="flex-1 max-w-sm sm:max-w-md mx-2 flex items-center gap-2">
+            <div className="relative flex-1">
               <select
                 value={currentScreen}
                 onChange={(e) => setCurrentScreen(e.target.value)}
@@ -203,6 +249,43 @@ export default function App() {
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
+
+            {/* ⌘K Command Palette Quick Launcher */}
+            <button
+              type="button"
+              onClick={() => setIsCommandOpen(true)}
+              className={`hidden sm:flex items-center gap-1 px-2.5 h-8 rounded-lg border text-xs font-semibold shrink-0 transition-colors ${
+                isDark
+                  ? 'bg-slate-800/90 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
+              }`}
+              title="커맨드 팔레트 열기 (단축키: ⌘K 또는 Ctrl+K)"
+            >
+              <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-black/10 dark:bg-white/10">⌘K</kbd>
+            </button>
+
+            {/* Auth Session Simulator Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !isLoggedIn;
+                setIsLoggedIn(nextState);
+                if (nextState && currentScreen === 'SCR-GNT-01') {
+                  setCurrentScreen('SCR-DSH-01');
+                } else if (!nextState && currentScreen === 'SCR-DSH-01') {
+                  setCurrentScreen('SCR-GNT-01');
+                }
+              }}
+              className={`hidden md:flex items-center gap-1 px-2 h-7 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap shrink-0 ${
+                isLoggedIn
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+              }`}
+              title="클릭하여 회원 로그인 / 게스트 상태 시뮬레이션 전환"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isLoggedIn ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              <span>{isLoggedIn ? '회원 로그인됨' : '게스트(비로그인)'}</span>
+            </button>
           </div>
 
           {/* Right: Device View Simulation, Offline Toggle & Theme Toggle */}
@@ -325,6 +408,45 @@ export default function App() {
           className="fixed inset-x-0 bottom-0 z-40 max-w-lg mx-auto sm:hidden"
         />
       )}
+
+      {/* 5. Global Command Palette Modal (⌘K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandOpen}
+        onClose={() => setIsCommandOpen(false)}
+        ledgers={initialLedgers}
+        onSelectLedger={(l) => {
+          setActiveLedger(l);
+          setIsCommandOpen(false);
+        }}
+        onOpenOCR={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-QCK-01');
+        }}
+        onOpenSettle={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-EVT-01');
+        }}
+        onOpenNewTx={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-QCK-01');
+        }}
+        onSelectTab={(tab) => {
+          setIsCommandOpen(false);
+          if (tab === 'DUTIES') setCurrentScreen('SCR-DUT-01');
+          else if (tab === 'ALLOWANCE' || tab === 'LOANS') setCurrentScreen('SCR-MON-01');
+          else setCurrentScreen('SCR-LED-01');
+        }}
+        onToggleOffline={() => setIsOffline(!isOffline)}
+        isOffline={isOffline}
+        onOpenSettings={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-SET-01');
+        }}
+        onOpenSampleGallery={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-SMP-01');
+        }}
+      />
     </div>
   );
 }

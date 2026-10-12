@@ -54,6 +54,9 @@ export const ElmInp01: React.FC<{
   label?: string;
   disabled?: boolean;
   className?: string;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  inputMode?: 'text' | 'none' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
+  lang?: string;
 }> = ({
   value,
   onChange,
@@ -62,6 +65,9 @@ export const ElmInp01: React.FC<{
   label,
   disabled = false,
   className = '',
+  onFocus,
+  inputMode,
+  lang,
 }) => (
   <div className={`w-full ${className}`}>
     {label && (
@@ -74,6 +80,9 @@ export const ElmInp01: React.FC<{
         type={type}
         value={value}
         disabled={disabled}
+        lang={lang}
+        inputMode={inputMode}
+        onFocus={onFocus}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full h-10 pl-3 pr-8 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed leading-normal"
