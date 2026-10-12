@@ -112,4 +112,5 @@ docs/
 | 2026-10-11 | 0003 | TASK-0003-GNT-GAME | AI Studio Agent | 게스트 홈 사다리 발자국 추적, 목표 팝업/일시정지, 반응형 버튼 줄바꿈 정책, 사다리 5단계 속도, 룰렛결과 당첨자 회전/중앙정렬 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0003-01_이슈리뷰-게스트홈_사다리_룰렛_UX고도화.md |
 | 2026-10-11 | 0004 | TASK-AUT-REV-01 | AI Studio Agent | SCR-AUT-01/02 인증 화면 전면 고도화, 브랜치 동일 커밋 SHA 정렬, Docker CI/CD(deploy.yml) 및 Dockerfile 구축 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0004-01_이슈리뷰-인증세션_회원가입_로그인_CICD구축.md |
 | 2026-10-12 | 0005 | TASK-DSH-QCK-REV-01 | AI Studio Agent | 게스트 홈 사다리 결과닫기, 재배치다시타기, 포커스전체선택/한글자판, 목표순번(선택/통과), 속도괄호제거, 스크롤점프방지, 정산금액증감 7대 개선 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0005-01_이슈리뷰-게스트홈_사다리_정산_사용성_고도화.md |
+| 2026-10-12 | 0005 | TASK-UX-MICRO-04 | AI Studio Agent | 게스트홈 UX 정제(정산 프리셋 가로스크롤 제거/버튼명 변경) 및 로그인 대시보드 벤토/활동이력 뷰어 고도화 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0005-02_이슈리뷰-게스트홈_UX정제_대시보드_활동이력_고도화.md |
 
