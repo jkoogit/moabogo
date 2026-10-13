@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
+import fs from 'fs'; 
 import path from 'path';
 import crypto from 'crypto';
 
@@ -975,11 +976,30 @@ async function startServer() {
     : ['dev.moabogo.com','stg.moabogo.com','www.moabogo.com', 'moabogo.com','localhost'];
 
     const vite = await createViteServer({
+      cacheDir: '/tmp/.vite', // 🔑 [핵심] EACCES 권한 에러 영구 해결
       server: { middlewareMode: true,
       allowedHosts: allowedHosts },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    // 🚀 [404 해결] index.html을 Vite로 변환하여 서빙하는 라우트 핸들러
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        const indexPath = path.resolve('index.html');
+        if (fs.existsSync(indexPath)) {
+          let template = fs.readFileSync(indexPath, 'utf-8');
+          template = await vite.transformIndexHtml(url, template);
+          return res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        }
+        next();
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+    
   } else {
     const distPath = path.resolve('dist');
     app.use(express.static(distPath));
