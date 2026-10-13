@@ -970,8 +970,13 @@ async function startServer() {
   // Dev & Static Serving Setup
   // -------------------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
+    const allowedHosts = process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(',').map((host) => host.trim())
+    : ['dev.moabogo.com','stg.moabogo.com','www.moabogo.com', 'moabogo.com','localhost'];
+
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true,
+      allowedHosts: allowedHosts },
       appType: 'spa',
     });
     app.use(vite.middlewares);
