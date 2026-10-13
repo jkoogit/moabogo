@@ -177,21 +177,41 @@ graph TD
 
 ---
 
+### UC-05: 가계부 vs 용돈기입장 및 단기(정산형) vs 장기(연속형) 회계 관리 프로세스
+- **주요 액터**: 회원 (가구주, 가족 구성원, 개인 사용자, 자녀, 모임 총무)
+- **핵심 흐름**:
+  1. **가계부(Household) vs 용돈기입장(Pocket Money) 도메인 분리**:
+     - **가계부 (`sub_type = 'STANDARD'`)**: 다중 자산(은행/카드/현금) 수지 및 총 순자산 변동 결산 중심의 포괄적 회계 장부.
+     - **용돈기입장 (`sub_type = 'POCKET_MONEY'`)**: 독립 장부 유형으로 분리되며, 지정된 한도(예산 `budget_cap`) 내에서 실시간 지출 소진율(Spent Ratio)과 잔여 용돈(Remaining Cap)을 통제하는 직관적 단일 수지 체계.
+  2. **단기 장부(정산형) vs 장기 장부(연속형) 생명주기 및 마감(Closing)**:
+     - **단기 장부 (`period_type = 'SHORT_TERM'`)**: 여행, 워크숍, 일회성 이벤트 등 정산 중심. '진행(`OPEN`) ➔ 지출 누적 ➔ N빵/차액 정산 ➔ 마감(`CLOSED`/`SETTLED`)' 흐름을 따르며, 마감 시 읽기 전용(Read-Only) 보관으로 전환되고 최종 결산 영수증(Closing Statement)을 제공. 장부 생성 시 설정(`allow_reopen`)에 따라 방장의 마감 취소/재오픈 지원.
+     - **장기 장부 (`period_type = 'LONG_TERM'`)**: 일상 가계부, 부부 공동 가계부 등. 기간 제한 없이 영속 운영되며 월별 결산 마감 후 잔액이 다음 달로 차기 이월(Carried-Over)되는 시계열 누적 관리.
+  3. **장부책장(SCR-LED-01) 시각적 분류 및 상태 표시**:
+     - 상단 탭 필터: `전체` | `모임 가계부` | `개인 가계부` | `용돈기입장` | `단기 프로젝트`.
+     - 책등(Spine) 인장: 단기/장기 리본 뱃지, 용돈기입장 식별자, 정산 완료 시 금박 마감 인장(Seal) 표기.
+
+---
+
 ### 원칙 1. 단일 거래의 단일 가계부 귀속성 (Single Ledger Ownership)
 - 모든 거래는 **오직 하나의 가계부(Primary Ledger)**에만 기록됩니다.
 - 한 가계부에서 지출이나 수입을 등록했다고 해서 다른 가계부로 데이터가 복제되거나 미러링되지 않습니다 (원자성 100% 유지).
 - **급여, 로또, 비자금**: 오직 `[개인 가계부]`에서만 발생하며, 그룹 가계부는 이 내역의 존재 자체를 알 필요가 없습니다 (완벽한 사생활 보장).
 - **가족 공금 마트 장보기**: 오직 `[그룹 가계부]`에만 1건 기록됩니다.
 
-### 원칙 2. 가계부 간의 경계는 오직 '이체(TRANSFER)'로만 연결
-- 서로 다른 가계부 간에 자금이 오갈 때는 복잡한 연결회계가 아니라, 일상생활의 '계좌이체'처럼 **이체(`TRANSFER`)**로 단순 처리합니다.
-- **용돈 지급 시나리오**:
-  1. 부모 그룹 가계부: 5만 원 출금 ➔ `TRANSFER` (가족 내부 자산이동, 소비지출 0원).
-  2. 자녀 개인 가계부: 5만 원 입금 ➔ `INCOME` (용돈 수입).
-  3. 자녀가 편의점에서 5천 원 결제: 오직 `[자녀 개인 가계부]`에만 지출(`EXPENSE: 5,000`) 1건 기록!
-  - 👉 **결과**: 부모 가계부의 생활비는 0원으로 깨끗하고, 자녀의 지출만 자녀 장부에서 정확히 카운트됩니다. 이중 합산 위험 0%.
-- **생활비 송금 시나리오**:
-  - 남편이 개인 통장에서 200만 원을 보낼 때: 남편 개인 가계부는 200만 원 이체 유출(`TRANSFER`), 가족 가계부는 200만 원 이체 유입(`TRANSFER`).
+### 원칙 2. 가계부 간의 경계는 오직 '이체(TRANSFER)'로만 연결 (1:1 자기참조 페어링)
+- **개념**: 통장 간 이체, 부모-자녀 간 용돈 지급, 모임 회비 송금 등은 자산의 보관 장소(장부/계좌)만 이동하는 것이므로 가계 전체 관점에서 **수입도 지출도 아닌 자산 재배치**입니다.
+- **이중계상(Double Counting) 원천 방지 (`is_asset_transfer = true`)**:
+  - 자금 이동 시 순수 생활비/소비 통계 집계에서 자동 제외하여 가계 지출이 2배로 뻥튀기되는 왜곡을 차단합니다.
+- **1:1 자기참조 페어링 (`related_transfer_id`)**:
+  - 출금 레코드(Tx-Out)와 입금 레코드(Tx-In)가 서로의 `transaction_id`를 `related_transfer_id`로 맞물려 참조합니다.
+  - 한쪽의 금액/일자 수정 시 반대편도 자동 동기화되며, 삭제 시 반대편도 연쇄 취소되어 장부 간 잔액 오차를 원천 방지합니다.
+- **실생활 적용 사례**:
+  1. **부모 $\rightarrow$ 자녀 용돈 지급 10만 원**:
+     - 부모 가계부: `[출금] 100,000원 | TRANSFER | 상대: 자녀 용돈기입장 | is_asset_transfer: true | related_transfer_id: Tx-2`
+     - 자녀 용돈기입장: `[입금] 100,000원 | TRANSFER | 상대: 부모 가계부 | is_asset_transfer: true | related_transfer_id: Tx-1`
+     - 👉 **결과**: 가구 총 순자산 변동 0원, 생활비 지출 0원. 이후 자녀가 용돈기입장에서 **"편의점 간식 5,000원(EXPENSE)"**을 썼을 때 비로소 가구 소비 지출 5,000원으로 정확히 집계됩니다.
+  2. **개인 가계부 $\rightarrow$ 제주도 여행(단기 모임) 회비 20만 원 납부**:
+     - 개인 가계부는 20만 원 유출(`TRANSFER`), 여행 장부는 20만 원 유입(`TRANSFER`). 여행 현지에서 식비/숙박비 결제 시 비로소 모임 지출(`EXPENSE`) 집계.
 
 ### 원칙 3. '결제자(Payer)'와 '대상자(Beneficiary)'의 단순 태깅 분리
 - 가족 가계부에서 10만 원 마트 장을 아빠 카드로 긁었을 때:
@@ -200,9 +220,9 @@ graph TD
   - 이것을 아빠 개인 가계부로 복제하지 않습니다. 아빠는 가족 가계부에서 "내가 이번 달 가족을 위해 카드로 긁어준 금액" 필터로 확인하면 끝납니다.
 
 ### 회계 집계 공식
-$$\text{순수 생활비 지출} = \sum \text{amount} \quad (\text{WHERE } \text{transaction\_type} = \text{'EXPENSE'} \land \text{is\_asset\_transfer} = \text{FALSE})$$
+$$\text{순수 생활비 지출} = \sum \text{amount} \quad (\text{WHERE } \text{transaction\_type} = \text{'EXPENSE'} \land \text{is\_asset_transfer} = \text{FALSE})$$
 
-$$\text{순수 가계 수입} = \sum \text{amount} \quad (\text{WHERE } \text{transaction\_type} = \text{'INCOME'} \land \text{is\_asset\_transfer} = \text{FALSE})$$
+$$\text{순수 가계 수입} = \sum \text{amount} \quad (\text{WHERE } \text{transaction\_type} = \text{'INCOME'} \land \text{is\_asset_transfer} = \text{FALSE})$$
 
 ---
 
@@ -214,3 +234,5 @@ $$\text{순수 가계 수입} = \sum \text{amount} \quad (\text{WHERE } \text{tr
 | 2026-10-08 | 0002 | PRD-EXPAND | AI Studio Agent | 유스케이스 상세화, 모아당번 상태머신, 게스트 소급 매핑 및 이중계상 방지 규칙 작성 | models/gemini-3.8-flash | AI Studio | docs/README-docs.md |
 | 2026-10-08 | 0002 | PRD-V2.1 | AI Studio Agent | 금전관리 3대 원칙(단일 귀속성, TRANSFER 연결, 태깅 분리), 당번 직교 상태머신, 게스트 소멸성 인스턴스 정책 확립 | models/gemini-3.8-flash | AI Studio | docs/01.프로젝트/01-prd-spec.md |
 | 2026-10-12 | 0005 | TASK-DSH-UX-02 | AI Studio Agent | 로그인 메인 대시보드 적응형 벤토 엔진, 가계부 책꽂이, 인바운드 레이더 및 일상위젯/게임 퀵런처 요구사항 반영 | models/gemini-3.8-flash | AI Studio | docs/01.프로젝트/01-prd-spec.md |
+| 2026-10-13 | 0008 | TASK-LED-ACT-01 | AI Studio Agent | 가계부 vs 용돈기입장, 단장기 장부 회계 프로세스, TRANSFER 1:1 자기참조 페어링 개념/사례 및 장부책장 고도화 반영 | models/gemini-3.8-flash | AI Studio | docs/01.프로젝트/01-prd-spec.md |
+

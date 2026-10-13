@@ -19,7 +19,6 @@ import {
   ChevronLeft,
   ChevronUp,
   ChevronDown,
-  Book,
   BookOpen,
   CheckCircle2,
   Check,
@@ -39,12 +38,21 @@ import {
   FolderPlus,
   ArrowUp,
   ArrowDown,
+  Lock,
+  Unlock,
+  FileText,
+  Coins,
+  PiggyBank,
+  Clock,
 } from 'lucide-react';
 
 // ============================================================================
-// 도메인 타입 정의
+// 도메인 타입 정의 (회계 프로세스 & 장부 생명주기)
 // ============================================================================
 export type LedgerType = 'PERSONAL' | 'GROUP' | 'INSTANCE';
+export type LedgerPeriodType = 'LONG_TERM' | 'SHORT_TERM';
+export type LedgerSubType = 'STANDARD' | 'POCKET_MONEY';
+export type LedgerClosingStatus = 'OPEN' | 'CLOSED' | 'SETTLED';
 export type LedgerRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' | 'GUEST';
 
 export interface LedgerMember {
@@ -61,6 +69,15 @@ export interface LedgerBook {
   id: string;
   title: string;
   type: LedgerType;
+  periodType: LedgerPeriodType;
+  subType: LedgerSubType;
+  closingStatus: LedgerClosingStatus;
+  budgetCap?: number;
+  spentAmount?: number;
+  resetCycle?: 'MONTHLY' | 'WEEKLY' | 'NONE';
+  allowReopen?: boolean;
+  closedAt?: string;
+  closedBy?: string;
   description: string;
   balance: number;
   currency: string;
@@ -278,7 +295,6 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
     >
       <svg
         viewBox={`0 0 760 ${svgHeight}`}
-        preserveAspectRatio="none"
         className="w-full h-full overflow-visible"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -318,28 +334,18 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
           opacity={isSelected ? 0.4 : idx === total - 1 ? 0.3 : 0.12}
         />
 
-        {/* B. 늘어지는 실크 책갈피 리본 (Bookmark Ribbon) */}
+        {/* B. 늘어지는 실크 책갈피 리본 */}
         <g filter={`url(#shadow-${theme.id})`}>
           <path
             d={
               isSelected
-                ? `M 88,38 C 88,${svgHeight - 16} 98,${svgHeight - 8} 94,${svgHeight + 12} L 84,${svgHeight + 6} L 74,${svgHeight + 14} C 76,${svgHeight - 6} 74,${svgHeight - 20} 74,38 Z`
-                : `M 86,40 C 86,${svgHeight - 22} 92,${svgHeight - 16} 90,${svgHeight - 2} L 82,${svgHeight - 7} L 74,${svgHeight - 1} C 76,${svgHeight - 16} 74,${svgHeight - 26} 74,40 Z`
+                ? `M 88,38 C 88,${svgHeight - 16} 98,${svgHeight - 8} 94,${svgHeight + 8} L 84,${svgHeight + 3} L 76,${svgHeight + 9} C 78,${svgHeight - 6} 76,${svgHeight - 20} 76,38 Z`
+                : `M 86,40 C 86,${svgHeight - 22} 92,${svgHeight - 16} 90,${svgHeight - 4} L 83,${svgHeight - 8} L 76,${svgHeight - 3} C 77,${svgHeight - 16} 76,${svgHeight - 26} 76,40 Z`
             }
             fill={theme.ribbon}
             stroke="#1e1b18"
             strokeWidth="2.5"
             strokeLinejoin="round"
-          />
-          {/* 책갈피 금사 자수선 */}
-          <line
-            x1="81"
-            y1="40"
-            x2="81"
-            y2={isSelected ? svgHeight + 5 : svgHeight - 6}
-            stroke="#fef08a"
-            strokeWidth="1.2"
-            strokeDasharray="2 2"
           />
         </g>
 
@@ -423,15 +429,79 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
             </g>
           ))}
 
+          {/* 7) 레퍼런스 스타일: 책등 중앙 양피지 타이틀 카르투슈 (Parchment Title Cartouche) */}
+          {(() => {
+            const cartH = Math.min(Math.round(40 * Math.sqrt(thicknessScale)), svgHeight - 24);
+            const cartY = Math.round((svgHeight - cartH) / 2);
+            return (
+              <>
+                <rect
+                  x="104"
+                  y={cartY}
+                  width="440"
+                  height={cartH}
+                  rx="6"
+                  fill={theme.labelBg}
+                  stroke="#1e1b18"
+                  strokeWidth="2.8"
+                />
+                <rect
+                  x="108"
+                  y={cartY + 4}
+                  width="432"
+                  height={cartH - 8}
+                  rx="4"
+                  fill="none"
+                  stroke={theme.labelBorder}
+                  strokeWidth="1.2"
+                  strokeDasharray="4 2"
+                />
+              </>
+            );
+          })()}
+
           {/* 8) 책등 우측 실링 엠블럼 (우측 원형 금박 실링 왁스/인장) */}
           <g transform={`translate(560, ${Math.round((svgHeight - 30) / 2)})`}>
-            <circle cx="15" cy="15" r="14" fill={theme.badgeBg} stroke="#1e1b18" strokeWidth="2.4" />
-            <circle cx="15" cy="15" r="11" fill="none" stroke={theme.cornerDeco} strokeWidth="1" strokeDasharray="2 2" />
-            <text x="15" y="19" textAnchor="middle" fill={theme.badgeText} fontSize="9" fontWeight="900" fontFamily="sans-serif">
-              {book.type === 'PERSONAL' ? '개인' : book.type === 'GROUP' ? '장기' : '단기'}
+            <circle
+              cx="15"
+              cy="15"
+              r="14"
+              fill={book.closingStatus !== 'OPEN' ? '#991b1b' : theme.badgeBg}
+              stroke="#1e1b18"
+              strokeWidth="2.4"
+            />
+            <circle
+              cx="15"
+              cy="15"
+              r="11"
+              fill="none"
+              stroke={theme.cornerDeco}
+              strokeWidth="1"
+              strokeDasharray="2 2"
+            />
+            <text
+              x="15"
+              y="19"
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize="8.5"
+              fontWeight="900"
+              fontFamily="sans-serif"
+            >
+              {book.closingStatus !== 'OPEN'
+                ? 'SEAL'
+                : book.subType === 'POCKET_MONEY'
+                ? 'PAY'
+                : book.periodType === 'SHORT_TERM'
+                ? 'TRIP'
+                : book.type === 'PERSONAL'
+                ? 'MY'
+                : 'GRP'}
             </text>
           </g>
         </g>
+
+        {/* [요구사항 2] 안경 오브젝트 완전 제거됨 */}
 
         {/* E. 활성화 인디케이터 (책이 당겨져 있을 때 왼쪽 북마크 깃발) */}
         {isSelected && (
@@ -442,50 +512,67 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
         )}
       </svg>
 
-      {/* 7) 레퍼런스 스타일: 책등 중앙 양피지 타이틀 카르투슈 (표준 HTML absolute 오버레이로 SVG 변형 행렬에 왜곡되지 않고 글자 폰트 종횡비 100% 원형 유지) */}
-      <div className="absolute inset-y-0 left-[14%] right-[22%] sm:left-[15%] sm:right-[24%] flex items-center pointer-events-none z-10">
-        <div
-          className="w-full flex items-center gap-1.5 px-2.5 py-1 rounded-md border-[2.2px] border-[#1e1b18] shadow-xs select-none min-w-0"
-          style={{
-            backgroundColor: theme.labelBg,
-            maxHeight: `${Math.min(bookHeight - 12, 38)}px`,
-            outline: `1px dashed ${theme.labelBorder}`,
-            outlineOffset: '-3px',
-          }}
-        >
-          {/* 유형 뱃지 (개인 / 장기 / 단기) */}
-          <span
-            className={`text-[9.5px] sm:text-[10px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] text-white shrink-0 shadow-2xs leading-none select-none ${
-              book.type === 'PERSONAL'
-                ? 'bg-indigo-600'
-                : book.type === 'GROUP'
-                ? 'bg-emerald-600'
-                : 'bg-amber-600'
-            }`}
-          >
-            {book.type === 'PERSONAL' ? '개인' : book.type === 'GROUP' ? '장기' : '단기'}
-          </span>
+      {/* F. 책등 라벨 위 가로 타이틀 & 회계 분류 뱃지 HTML 오버레이 */}
+      <div className="absolute inset-0 pointer-events-none flex items-center">
+        <div className="ml-[14.5%] w-[68%] sm:w-[70%] landscape:w-[70%] flex items-center px-2 sm:px-3 gap-1 sm:gap-1.5 min-w-0">
+          {/* 기간 뱃지: 단기 vs 장기 */}
+          {book.periodType === 'SHORT_TERM' ? (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-amber-500 text-stone-950 shrink-0 shadow-2xs leading-none">
+              단기
+            </span>
+          ) : (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-blue-600 text-white shrink-0 shadow-2xs leading-none">
+              장기
+            </span>
+          )}
 
-          {/* 타이틀: 말줄임표 처리, 화면 너비에 상관없이 폰트 100% 원형 비율 유지 */}
+          {/* 성격/유형 뱃지 (용돈기입장 / 그룹 / 개인 / 인스턴스) */}
+          {book.subType === 'POCKET_MONEY' ? (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-yellow-400 text-yellow-950 shrink-0 shadow-2xs leading-none">
+              용돈
+            </span>
+          ) : book.type === 'GROUP' ? (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-emerald-600 text-white shrink-0 shadow-2xs leading-none">
+              그룹
+            </span>
+          ) : book.type === 'PERSONAL' ? (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-indigo-600 text-white shrink-0 shadow-2xs leading-none">
+              개인
+            </span>
+          ) : (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-amber-600 text-white shrink-0 shadow-2xs leading-none">
+              인스턴스
+            </span>
+          )}
+
+          {/* 마감 상태 인장 (CLOSED / SETTLED) */}
+          {book.closingStatus !== 'OPEN' && (
+            <span className="text-[8.5px] xs:text-[9px] sm:text-[9.5px] font-black font-sans px-1.5 py-0.5 rounded border border-[#1e1b18] bg-rose-600 text-white shrink-0 shadow-2xs leading-none flex items-center gap-0.5">
+              <Lock className="w-2.5 h-2.5 stroke-[3]" />
+              {book.closingStatus === 'SETTLED' ? '정산완료' : '마감보관'}
+            </span>
+          )}
+
+          {/* 타이틀: 말줄임(ellipsis) 적용 */}
           <span
-            className="font-black text-[12px] sm:text-[13px] tracking-tight truncate drop-shadow-xs block min-w-0 flex-1 whitespace-nowrap overflow-hidden text-ellipsis select-none"
+            className="font-black text-[11px] xs:text-[11.5px] sm:text-[13px] md:text-[13.5px] tracking-tight truncate drop-shadow-xs block min-w-0 flex-1 ml-0.5"
             style={{ color: theme.labelText }}
             title={`장부명: ${book.title}`}
           >
             {book.title}
           </span>
         </div>
-      </div>
 
-      {/* 열람중 & 책갈피 배지 */}
-      {isSelected && (
-        <div className="absolute right-[3%] sm:right-[4%] inset-y-0 flex items-center pointer-events-none z-20">
-          <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-400 text-stone-900 border-2 border-stone-900 text-[8.5px] sm:text-[9.5px] font-black shadow-xs select-none animate-pulse">
-            <Bookmark className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-stone-900 stroke-[2.5]" />
-            <span className="hidden xs:inline">열람중</span>
-          </span>
-        </div>
-      )}
+        {/* 열람중 배지 */}
+        {isSelected && (
+          <div className="ml-auto mr-[4%] pointer-events-none z-20">
+            <span className="hidden xs:inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-400 text-stone-900 border-2 border-stone-900 text-[9px] sm:text-[9.5px] font-black shadow-xs select-none animate-pulse">
+              <Check className="w-3 h-3 stroke-[3]" />
+              열람중
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -498,9 +585,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [ledgers, setLedgers] = useState<LedgerBook[]>([
     {
       id: 'led-group-01',
-      title: '우리 4인 가족 생활비 장부',
+      title: '우리 4인 가족 행복 가계부',
       type: 'GROUP',
-      description: '장기 모임 장부 · 정식 가족 구성원 생활비 및 공과금 분담',
+      periodType: 'LONG_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'OPEN',
+      description: '정식 회원 전용 · 공동 생활비 및 공과금 분담',
       balance: 4850000,
       currency: 'KRW',
       designStyle: 'LEATHER', // 딥 에메랄드 프리미엄 가죽 바인더 룩
@@ -519,9 +609,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     },
     {
       id: 'led-personal-01',
-      title: '구본영 개인 급여·용돈 장부',
+      title: '구본영 개인 자산·투자 가계부',
       type: 'PERSONAL',
-      description: '개인 장부 · 단독 소유 · 급여, 자기계발 및 비상금 운용',
+      periodType: 'LONG_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'OPEN',
+      description: '단독 소유 · 개인 취미, 자기계발 및 비상금 운용',
       balance: 1820000,
       currency: 'KRW',
       designStyle: 'HARDCOVER', // 미드나잇 블루 모던 하드커버 룩
@@ -539,10 +632,42 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       settlementCycle: '매월 25일 급여일',
     },
     {
+      id: 'led-pocket-01',
+      title: '자녀 민우의 첫 용돈기입장',
+      type: 'PERSONAL',
+      periodType: 'LONG_TERM',
+      subType: 'POCKET_MONEY',
+      closingStatus: 'OPEN',
+      budgetCap: 150000,
+      spentAmount: 82000,
+      resetCycle: 'MONTHLY',
+      description: '자녀 용돈 지출 통제 · 월 15만 원 한도 및 일자별 소비 기록',
+      balance: 68000,
+      currency: 'KRW',
+      designStyle: 'KRAFT', // 따뜻한 크라프트지 바인더
+      colorTheme: {
+        bg: 'from-amber-900/10 via-amber-800/5 to-transparent',
+        border: 'border-amber-500/40',
+        spineGrad: 'bg-gradient-to-r from-amber-600 via-yellow-700 to-amber-900 text-yellow-100',
+        labelBg: 'bg-yellow-950/80 border border-yellow-500/40',
+        labelText: 'text-yellow-300',
+        bookmarkColor: 'bg-yellow-500 text-stone-900',
+        accent: 'text-yellow-600 dark:text-yellow-400',
+      },
+      membersCount: 2,
+      createdAt: '2026-03-01',
+      settlementCycle: '매월 1일 용돈 리셋',
+    },
+    {
       id: 'led-instance-01',
       title: '2026 동창회 강릉 펜션 모임',
       type: 'INSTANCE',
-      description: '단기 모임 장부 · 미가입 게스트 허용 & 여행 정산 후 소멸',
+      periodType: 'SHORT_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'CLOSED',
+      allowReopen: true,
+      closedAt: '2026-10-05',
+      description: '단기 모임 인스턴스 · 미가입 게스트 허용 & 정산 마감 보관',
       balance: 420000,
       currency: 'KRW',
       designStyle: 'KRAFT', // 따뜻한 크라프트지 & 빈티지 바인더 룩
@@ -557,13 +682,16 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       },
       membersCount: 6,
       createdAt: '2026-10-01',
-      settlementCycle: '여행 종료 시 정산',
+      settlementCycle: '정산 마감 완료 (영수증 보관)',
     },
     {
       id: 'led-fabric-01',
-      title: '주말 러닝 크루 정기 회비',
-      type: 'GROUP',
-      description: '장기 모임 장부 · 정기 러닝 번개 모임 · 음료비 및 마라톤 참가비 정산',
+      title: '주말 러닝 크루 회비 장부',
+      type: 'INSTANCE',
+      periodType: 'LONG_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'OPEN',
+      description: '정기 러닝 번개 모임 · 음료비 및 마라톤 참가비 정산',
       balance: 185000,
       currency: 'KRW',
       designStyle: 'FABRIC', // 포근한 바이올렛 린넨 패브릭 바인더 룩
@@ -584,7 +712,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       id: 'led-slate-01',
       title: '비상금 & 재테크 투자 일지',
       type: 'PERSONAL',
-      description: '개인 장부 · 단독 운용 · 비상금 통장 및 배당 재투자 내역 분리 관리',
+      periodType: 'LONG_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'OPEN',
+      description: '단독 운용 · 비상금 통장 및 배당 재투자 내역 분리 관리',
       balance: 12500000,
       currency: 'KRW',
       designStyle: 'SLATE', // 매트 슬레이트 & 실버 리벳 미니멀 바인더 룩
@@ -605,7 +736,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       id: 'led-vintage-01',
       title: '2026 유럽 가족 배낭여행 경비록',
       type: 'INSTANCE',
-      description: '단기 모임 장부 · 클래식 빈티지 양장본 · 여행 경비 외화 환전 및 정산',
+      periodType: 'SHORT_TERM',
+      subType: 'STANDARD',
+      closingStatus: 'SETTLED',
+      allowReopen: false,
+      closedAt: '2026-08-10',
+      description: '클래식 빈티지 양장본 · 여행 경비 외화 환전 및 정산 마감 완료',
       balance: 3420000,
       currency: 'KRW',
       designStyle: 'VINTAGE_BURGUNDY', // 클래식 버건디 골드 엠보싱 빈티지 양장본
@@ -620,7 +756,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       },
       membersCount: 4,
       createdAt: '2026-07-20',
-      settlementCycle: '여행 정산 완료',
+      settlementCycle: '최종 결산 완료',
     },
   ]);
 
@@ -631,7 +767,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   );
 
   // --------------------------------------------------------------------------
-  // 1-1. [요구사항 1] 전체 장부 기준 최대 금액 및 두께 비율 계산 (보이는 장부 아닌 전체 장부 기준!)
+  // 1-1. 전체 장부 기준 최대 금액 및 두께 비율 계산 (전체 장부 기준 상대적 두께)
   // --------------------------------------------------------------------------
   const overallMaxBalance = useMemo(() => {
     if (ledgers.length === 0) return 1;
@@ -646,67 +782,31 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   };
 
   // --------------------------------------------------------------------------
-  // 1-2. 장부구분(개인, 장기, 단기) 뱃지 다중 활성/비활성 필터 (기본값: 모두 선택)
+  // 1-2. 상단 뱃지 선택에 따른 장부 유형 필터 상태 (전체/그룹/개인/용돈기입장/단기프로젝트)
   // --------------------------------------------------------------------------
-  const [selectedTypes, setSelectedTypes] = useState<Record<LedgerType, boolean>>({
-    PERSONAL: true,
-    GROUP: true,
-    INSTANCE: true,
-  });
-
-  const isAllSelected = selectedTypes.PERSONAL && selectedTypes.GROUP && selectedTypes.INSTANCE;
-
-  const handleToggleAll = () => {
-    if (isAllSelected) {
-      setSelectedTypes({
-        PERSONAL: false,
-        GROUP: false,
-        INSTANCE: false,
-      });
-    } else {
-      setSelectedTypes({
-        PERSONAL: true,
-        GROUP: true,
-        INSTANCE: true,
-      });
-    }
-  };
-
-  const handleToggleType = (type: LedgerType) => {
-    setSelectedTypes((prev) => ({
-      ...prev,
-      [type]: !prev[type],
-    }));
-  };
+  type LedgerFilterKey = 'ALL' | 'GROUP' | 'PERSONAL' | 'POCKET_MONEY' | 'SHORT_TERM';
+  const [typeFilter, setTypeFilter] = useState<LedgerFilterKey>('ALL');
 
   const countByType = useMemo(
     () => ({
       ALL: ledgers.length,
       GROUP: ledgers.filter((l) => l.type === 'GROUP').length,
-      PERSONAL: ledgers.filter((l) => l.type === 'PERSONAL').length,
-      INSTANCE: ledgers.filter((l) => l.type === 'INSTANCE').length,
+      PERSONAL: ledgers.filter((l) => l.type === 'PERSONAL' && l.subType !== 'POCKET_MONEY').length,
+      POCKET_MONEY: ledgers.filter((l) => l.subType === 'POCKET_MONEY').length,
+      SHORT_TERM: ledgers.filter((l) => l.periodType === 'SHORT_TERM').length,
     }),
     [ledgers]
   );
 
-  // 활성 뱃지에 해당하는 장부만 노출 (비활성은 숨김)
+  // 필터링 적용된 표시 장부 목록
   const visibleLedgers = useMemo(() => {
-    return ledgers.filter((l) => selectedTypes[l.type]);
-  }, [ledgers, selectedTypes]);
-
-  // --------------------------------------------------------------------------
-  // 1-3. 책장 열기/닫기 토글 상태 (닫으면 현재 선택된 장부 1권만 표시)
-  // --------------------------------------------------------------------------
-  const [isBookshelfOpen, setIsBookshelfOpen] = useState<boolean>(true);
-
-  // 실제로 책장에 표시할 장부 목록 (책장이 닫히면 선택된 장부만 표시)
-  const displayedLedgers = useMemo(() => {
-    if (isBookshelfOpen) {
-      return visibleLedgers;
-    }
-    const currentBook = visibleLedgers.find((b) => b.id === activeLedgerId) || currentLedger;
-    return [currentBook];
-  }, [isBookshelfOpen, visibleLedgers, activeLedgerId, currentLedger]);
+    if (typeFilter === 'ALL') return ledgers;
+    if (typeFilter === 'GROUP') return ledgers.filter((l) => l.type === 'GROUP');
+    if (typeFilter === 'PERSONAL') return ledgers.filter((l) => l.type === 'PERSONAL' && l.subType !== 'POCKET_MONEY');
+    if (typeFilter === 'POCKET_MONEY') return ledgers.filter((l) => l.subType === 'POCKET_MONEY');
+    if (typeFilter === 'SHORT_TERM') return ledgers.filter((l) => l.periodType === 'SHORT_TERM');
+    return ledgers;
+  }, [ledgers, typeFilter]);
 
   // --------------------------------------------------------------------------
   // 2. 책꽂이 스택 스크롤 및 왼쪽 독립 핸들 기반 드래그 앤 드롭 순서 변경 (2.2, 2.3)
@@ -848,6 +948,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     'led-slate-01': [
       { id: 'm1', name: '구본영(단독소유)', role: 'OWNER', isGuest: false, joinedAt: '2025-08-01', avatar: '👨‍💼' },
     ],
+    'led-pocket-01': [
+      { id: 'm1', name: '구본영(보호자/나)', role: 'OWNER', isGuest: false, joinedAt: '2026-03-01', avatar: '👨‍💼' },
+      { id: 'm3', name: '구민우(자녀)', role: 'MEMBER', isGuest: false, joinedAt: '2026-03-01', avatar: '👦' },
+    ],
   });
 
   const currentMembers = useMemo(
@@ -883,9 +987,9 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         date: '2026-10-08',
         payerName: '구본영(호스트)',
         isAssetTransfer: true,
-        relatedTransferId: 'rel-tx-transfer-901',
-        tagNames: ['자산이동', '용돈지급'],
-        note: '가계부 내 자금 이동 (생활비 지출 왜곡 방지)',
+        relatedTransferId: 'tx-pk-04',
+        tagNames: ['자산이동', '용돈지급', '1:1페어링'],
+        note: '민우 용돈기입장(Tx-PK-04)과 1:1 자기참조 맞물림 (생활비 왜곡 방지)',
       },
       {
         id: 'tx-g-03',
@@ -962,6 +1066,58 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         payerName: '구본영',
         isAssetTransfer: false,
         tagNames: ['자기계발'],
+      },
+    ],
+    'led-pocket-01': [
+      {
+        id: 'tx-pk-01',
+        ledgerId: 'led-pocket-01',
+        title: 'GS25 편의점 (포켓몬 빵 & 초코우유)',
+        type: 'EXPENSE',
+        amount: 4500,
+        category: '간식/음료',
+        date: '2026-10-12',
+        payerName: '구민우',
+        isAssetTransfer: false,
+        tagNames: ['간식', '개인지출'],
+      },
+      {
+        id: 'tx-pk-02',
+        ledgerId: 'led-pocket-01',
+        title: '알라딘 중고서점 (학습만화 구매)',
+        type: 'EXPENSE',
+        amount: 14500,
+        category: '도서/문구',
+        date: '2026-10-10',
+        payerName: '구민우',
+        isAssetTransfer: false,
+        tagNames: ['도서'],
+      },
+      {
+        id: 'tx-pk-03',
+        ledgerId: 'led-pocket-01',
+        title: '친구 생일 선물 (학용품 세트)',
+        type: 'EXPENSE',
+        amount: 18000,
+        category: '선물/용돈',
+        date: '2026-10-09',
+        payerName: '구민우',
+        isAssetTransfer: false,
+        tagNames: ['선물'],
+      },
+      {
+        id: 'tx-pk-04',
+        ledgerId: 'led-pocket-01',
+        title: '부모 가계부에서 10월 용돈 수령 (자산이동)',
+        type: 'TRANSFER',
+        amount: 50000,
+        category: '용돈이체/자산이동',
+        date: '2026-10-08',
+        payerName: '구본영(부모)',
+        isAssetTransfer: true,
+        relatedTransferId: 'tx-g-02',
+        tagNames: ['자산이동', '용돈지급', '1:1페어링'],
+        note: '가족 가계부 출금(Tx-G-02)과 1:1 맞물림 연결',
       },
     ],
     'led-instance-01': [
@@ -1052,7 +1208,19 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [newLedgerModalOpen, setNewLedgerModalOpen] = useState(false);
   const [newTxModalOpen, setNewTxModalOpen] = useState(false);
   const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [viewClosingStatement, setViewClosingStatement] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+
+  // 새 장부 생성 폼 상태
+  const [newLedgerTitle, setNewLedgerTitle] = useState('');
+  const [newLedgerType, setNewLedgerType] = useState<LedgerType>('PERSONAL');
+  const [newLedgerPeriodType, setNewLedgerPeriodType] = useState<LedgerPeriodType>('LONG_TERM');
+  const [newLedgerSubType, setNewLedgerSubType] = useState<LedgerSubType>('STANDARD');
+  const [newLedgerBudgetCap, setNewLedgerBudgetCap] = useState('150000');
+  const [newLedgerResetCycle, setNewLedgerResetCycle] = useState<'MONTHLY' | 'WEEKLY' | 'NONE'>('MONTHLY');
+  const [newLedgerAllowReopen, setNewLedgerAllowReopen] = useState(true);
+  const [newLedgerDesignStyle, setNewLedgerDesignStyle] = useState<'LEATHER' | 'HARDCOVER' | 'KRAFT' | 'FABRIC' | 'SLATE' | 'VINTAGE_BURGUNDY'>('KRAFT');
+  const [newLedgerInitialBalance, setNewLedgerInitialBalance] = useState('0');
 
   // 참여자 추가 폼
   const [newMemberName, setNewMemberName] = useState('');
@@ -1069,7 +1237,33 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
 
   // 권한 체크
   const canManageMembers = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
-  const canAddTransaction = currentUserRole !== 'VIEWER';
+  const isLedgerClosed = currentLedger.closingStatus !== 'OPEN';
+  const canAddTransaction = currentUserRole !== 'VIEWER' && !isLedgerClosed;
+
+  // 장부 재오픈(Reopen) 핸들러
+  const handleToggleReopen = () => {
+    if (!canManageMembers) {
+      setNoticeMessage('[권한 제한] 장부 마감 해제 및 재오픈은 소유자(방장)만 가능합니다.');
+      return;
+    }
+    const nextStatus: LedgerClosingStatus = currentLedger.closingStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
+    setLedgers((prev) =>
+      prev.map((l) =>
+        l.id === currentLedger.id
+          ? {
+              ...l,
+              closingStatus: nextStatus,
+              closedAt: nextStatus === 'CLOSED' ? new Date().toISOString().slice(0, 10) : undefined,
+            }
+          : l
+      )
+    );
+    setNoticeMessage(
+      nextStatus === 'OPEN'
+        ? `✓ "${currentLedger.title}" 장부가 재오픈되었습니다. 이제 신규 거래를 입력할 수 있습니다.`
+        : `✓ "${currentLedger.title}" 장부가 마감(Read-Only) 보관되었습니다.`
+    );
+  };
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1195,168 +1389,102 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
       <div className="relative py-2 sm:py-6 landscape:py-1 px-1 sm:px-4">
-        {/* 상단 장부책장 3단 헤더: 좌측(타이틀), 중앙(장부구분 필터), 우측(건수 + 책장닫기 버튼) */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 mb-2 border-b border-stone-200 dark:border-stone-800">
-          {/* 1단(좌측): 장부책장 타이틀 */}
-          <div className="flex items-center gap-2 shrink-0">
+        {/* 상단 간결한 스택 상태 및 가이드 + [요구사항 3] 상단 뱃지 선택 필터 */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-3 mb-2 border-b border-stone-200 dark:border-stone-800">
+          <div className="flex items-center gap-2">
             <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
-              장부책장
+              가계부 책 더미
+            </span>
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black">
+              {visibleLedgers.length}권 표시 ({ledgers.length}권 전체)
             </span>
           </div>
 
-          {/* 2단(가운데): 장부구분(개인, 장기, 단기) 뱃지 활성/비활성 다중 필터 (가운데 정렬) */}
-          <div className="flex-1 flex items-center justify-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]">
-            {/* 전체 뱃지 */}
-            <button
-              type="button"
-              onClick={handleToggleAll}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                isAllSelected
-                  ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 ring-2 ring-stone-900/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700'
-              }`}
-              title="모든 장부 유형 선택/해제"
-            >
-              <span>전체</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                  isAllSelected
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400'
-                }`}
-              >
-                {countByType.ALL}
-              </span>
-            </button>
-
-            {/* 개인 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('PERSONAL')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.PERSONAL
-                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="개인 가계부 노출/숨김 토글"
-            >
-              <span>개인</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                  selectedTypes.PERSONAL
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
-                }`}
-              >
-                {countByType.PERSONAL}
-              </span>
-            </button>
-
-            {/* 장기 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('GROUP')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.GROUP
-                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="장기 모임 가계부 노출/숨김 토글"
-            >
-              <span>장기</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                  selectedTypes.GROUP
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
-                }`}
-              >
-                {countByType.GROUP}
-              </span>
-            </button>
-
-            {/* 단기 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('INSTANCE')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.INSTANCE
-                  ? 'bg-amber-600 text-white ring-2 ring-amber-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="단기 모임 가계부 노출/숨김 토글"
-            >
-              <span>단기</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                  selectedTypes.INSTANCE
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
-                }`}
-              >
-                {countByType.INSTANCE}
-              </span>
-            </button>
+          {/* 상단 뱃지 선택 필터 (전체, 모임 가계부, 개인 가계부, 용돈기입장, 단기 프로젝트) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]">
+            {[
+              {
+                key: 'ALL',
+                label: '전체',
+                count: countByType.ALL,
+                activeClass: 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 ring-2 ring-stone-900/30',
+              },
+              {
+                key: 'GROUP',
+                label: '모임 가계부',
+                count: countByType.GROUP,
+                activeClass: 'bg-emerald-600 text-white ring-2 ring-emerald-600/30',
+              },
+              {
+                key: 'PERSONAL',
+                label: '개인 가계부',
+                count: countByType.PERSONAL,
+                activeClass: 'bg-indigo-600 text-white ring-2 ring-indigo-600/30',
+              },
+              {
+                key: 'POCKET_MONEY',
+                label: '용돈기입장',
+                count: countByType.POCKET_MONEY,
+                activeClass: 'bg-amber-500 text-stone-950 ring-2 ring-amber-500/40',
+              },
+              {
+                key: 'SHORT_TERM',
+                label: '단기 프로젝트',
+                count: countByType.SHORT_TERM,
+                activeClass: 'bg-orange-600 text-white ring-2 ring-orange-600/30',
+              },
+            ].map((tab) => {
+              const isActive = typeFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setTypeFilter(tab.key as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
+                    isActive
+                      ? `${tab.activeClass} shadow-xs font-black`
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      isActive
+                        ? 'bg-black/20 text-white'
+                        : 'bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* 3단(우측): 건수 뱃지 + 책장 닫기/열기 버튼 (가장 우측) + 퀵 탐색 핸들 */}
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-            {/* 건수: 책장닫기 버튼 앞에 배치 (전체 표시인 경우 X건, 차이가 있는 경우 Y건 / X건) */}
-            <span
-              className="text-xs font-mono px-2.5 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
-              title="현재 노출된 장부 건수 / 전체 건수"
-            >
-              {(() => {
-                const totalCount = ledgers.length;
-                const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
-                if (currentDisplayedCount === totalCount) {
-                  return `${totalCount}건`;
-                }
-                return `${currentDisplayedCount}건 / ${totalCount}건`;
-              })()}
+          {/* 우측 가이드 배지 & 퀵 탐색 핸들 */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs text-stone-700 dark:text-stone-300 font-semibold bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-300/80 dark:border-amber-800/80 shadow-2xs">
+              <GripHorizontal className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 stroke-[2.5]" />
+              <span className="hidden xs:inline">왼쪽 핸들</span> 드래그로 순서 변경
             </span>
-
-            {/* 책장 열기 / 닫기 토글 버튼 (가장 우측 배치) */}
-            <button
-              type="button"
-              onClick={() => setIsBookshelfOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap"
-              title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
-            >
-              {isBookshelfOpen ? (
-                <>
-                  <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[2.2]" />
-                  <span>책장 닫기</span>
-                </>
-              ) : (
-                <>
-                  <Book className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 stroke-[2.2]" />
-                  <span>책장 열기</span>
-                </>
-              )}
-            </button>
-
-            {/* 우측 퀵 탐색 핸들 (장부 2권 이상 탐색 편의) */}
-            {isBookshelfOpen && visibleLedgers.length > 1 && (
-              <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleScrollBooks('UP')}
-                  className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
-                  title="스택 위로 스크롤"
-                >
-                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScrollBooks('DOWN')}
-                  className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
-                  title="스택 아래로 스크롤"
-                >
-                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl border border-stone-300 dark:border-stone-700 shadow-xs">
+              <button
+                type="button"
+                onClick={() => handleScrollBooks('UP')}
+                className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
+                title="스택 위로 스크롤"
+              >
+                <ChevronUp className="w-4 h-4 stroke-[2.5]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScrollBooks('DOWN')}
+                className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
+                title="스택 아래로 스크롤"
+              >
+                <ChevronDown className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1367,12 +1495,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             ref={bookStackRef}
             className="max-h-[480px] landscape:max-h-[290px] overflow-y-auto pl-1 pr-1 sm:px-3 pt-3 pb-5 landscape:pt-2 landscape:pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden scroll-smooth"
           >
-            {displayedLedgers.length === 0 ? (
+            {visibleLedgers.length === 0 ? (
               <div className="py-12 text-center text-stone-500 dark:text-stone-400 font-bold text-sm bg-stone-50 dark:bg-stone-900/50 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700">
-                선택한 구분의 장부가 없습니다.
+                선택한 유형의 가계부가 없습니다.
               </div>
             ) : (
-              displayedLedgers.map((book, idx) => {
+              visibleLedgers.map((book, idx) => {
                 // [요구사항 1] 보이는 장부가 아닌 '전체 장부(ledgers)' 기준의 두께 비율 계산 (최고 금액은 2배 두께)
                 const thickness = getThicknessScale(book.balance, overallMaxBalance);
                 const isDragging = draggedIndex === idx;
@@ -1382,66 +1510,51 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   <div
                     key={book.id}
                     data-book-index={idx}
-                    onDragOver={(e) => isBookshelfOpen && handleDragOver(idx, e)}
+                    onDragOver={(e) => handleDragOver(idx, e)}
                     onDragLeave={() => {
                       if (dragOverIndex === idx) setDragOverIndex(null);
                     }}
-                    onDrop={(e) => isBookshelfOpen && handleDrop(idx, e)}
+                    onDrop={(e) => handleDrop(idx, e)}
                     className={`relative select-none group/row transition-all duration-200 ease-out flex items-center gap-2 sm:gap-3 ${
-                      idx > 0 ? '-mt-[28px] xs:-mt-[30px] sm:-mt-[22px]' : ''
+                      idx > 0 ? '-mt-[14px] xs:-mt-[16px] sm:-mt-[18px]' : ''
                     } ${isDragging ? 'opacity-55 scale-[1.01] z-50' : ''} ${
                       isDragOver ? 'ring-2 ring-amber-400 ring-offset-2 z-40 rounded-xl' : ''
                     }`}
                     style={{
-                      zIndex: isDragging ? 60 : book.id === activeLedgerId ? 50 : displayedLedgers.length - idx + 10,
+                      zIndex: isDragging ? 60 : book.id === activeLedgerId ? 50 : visibleLedgers.length - idx + 10,
                     }}
                   >
-                    {/* [요구사항 4] 책 순서변경 핸들 (책장이 열려있을 때만 순서변경 핸들 활성화, 닫혀있을 때는 선택 표시) */}
-                    {isBookshelfOpen ? (
-                      <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(idx, e)}
-                        onDragEnd={handleDragEnd}
-                        onTouchStart={(e) => handleTouchStart(idx, e)}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`shrink-0 w-8.5 sm:w-10 rounded-xl border-2 border-stone-800 dark:border-stone-700 bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-amber-950/60 shadow-xs flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing select-none transition-all ${
-                          isDragging ? 'bg-amber-400 ring-2 ring-stone-900 scale-105 shadow-md' : ''
-                        }`}
-                        style={{
-                          height: `${Math.round(40 * Math.min(1.4, thickness))}px`,
-                          minHeight: '38px',
-                          maxHeight: '62px',
-                        }}
-                        title={`[${book.title}] 왼쪽 핸들을 위아래로 드래그하여 순서 변경`}
-                      >
-                        <GripHorizontal className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-stone-900 dark:text-stone-200 stroke-[2.5]" />
-                        <span className="text-[8.5px] sm:text-[9.5px] font-black font-mono text-stone-800 dark:text-stone-300 leading-none">
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                      </div>
-                    ) : (
-                      <div
-                        className="shrink-0 w-8.5 sm:w-10 rounded-xl border-2 border-indigo-600 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 shadow-xs flex flex-col items-center justify-center gap-0.5 select-none"
-                        style={{
-                          height: `${Math.round(40 * Math.min(1.4, thickness))}px`,
-                          minHeight: '38px',
-                          maxHeight: '62px',
-                        }}
-                        title="현재 선택된 장부"
-                      >
-                        <Bookmark className="w-4 h-4 text-indigo-600 dark:text-indigo-400 fill-indigo-600/40" />
-                        <span className="text-[8px] font-black text-indigo-700 dark:text-indigo-300">선택</span>
-                      </div>
-                    )}
+                    {/* [요구사항 4] 책 순서변경 핸들을 책 이미지와 독립해서 왼쪽에 배치 */}
+                    <div
+                      draggable
+                      onDragStart={(e) => handleDragStart(idx, e)}
+                      onDragEnd={handleDragEnd}
+                      onTouchStart={(e) => handleTouchStart(idx, e)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`shrink-0 w-8.5 sm:w-10 rounded-xl border-2 border-stone-800 dark:border-stone-700 bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-amber-950/60 shadow-xs flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing select-none transition-all ${
+                        isDragging ? 'bg-amber-400 ring-2 ring-stone-900 scale-105 shadow-md' : ''
+                      }`}
+                      style={{
+                        height: `${Math.round(40 * Math.min(1.4, thickness))}px`,
+                        minHeight: '38px',
+                        maxHeight: '62px',
+                      }}
+                      title={`[${book.title}] 왼쪽 핸들을 위아래로 드래그하여 순서 변경`}
+                    >
+                      <GripHorizontal className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-stone-900 dark:text-stone-200 stroke-[2.5]" />
+                      <span className="text-[8.5px] sm:text-[9.5px] font-black font-mono text-stone-800 dark:text-stone-300 leading-none">
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                    </div>
 
                     {/* 책 이미지 본체 (CartoonStackedBookObject) */}
                     <div className="flex-1 min-w-0">
                       <CartoonStackedBookObject
                         book={book}
                         idx={idx}
-                        total={displayedLedgers.length}
+                        total={visibleLedgers.length}
                         thicknessScale={thickness}
                         isSelected={book.id === activeLedgerId}
                         isDragging={isDragging}
@@ -1468,34 +1581,95 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       {/* 3. [1번 개선] 선택된 가계부의 속성 바 (책꽂이 아래로 자연스럽게 정렬) */}
       {/* ==================================================================== */}
+      {/* ==================================================================== */}
+      {/* 3. 선택된 가계부의 회계 속성 바 (단장기, 성격, 마감 상태 & 권한) */}
+      {/* ==================================================================== */}
       <div className="p-4 sm:p-4.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-        {/* 좌측: 현재 선택된 장부 명칭 & 결산 주기 & 책갈피 */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Bookmark className="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" />
+        {/* 좌측: 현재 선택된 장부 명칭 & 결산 주기 & 회계 분류 뱃지 */}
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Bookmark className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
               {currentLedger.title}
             </span>
-            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-              currentLedger.type === 'PERSONAL'
-                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300'
-                : currentLedger.type === 'GROUP'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300'
-            }`}>
-              {currentLedger.type === 'PERSONAL' ? '개인' : currentLedger.type === 'GROUP' ? '장기 모임' : '단기 모임'}
+            {/* 기간 뱃지 */}
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                currentLedger.periodType === 'SHORT_TERM'
+                  ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200'
+                  : 'bg-blue-100 text-blue-900 dark:bg-blue-900/60 dark:text-blue-200'
+              }`}
+            >
+              {currentLedger.periodType === 'SHORT_TERM' ? '단기 정산형' : '장기 연속형'}
             </span>
-            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-900/60 px-2 py-0.5 rounded-md">
-              {currentLedger.settlementCycle}
+            {/* 성격 뱃지 */}
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                currentLedger.subType === 'POCKET_MONEY'
+                  ? 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/60 dark:text-yellow-200'
+                  : 'bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:text-zinc-200'
+              }`}
+            >
+              {currentLedger.subType === 'POCKET_MONEY' ? '용돈기입장' : '일반 가계부'}
+            </span>
+            {/* 마감 상태 뱃지 */}
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                currentLedger.closingStatus === 'OPEN'
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
+                  : currentLedger.closingStatus === 'SETTLED'
+                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+              }`}
+            >
+              {currentLedger.closingStatus === 'OPEN' ? (
+                <>
+                  <Unlock className="w-3 h-3" /> 진행중 (OPEN)
+                </>
+              ) : currentLedger.closingStatus === 'SETTLED' ? (
+                <>
+                  <Lock className="w-3 h-3" /> 정산완료 (SETTLED)
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3 h-3" /> 마감보관 (CLOSED)
+                </>
+              )}
             </span>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-            {currentLedger.description}
+            {currentLedger.description} · <span className="font-semibold text-slate-700 dark:text-zinc-300">{currentLedger.settlementCycle}</span>
           </p>
         </div>
 
-        {/* 우측: 선택된 장부의 내 권한 시뮬레이터 & 참여자 관리 버튼 (흐름 일치 1.0) */}
+        {/* 우측: 내 권한 시뮬레이터 & 마감 재오픈 토글 & 참여자 관리 버튼 */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {/* 마감 재오픈 토글 버튼 (방장 권한) */}
+          {currentLedger.allowReopen && canManageMembers && (
+            <button
+              type="button"
+              onClick={handleToggleReopen}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-all ${
+                currentLedger.closingStatus === 'OPEN'
+                  ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300'
+              }`}
+              title="장부 마감 상태를 전환합니다"
+            >
+              {currentLedger.closingStatus === 'OPEN' ? (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>장부 마감하기</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>장부 재오픈</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* 내 권한 시뮬레이터 */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs text-xs">
             <span className="text-slate-400 font-medium text-[11px]">내 권한:</span>
@@ -1523,10 +1697,143 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors"
           >
             <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>가계부 참여자 ({currentMembers.length}명)</span>
+            <span>참여자 ({currentMembers.length}명)</span>
           </button>
         </div>
       </div>
+
+      {/* 3-1. [단기 장부 마감 모드] 정산 마감 보관(Read-Only) 배너 & 최종 결산 영수증 토글 */}
+      {isLedgerClosed && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4.5 h-4.5 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-extrabold text-xs sm:text-sm">
+                  정산 및 회계 마감 보관 (Read-Only) 원장
+                </span>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                  {currentLedger.closedAt && `마감일: ${currentLedger.closedAt} · `}
+                  본 장부는 정산이 완료되어 신규 거래 입력이 잠금되었습니다. 최종 결산 영수증을 확인하세요.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewClosingStatement(!viewClosingStatement)}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 transition-colors shadow-xs"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{viewClosingStatement ? '결산서 접기' : '최종 결산 영수증 보기'}</span>
+            </button>
+          </div>
+
+          {/* 최종 결산 영수증 뷰어 (펼침 시) */}
+          {viewClosingStatement && (
+            <div className="mt-3 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/60 text-slate-800 dark:text-zinc-200 space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+                <span className="font-black text-xs sm:text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  최종 결산 보고서 (Closing Statement)
+                </span>
+                <span className="text-[10px] font-mono font-bold text-slate-400">
+                  STAMP: MOABOGO-AUDIT-CERTIFIED
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">총 지출 정산액</span>
+                  <span className="font-mono font-black text-rose-600 text-sm">
+                    ₩{stats.pureExpense.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">회비/자산이동</span>
+                  <span className="font-mono font-black text-purple-600 text-sm">
+                    ₩{stats.assetTransfer.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">대납 및 차액정산</span>
+                  <span className="font-mono font-black text-amber-600 text-sm">
+                    ₩{stats.reimbursement.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">참여 인원</span>
+                  <span className="font-mono font-black text-indigo-600 text-sm">
+                    {currentMembers.length}명 전원 완료
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                * 모임 인스턴스 정산 규칙에 따라 모든 참가자의 1/N 분담금 및 차액 송금이 완료되었습니다. 정규 회원 및 게스트 데이터는 보관 규정에 따라 무결성이 보증됩니다.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3-2. [용돈기입장 모드] 한도 소진율 및 예산 차감 게이지 카드 */}
+      {currentLedger.subType === 'POCKET_MONEY' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-800/80 shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <PiggyBank className="w-5 h-5 text-amber-600" />
+              <div>
+                <span className="font-black text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                  용돈 한도 및 실시간 소진율 모니터링
+                </span>
+                <p className="text-[11px] text-stone-600 dark:text-stone-400">
+                  월간 지정 한도 내에서 지출을 통제하며, 부모 가계부에서 TRANSFER 1:1 페어링으로 충전됩니다.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100">
+                소진율 {Math.round(((currentLedger.spentAmount || 0) / (currentLedger.budgetCap || 1)) * 100)}%
+              </span>
+            </div>
+          </div>
+
+          {/* 프로그레스 바 */}
+          <div className="space-y-1">
+            <div className="w-full h-3 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden p-0.5 border border-stone-300 dark:border-stone-700">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 transition-all duration-500"
+                style={{
+                  width: `${Math.min(100, Math.round(((currentLedger.spentAmount || 0) / (currentLedger.budgetCap || 1)) * 100))}%`,
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] font-mono text-stone-500 dark:text-stone-400">
+              <span>누적 지출: ₩{(currentLedger.spentAmount || 0).toLocaleString()}</span>
+              <span>월 한도: ₩{(currentLedger.budgetCap || 0).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
+            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-stone-200 dark:border-stone-800">
+              <span className="text-[10px] text-stone-400 block font-bold">용돈 한도</span>
+              <span className="font-mono font-black text-stone-900 dark:text-white">
+                ₩{(currentLedger.budgetCap || 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-stone-200 dark:border-stone-800">
+              <span className="text-[10px] text-stone-400 block font-bold">사용 금액</span>
+              <span className="font-mono font-black text-rose-600">
+                ₩{(currentLedger.spentAmount || 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-stone-200 dark:border-stone-800">
+              <span className="text-[10px] text-stone-400 block font-bold">남은 용돈</span>
+              <span className="font-mono font-black text-emerald-600">
+                ₩{(currentLedger.balance || 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* 4. 선택된 가계부 요약 벤토 통계 바 */}
@@ -1535,7 +1842,9 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         {/* 통계 1: 총 잔액 */}
         <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold">가계부 총 잔액</span>
+            <span className="text-xs font-bold">
+              {currentLedger.subType === 'POCKET_MONEY' ? '현재 잔여 용돈' : '가계부 총 잔액'}
+            </span>
             <Wallet className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="font-mono text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
@@ -1549,7 +1858,9 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         {/* 통계 2: 당월 순수 생활비 지출 */}
         <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold">당월 순수 생활비</span>
+            <span className="text-xs font-bold">
+              {currentLedger.subType === 'POCKET_MONEY' ? '실제 용돈 지출' : '당월 순수 생활비'}
+            </span>
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
           <div className="font-mono text-lg sm:text-xl font-extrabold text-rose-600">
@@ -1572,7 +1883,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             ₩{stats.assetTransfer.toLocaleString()}
           </div>
           <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
-            생활비 왜곡 방지 분리
+            생활비 왜곡 방지 분리 (1:1 페어링)
           </div>
         </div>
 
@@ -1616,6 +1927,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             <button
               type="button"
               onClick={() => {
+                if (isLedgerClosed) {
+                  setNoticeMessage('[마감 제한] 정산 및 회계가 마감된 장부에는 신규 거래를 등록할 수 없습니다.');
+                  return;
+                }
                 if (!canAddTransaction) {
                   setNoticeMessage('[권한 제한] 조회 전용(VIEWER) 권한은 거래를 추가할 수 없습니다.');
                   return;
@@ -1623,14 +1938,23 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 setNewTxModalOpen(true);
               }}
               disabled={!canAddTransaction}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-xs cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${
                 canAddTransaction
-                  ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'
-                  : 'bg-slate-400 cursor-not-allowed opacity-60'
+                  ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 cursor-pointer'
+                  : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
               }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>새 거래 등록</span>
+              {isLedgerClosed ? (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>마감됨 (입력 잠금)</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>새 거래 등록</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1722,8 +2046,14 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       </span>
 
                       {tx.isAssetTransfer && (
-                        <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800">
-                          자산이동 (생활비제외)
+                        <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                          <ArrowRightLeft className="w-2.5 h-2.5" />
+                          <span>자산이동 (생활비제외)</span>
+                          {tx.relatedTransferId && (
+                            <span className="text-[9px] font-mono text-purple-500 dark:text-purple-400">
+                              · 1:1 페어링 연동
+                            </span>
+                          )}
                         </span>
                       )}
 
@@ -1815,16 +2145,20 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 space-y-1">
+              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 space-y-1.5">
                 <div className="font-extrabold text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
                   <span className="w-4 h-4 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 flex items-center justify-center text-[10px] font-mono">
                     2
                   </span>
-                  <span>TRANSFER 단일 연결 (생활비 왜곡 차단)</span>
+                  <span>TRANSFER 1:1 자기참조 페어링 (생활비 왜곡 차단)</span>
                 </div>
-                <p className="text-slate-600 dark:text-zinc-400 text-[11px]">
-                  가족 구성원 간 용돈 지급이나 계좌 간 자금 이동은 <strong>순수 생활비 지출 통계에서 자동으로 제외</strong>되며, 1:1 자기참조 페어링으로 관리됩니다.
+                <p className="text-slate-600 dark:text-zinc-400 text-[11px] leading-relaxed">
+                  통장 간 이체, 부모-자녀 간 용돈 지급, 모임 회비 송금은 가계 전체 관점에서 <strong>단순 자산 재배치</strong>이므로, <code className="text-purple-700 dark:text-purple-300 font-mono">is_asset_transfer = true</code>로 생활비 지출 통계에서 원천 분리됩니다.
                 </p>
+                <div className="p-2 rounded-lg bg-white/80 dark:bg-zinc-900/80 text-[10.5px] text-purple-900 dark:text-purple-300 space-y-0.5 border border-purple-200/60 dark:border-purple-800/60">
+                  <span className="font-bold">💡 실생활 사례 (부모 ➔ 자녀 용돈 10만 원):</span>
+                  <p>부모 가계부 출금(TRANSFER)과 자녀 용돈기입장 입금(TRANSFER)이 <code className="font-mono">related_transfer_id</code>로 1:1 맞물려, 자녀가 편의점(5천 원)을 결제할 때 비로소 가계 소비로 정확히 집계됩니다.</p>
+                </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/40 space-y-1">
@@ -2121,24 +2455,268 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         </div>
       )}
 
-      {/* 새 가계부 만들기 안내 모달 */}
+      {/* ==================================================================== */}
+      {/* 9. 새 장부 개설 모달 (회계 프로세스 & 디자인 설정) */}
+      {/* ==================================================================== */}
       {newLedgerModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95">
-            <BookOpen className="w-10 h-10 text-indigo-600 mx-auto" />
-            <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-              새 가계부 만들기 안내
-            </h4>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              새 가계부 개설은 <strong>대시보드 상단 조직 관리</strong> 및 <strong>새 가계부 모달(NewLedgerModal)</strong>에서 단일 귀속성 검증을 거쳐 생성됩니다.
-            </p>
-            <button
-              type="button"
-              onClick={() => setNewLedgerModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer"
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                  새 장부 개설 (회계 프로세스 설정)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewLedgerModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newLedgerTitle.trim()) return;
+
+                const initBal = parseInt(newLedgerInitialBalance.replace(/[^0-9-]/g, '') || '0', 10);
+                const cap = parseInt(newLedgerBudgetCap.replace(/[^0-9]/g, '') || '150000', 10);
+                const newId = `led-${Date.now()}`;
+
+                const themeMap = {
+                  LEATHER: {
+                    bg: 'from-emerald-900/10 via-emerald-800/5 to-transparent',
+                    border: 'border-emerald-600/40',
+                    spineGrad: 'bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-950 text-emerald-100',
+                    labelBg: 'bg-emerald-950/80 border border-emerald-500/40',
+                    labelText: 'text-emerald-300',
+                    bookmarkColor: 'bg-emerald-500 text-white',
+                    accent: 'text-emerald-600 dark:text-emerald-400',
+                  },
+                  HARDCOVER: {
+                    bg: 'from-indigo-900/10 via-indigo-800/5 to-transparent',
+                    border: 'border-indigo-600/40',
+                    spineGrad: 'bg-gradient-to-r from-indigo-800 via-blue-900 to-indigo-950 text-indigo-100',
+                    labelBg: 'bg-indigo-950/80 border border-indigo-500/40',
+                    labelText: 'text-indigo-300',
+                    bookmarkColor: 'bg-indigo-500 text-white',
+                    accent: 'text-indigo-600 dark:text-indigo-400',
+                  },
+                  KRAFT: {
+                    bg: 'from-amber-900/10 via-amber-800/5 to-transparent',
+                    border: 'border-amber-600/40',
+                    spineGrad: 'bg-gradient-to-r from-amber-800 via-orange-900 to-amber-950 text-amber-100',
+                    labelBg: 'bg-amber-950/80 border border-amber-500/40',
+                    labelText: 'text-amber-300',
+                    bookmarkColor: 'bg-amber-500 text-white',
+                    accent: 'text-amber-600 dark:text-amber-400',
+                  },
+                  FABRIC: {
+                    bg: 'from-purple-900/10 via-fuchsia-800/5 to-transparent',
+                    border: 'border-purple-600/40',
+                    spineGrad: 'bg-gradient-to-r from-purple-800 via-fuchsia-900 to-purple-950 text-purple-100',
+                    labelBg: 'bg-purple-950/80 border border-purple-500/40',
+                    labelText: 'text-purple-300',
+                    bookmarkColor: 'bg-purple-500 text-white',
+                    accent: 'text-purple-600 dark:text-purple-400',
+                  },
+                  SLATE: {
+                    bg: 'from-slate-900/15 via-zinc-800/5 to-transparent',
+                    border: 'border-slate-500/40',
+                    spineGrad: 'bg-gradient-to-r from-slate-700 via-zinc-800 to-slate-950 text-slate-100',
+                    labelBg: 'bg-slate-950/80 border border-slate-500/40',
+                    labelText: 'text-slate-300',
+                    bookmarkColor: 'bg-slate-500 text-white',
+                    accent: 'text-slate-600 dark:text-slate-400',
+                  },
+                  VINTAGE_BURGUNDY: {
+                    bg: 'from-rose-950/20 via-amber-950/10 to-transparent',
+                    border: 'border-amber-700/50',
+                    spineGrad: 'bg-gradient-to-r from-red-950 via-rose-900 to-amber-950 text-amber-200',
+                    labelBg: 'bg-amber-100/95 dark:bg-amber-950/90 border border-amber-600/60 shadow-xs',
+                    labelText: 'text-amber-950 dark:text-amber-200',
+                    bookmarkColor: 'bg-amber-500 text-amber-950',
+                    accent: 'text-amber-600 dark:text-amber-400',
+                  },
+                };
+
+                const newBook: LedgerBook = {
+                  id: newId,
+                  title: newLedgerTitle.trim(),
+                  type: newLedgerType,
+                  periodType: newLedgerPeriodType,
+                  subType: newLedgerSubType,
+                  closingStatus: 'OPEN',
+                  budgetCap: newLedgerSubType === 'POCKET_MONEY' ? cap : undefined,
+                  spentAmount: 0,
+                  resetCycle: newLedgerSubType === 'POCKET_MONEY' ? newLedgerResetCycle : undefined,
+                  allowReopen: newLedgerPeriodType === 'SHORT_TERM' ? newLedgerAllowReopen : true,
+                  description:
+                    newLedgerSubType === 'POCKET_MONEY'
+                      ? `용돈기입장 · ${newLedgerResetCycle === 'MONTHLY' ? '월' : '주'} 한도 ₩${cap.toLocaleString()}`
+                      : newLedgerPeriodType === 'SHORT_TERM'
+                      ? '단기 프로젝트 · 정산 중심 일회성 장부'
+                      : '일상 가계부 · 연속 시계열 관리',
+                  balance: newLedgerSubType === 'POCKET_MONEY' ? cap : initBal,
+                  currency: 'KRW',
+                  designStyle: newLedgerDesignStyle,
+                  colorTheme: themeMap[newLedgerDesignStyle],
+                  membersCount: 1,
+                  createdAt: new Date().toISOString().slice(0, 10),
+                  settlementCycle:
+                    newLedgerSubType === 'POCKET_MONEY'
+                      ? '주기별 용돈 리셋'
+                      : newLedgerPeriodType === 'SHORT_TERM'
+                      ? '프로젝트 종료 시 정산'
+                      : '매월 말일 결산',
+                };
+
+                setLedgers((prev) => [newBook, ...prev]);
+                setActiveLedgerId(newBook.id);
+                setMembersMap((prev) => ({
+                  ...prev,
+                  [newId]: [
+                    {
+                      id: `m-${Date.now()}`,
+                      name: '구본영(호스트/나)',
+                      role: 'OWNER',
+                      isGuest: false,
+                      joinedAt: new Date().toISOString().slice(0, 10),
+                      avatar: '👨‍💼',
+                    },
+                  ],
+                }));
+                setTransactionsMap((prev) => ({
+                  ...prev,
+                  [newId]: [],
+                }));
+
+                setNewLedgerModalOpen(false);
+                setNewLedgerTitle('');
+                setNoticeMessage(`✓ 새 장부 "${newBook.title}"이(가) 책꽂이에 등록되었습니다.`);
+              }}
+              className="space-y-3.5 text-xs"
             >
-              확인했습니다
-            </button>
+              <ElmInp01
+                label="장부 타이틀"
+                value={newLedgerTitle}
+                onChange={setNewLedgerTitle}
+                placeholder="예: 우리집 가계부, 자녀 용돈기입장, 제주도 여행"
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <ElmSel01
+                  label="귀속 유형"
+                  value={newLedgerType}
+                  onChange={(v) => setNewLedgerType(v as LedgerType)}
+                  options={[
+                    { value: 'PERSONAL', label: '👤 개인 가계부' },
+                    { value: 'GROUP', label: '👥 모임/가족 가계부' },
+                    { value: 'INSTANCE', label: '⚡ 인스턴스 (일회성)' },
+                  ]}
+                />
+
+                <ElmSel01
+                  label="회계 기간 유형"
+                  value={newLedgerPeriodType}
+                  onChange={(v) => setNewLedgerPeriodType(v as LedgerPeriodType)}
+                  options={[
+                    { value: 'LONG_TERM', label: '📅 장기 연속형 (일상/누적)' },
+                    { value: 'SHORT_TERM', label: '⏱️ 단기 정산형 (정산 후 마감)' },
+                  ]}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <ElmSel01
+                  label="세부 성격"
+                  value={newLedgerSubType}
+                  onChange={(v) => setNewLedgerSubType(v as LedgerSubType)}
+                  options={[
+                    { value: 'STANDARD', label: '📖 일반 가계부 (자산/수지)' },
+                    { value: 'POCKET_MONEY', label: '🪙 용돈기입장 (한도/소진)' },
+                  ]}
+                />
+
+                <ElmSel01
+                  label="책등 디자인 스타일"
+                  value={newLedgerDesignStyle}
+                  onChange={(v) => setNewLedgerDesignStyle(v as any)}
+                  options={[
+                    { value: 'LEATHER', label: '🌿 에메랄드 가죽' },
+                    { value: 'HARDCOVER', label: '📘 미드나잇 하드커버' },
+                    { value: 'KRAFT', label: '📙 따뜻한 크라프트' },
+                    { value: 'FABRIC', label: '🔮 바이올렛 패브릭' },
+                    { value: 'SLATE', label: '⚙️ 슬레이트 바인더' },
+                    { value: 'VINTAGE_BURGUNDY', label: '🍷 빈티지 버건디 양장' },
+                  ]}
+                />
+              </div>
+
+              {/* 용돈기입장 전용 설정 */}
+              {newLedgerSubType === 'POCKET_MONEY' && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                    <PiggyBank className="w-4 h-4 text-amber-600" />
+                    <span>용돈기입장 특화 설정</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ElmInp01
+                      label="한도 예산 (원)"
+                      value={newLedgerBudgetCap}
+                      onChange={setNewLedgerBudgetCap}
+                      placeholder="예: 150000"
+                    />
+                    <ElmSel01
+                      label="리셋 주기"
+                      value={newLedgerResetCycle}
+                      onChange={(v) => setNewLedgerResetCycle(v as any)}
+                      options={[
+                        { value: 'MONTHLY', label: '매월 1일 리셋' },
+                        { value: 'WEEKLY', label: '매주 월요일 리셋' },
+                        { value: 'NONE', label: '수동 관리' },
+                      ]}
+                    />
+                  </div>
+                  <p className="text-[10.5px] text-amber-800 dark:text-amber-300">
+                    * 부모 가계부에서 용돈을 송금할 때 TRANSFER 1:1 페어링으로 생활비 왜곡 없이 안전하게 충전됩니다.
+                  </p>
+                </div>
+              )}
+
+              {/* 단기 정산형 전용 설정 */}
+              {newLedgerPeriodType === 'SHORT_TERM' && (
+                <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 space-y-1">
+                  <ElmChk01
+                    checked={newLedgerAllowReopen}
+                    onChange={setNewLedgerAllowReopen}
+                    label="정산 마감 후에도 방장 재오픈(Reopen) 허용"
+                  />
+                  <p className="text-[10px] text-orange-700 dark:text-orange-300 pl-6">
+                    체크 해제 시 마감 후 수정이 불가한 불변 영구 보관 장부로 잠금됩니다.
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewLedgerModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer"
+                >
+                  새 장부 책꽂이에 꽂기
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

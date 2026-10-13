@@ -172,7 +172,7 @@ export const SCR_AUT_01_회원가입: React.FC<{
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 sm:p-6 space-y-6 bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-start pt-2 sm:pt-6 transition-colors">
+    <div className="w-full max-w-md mx-auto p-4 sm:p-6 space-y-6 bg-slate-50 dark:bg-[#121215] min-h-screen text-slate-900 dark:text-slate-100 flex flex-col justify-center transition-colors">
       <div className="p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-sm space-y-5 transition-colors">
         
         {/* Header with ElmTyp01 */}
@@ -181,7 +181,7 @@ export const SCR_AUT_01_회원가입: React.FC<{
             <ElmStt01 type="INDIGO" label="SCR-AUT-01 · 3초 간편 시작" />
           </div>
           <ElmTyp01
-            title="모아보고 회원가입"
+            title="모아보고 무료 회원가입"
             subtitle="1인 다중 가계부와 스마트 모임 라이프 서비스를 시작하세요"
             className="items-center text-center"
           />
