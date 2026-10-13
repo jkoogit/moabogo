@@ -75,5 +75,42 @@
   - `budget_cap` (한도) 대비 누적 실지출(`spent_amount`) 실시간 소진율 모니터링.
   - 주기별(`reset_cycle`: MONTHLY/WEEKLY) 리셋 시 잔여금 이월/소멸 정책 제어.
 
+---
+
+## 6. 전역 원자 지출(Atomic Expense SSOT) & N개 멀티 증빙 대사 아키텍처
+
+### 6.1 불변 원자 지출 단일 진실 원천 (Global Atomic Expense SSOT)
+- **전역 유일성**: 실제 발생한 모든 금융 사건(Financial Event)은 `atomic_expenses` 엔티티로 시스템 전역에 단 1건만 불변 기록됩니다.
+- **프로젝션 귀속(Ledger Allocation Mapping)**:
+  - 장부(`ledgers`)는 원자 지출을 소유하지 않고 다대일 매핑(`ledger_allocations`)으로 참조합니다.
+  - 장부에서 제외/삭제되어도 원자 데이터는 파기되지 않고 `allocation_status = 'UNALLOCATED'`로 격리됩니다.
+- **미아 데이터(Orphan Data) 수명주기(TTL/GC)**:
+  - `UNALLOCATED` 상태로 남아있는 미할당 데이터는 설정된 유예 기간(기본 90일) 동안 보존된 후 가비지 컬렉션(GC) 백그라운드 태스크에 의해 안전하게 정리됩니다.
+
+### 6.2 N개 무제한 멀티 증빙 체인 (Multi-Proof Convergence)
+- 단일 원자 지출 엔티티에 N개의 증빙(`expense_proofs`)이 1:N 관계로 바인딩됩니다:
+  - `MANUAL`: 사용자가 수기 입력한 메모/금액
+  - `RECEIPT_OCR`: 영수증 사진 및 품목(Itemized Menu) 세부 단가
+  - `SMS_NOTIFICATION`: 카드사 결제 승인 문자/알림톡
+  - `STATEMENT_LINE`: 월말 카드 이용대금명세서 최종 확정 라인 (Golden Record)
+- **대사 수렴 엔진 (Reconciliation Engine)**:
+  - `PENDING` (가승인) $\rightarrow$ `CONFIRMED` (카드명세서 대사 완료 확정).
+  - 카드사 청구할인(-1,000원) 및 포인트 적립 등 금융 조정액이 원자 지출에 자동 반영되어 실제 통장 출금액과 100% 일치 보장.
+
+---
+
+## 7. 운영비 0원 온디맨드 스토리지 수명주기 아키텍처 (Zero-Cost Storage Tiering)
+
+- **계층화(Tiering) 정책**:
+  - **Tier 1 (최근 30일 활성기)**: 경량 WebP 썸네일(15KB) + 원본 이미지 상시 접근.
+  - **Tier 2 (30일 초과 보관기)**: 원본 이미지를 월별 tarball(`proofs_YYYY_MM.tar.gz`)로 압축 보관. 메타데이터 DB는 썸네일 경로만 인덱싱.
+- **온디맨드 임시 해제 & 운영 정책별 파기 (On-Demand Decompress & Configurable Cache Purge)**:
+  - 사용자가 과거 원본 증빙을 요청한 순간에만 백엔드가 tarball에서 단건 스트림을 메모리/임시 캐시에 일시 해제.
+  - **파기 정책 운영 옵션 (`stream_cache_purge_policy`)**:
+    - `INSTANT` (기본값): 모달 닫힘 감지 시 메모리 즉시 파기 (홈서버 2GB RAM OOM 상한선 원천 방어).
+    - `1_DAY`: 당일 재조회 편의를 위해 24시간 임시 LRU 캐시 유지 후 자동 소멸.
+    - `30_DAYS`: 월간 세무/정산 집중 기간 동안 30일간 임시 캐시 유지 후 자동 압축본으로 환원.
+
+
 
 

@@ -44,16 +44,41 @@ import {
   Coins,
   PiggyBank,
   Clock,
+  CreditCard,
+  Layers,
+  FileSearch,
+  Database,
+  HardDrive,
+  Zap,
+  RefreshCw,
+  Archive,
+  FolderArchive,
+  FileCheck,
+  Eye,
+  DownloadCloud,
 } from 'lucide-react';
 
 // ============================================================================
-// 도메인 타입 정의 (회계 프로세스 & 장부 생명주기)
+// 도메인 타입 정의 (회계 프로세스, 전역 원자 지출 SSOT & 멀티 증빙)
 // ============================================================================
 export type LedgerType = 'PERSONAL' | 'GROUP' | 'INSTANCE';
 export type LedgerPeriodType = 'LONG_TERM' | 'SHORT_TERM';
 export type LedgerSubType = 'STANDARD' | 'POCKET_MONEY';
 export type LedgerClosingStatus = 'OPEN' | 'CLOSED' | 'SETTLED';
 export type LedgerRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' | 'GUEST';
+
+// N개 무제한 멀티 증빙 자료 아이템
+export interface ExpenseProofItem {
+  id: string;
+  type: 'MANUAL' | 'RECEIPT_OCR' | 'SMS_NOTIFICATION' | 'STATEMENT_LINE';
+  title: string;
+  amount: number;
+  date: string;
+  source: string;
+  thumbnailUrl?: string;
+  details?: string[];
+  isArchived?: boolean; // 30일 경과 tarball 압축 아카이브 여부 (운영비 0원)
+}
 
 export interface LedgerMember {
   id: string;
@@ -110,6 +135,29 @@ export interface LedgerTransaction {
   relatedTransferId?: string;
   tagNames: string[];
   note?: string;
+  // [태스크 0008-02 신규] 원자 지출 SSOT 대사 상태 및 N개 멀티 증빙
+  reconciliationStatus?: 'CONFIRMED' | 'PENDING' | 'DISPUTED';
+  proofs?: ExpenseProofItem[];
+  statementDiscount?: number; // 카드사 청구할인 혜택
+  statementCardName?: string; // 대사된 카드명
+}
+
+// 10월 6대 카드사 명세서 요약 인터페이스
+export interface CardStatementSummary {
+  cardCode: string;
+  cardName: string;
+  cardAlias: string;
+  logoColor: string;
+  paymentDate: string;
+  account: string;
+  totalBilled: number;
+  lumpSum: number;
+  installment: number;
+  revolving?: number;
+  fees: number;
+  benefitDiscount: number;
+  notableItems: string[];
+  installmentAlert?: string;
 }
 
 interface SCR_LED_01_Props {
@@ -578,6 +626,139 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
 };
 
 
+// ============================================================================
+// 2026년 10월 6대 카드사 실제 청구 데이터셋 (SSOT 기준 원장)
+// - 우리, 국민, 농협, 현대, 삼성, BC바로카드
+// - 총 청구: 6,029,542원 / 11월 소멸 예정 할부: -604,083원 / 리볼빙: 690,942원
+// ============================================================================
+export const OCTOBER_CARD_STATEMENTS: CardStatementSummary[] = [
+  {
+    cardCode: 'WOORI',
+    cardName: '우리카드',
+    cardAlias: '(V280) 다둥이행복카드',
+    logoColor: 'from-blue-600 to-indigo-700',
+    paymentDate: '2026.10.20',
+    account: '우리은행 100*******157',
+    totalBilled: 3665304,
+    lumpSum: 3307888,
+    installment: 357416,
+    fees: 0,
+    benefitDiscount: 26100,
+    notableItems: [
+      '탑(Top)명문보습학원 580,000원 + 480,000원 (106만 원 집중)',
+      '4대사회보험 302,671원 (15.2만 + 15.0만)',
+      '신한라이프/KB손보/AIA 등 보험료 300,825원',
+      '도깨비 식자재 마트 8건 (약 12만 원 장보기)',
+      '건강보험_엘카드 204,083원 (3/3회차 최종 완납!)',
+      '대원체육관 153,333원 (3/2회차, 잔여 1회)',
+    ],
+    installmentAlert: '🎉 건강보험(20.4만 원) 3/3회차 완납으로 11월 청구 소멸!',
+  },
+  {
+    cardCode: 'KB',
+    cardName: 'KB국민카드',
+    cardAlias: 'T-Premium KB국민 / 쿠팡 와우',
+    logoColor: 'from-amber-500 to-yellow-600',
+    paymentDate: '2026.10.23',
+    account: '국민은행 435001-***-422',
+    totalBilled: 701208,
+    lumpSum: 0,
+    installment: 10266,
+    revolving: 690942,
+    fees: 0,
+    benefitDiscount: 299,
+    notableItems: [
+      '일부결제금액이월약정(리볼빙) 약정비율 100% (당월 전액 청구 690,942원)',
+      'KB아파트관리비 355,140원 (공과금 정기결제)',
+      '예스코 도시가스 34,620원 (자동납부)',
+      '쿠팡(쿠페이) 8건 합산 약 301,182원',
+      '쿠팡 할부 10,266원 (3/2회차, 잔여 1회)',
+    ],
+    installmentAlert: '⚠️ 리볼빙 수수료율 연 14.1% 활성 상태 - 100% 완납 유지 필수',
+  },
+  {
+    cardCode: 'NH',
+    cardName: 'NH농협카드',
+    cardAlias: '조경국(W457)라이트 카드',
+    logoColor: 'from-emerald-600 to-green-700',
+    paymentDate: '2026.10.23',
+    account: '우리은행 100********57',
+    totalBilled: 562660,
+    lumpSum: 472730,
+    installment: 88890,
+    fees: 1040,
+    benefitDiscount: 1797,
+    notableItems: [
+      'SKT 통신요금 자동이체 114,340원',
+      '메리츠화재해상보험 9건 합산 249,860원',
+      '에스케이텔레콤 24개월 중 14회차 19,500원 (수수료 1,040원, 잔여 10회)',
+      '네이버페이 6개월 중 5회차 68,350원 (잔여 1회)',
+      'LG U+ 통신 1,110원',
+    ],
+    installmentAlert: '네이버페이(6.8만 원) 다음 달 6/6회차 완납 예정',
+  },
+  {
+    cardCode: 'HYUNDAI',
+    cardName: '현대카드',
+    cardAlias: '본인 네이버 현대카드',
+    logoColor: 'from-slate-800 to-zinc-950',
+    paymentDate: '2026.10.20',
+    account: '우리은행 계좌',
+    totalBilled: 560450,
+    lumpSum: 150450,
+    installment: 400000,
+    fees: 10000,
+    benefitDiscount: 0,
+    notableItems: [
+      '밝은미소이치과의원 400,000원 (총 120만 원 중 3/3회차 최종 완납!)',
+      '연회비 청구 10,000원 (네이버 현대카드 본인)',
+      '콩팥전문 외식 57,000원',
+      '토스페이먼츠(비바리퍼블리카) 2건 56,600원',
+      '네이버플러스 멤버십 4,900원, GS25 3,000원',
+    ],
+    installmentAlert: '🎉 치과 3/3회차 완납! 11월부터 무려 40만 원 청구 소멸!',
+  },
+  {
+    cardCode: 'SAMSUNG',
+    cardName: '삼성카드',
+    cardAlias: '국민행복 삼성카드 V2',
+    logoColor: 'from-blue-700 to-sky-800',
+    paymentDate: '2026.10.19',
+    account: '우리은행 1002-2**',
+    totalBilled: 499100,
+    lumpSum: 0,
+    installment: 499100,
+    fees: 0,
+    benefitDiscount: 20448,
+    notableItems: [
+      '전액 무이자 할부 3건으로 구성 (일시불 0원)',
+      'DB손해보험 90,700원 (5개월 중 2회차, 잔여 3회)',
+      '(주)딴지그룹 345,500원 (3개월 중 2회차, 잔여 1회)',
+      '(주)딴지그룹 62,900원 (3개월 중 1회차, 잔여 2회)',
+    ],
+    installmentAlert: '딴지그룹(34.5만 원) 11월 3/3회차 완납 예정',
+  },
+  {
+    cardCode: 'BC',
+    cardName: 'BC 바로카드',
+    cardAlias: 'BC 바로 K-패스 (후불교통)',
+    logoColor: 'from-rose-600 to-red-700',
+    paymentDate: '2026.10월 정산',
+    account: '후불교통 자동결제',
+    totalBilled: 40820,
+    lumpSum: 63000,
+    installment: 0,
+    fees: 0,
+    benefitDiscount: 22180,
+    notableItems: [
+      '9월 매일 대중교통 후불 이용액 63,000원 (1,550원 + 환승 200원)',
+      'K-패스 정부/지자체 환급금 -22,180원 자동 차감 상계',
+      '최종 실교통비 청구 40,820원',
+    ],
+    installmentAlert: '대중교통 혜택 환급금 22,180원 차감 적용 완료',
+  },
+];
+
 export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> = ({ onBack }) => {
   // --------------------------------------------------------------------------
   // 1. 가로 형태의 쌓여있는 가계부 책꽂이 데이터셋 (각 책마다 고유 디자인 적용)
@@ -994,14 +1175,78 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {
         id: 'tx-g-03',
         ledgerId: 'led-group-01',
-        title: '관리비 및 도시가스 자동이체',
+        title: 'KB아파트관리비 및 예스코 도시가스 (정기공과금)',
         type: 'EXPENSE',
-        amount: 284000,
+        amount: 389760,
         category: '주거/통신',
-        date: '2026-10-05',
-        payerName: '공동계좌',
+        date: '2026-09-22',
+        payerName: 'KB국민카드',
         isAssetTransfer: false,
-        tagNames: ['고정지출', '공과금'],
+        tagNames: ['고정지출', '공과금', '명세서확정'],
+        reconciliationStatus: 'CONFIRMED',
+        statementCardName: 'KB국민카드',
+        proofs: [
+          {
+            id: 'prf-g3-1',
+            type: 'MANUAL',
+            title: '구본영 고정비 메모 등록',
+            amount: 389760,
+            date: '2026-09-20 09:00',
+            source: '모아보고 정기알림',
+          },
+          {
+            id: 'prf-g3-2',
+            type: 'STATEMENT_LINE',
+            title: 'KB국민카드 10월 명세서 (자동납부 확정)',
+            amount: 389760,
+            date: '2026-09-22',
+            source: 'KB국민카드 10월 이용대금명세서',
+            details: ['KB아파트관리비-26년08월분 355,140원', '예스코-자동납부 34,620원', '리볼빙 약정비율 100% 당월 전액청구 확정'],
+          },
+        ],
+      },
+      {
+        id: 'tx-g-06',
+        ledgerId: 'led-group-01',
+        title: '탑(Top)명문보습학원 (자녀 교육비 2건)',
+        type: 'EXPENSE',
+        amount: 1060000,
+        category: '교육/학원',
+        date: '2026-10-05',
+        payerName: '우리카드(다둥이)',
+        isAssetTransfer: false,
+        tagNames: ['고정지출', '교육비', '명세서확정'],
+        reconciliationStatus: 'CONFIRMED',
+        statementCardName: '우리카드',
+        statementDiscount: 20000,
+        proofs: [
+          {
+            id: 'prf-g6-1',
+            type: 'RECEIPT_OCR',
+            title: '학원 결제 영수증 촬영',
+            amount: 1080000,
+            date: '2026-10-05 16:30',
+            source: 'EasyOCR 스캐너',
+            details: ['탑명문보습학원 중등수학 580,000원', '탑명문보습학원 중등영어 500,000원'],
+          },
+          {
+            id: 'prf-g6-2',
+            type: 'SMS_NOTIFICATION',
+            title: '우리카드 승인 알림톡',
+            amount: 1060000,
+            date: '2026-10-05 16:31',
+            source: '카카오 알림톡',
+          },
+          {
+            id: 'prf-g6-3',
+            type: 'STATEMENT_LINE',
+            title: '우리카드 10월 명세서 최종 확정',
+            amount: 1060000,
+            date: '2026-10-12',
+            source: '우리카드 10월 이용대금명세서',
+            details: ['다둥이카드 학원 청구할인 -20,000원 적용', '순 결제금액 1,060,000원 확정', 'TOP 포인트 2,500P 적립'],
+          },
+        ],
       },
       {
         id: 'tx-g-04',
@@ -1015,6 +1260,18 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         isAssetTransfer: false,
         tagNames: ['대납', '정산요청'],
         note: '개인 카드로 가족 식대 선결제 (모임 가계부에 대납 등록)',
+        reconciliationStatus: 'PENDING',
+        proofs: [
+          {
+            id: 'prf-g4-1',
+            type: 'RECEIPT_OCR',
+            title: '식당 테이블 종이 영수증',
+            amount: 120000,
+            date: '2026-10-04 20:15',
+            source: '종이 영수증 사진 (대기중)',
+            details: ['삼겹살 4인분 68,000원', '목살 2인분 34,000원', '된장찌개/공기밥 18,000원'],
+          },
+        ],
       },
       {
         id: 'tx-g-05',
@@ -1033,14 +1290,86 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {
         id: 'tx-p-01',
         ledgerId: 'led-personal-01',
-        title: '스타벅스 강남 R점 (개인 커피)',
+        title: '스타벅스 강남 R점 (개인 커피 & 베이커리)',
         type: 'EXPENSE',
         amount: 7200,
         category: '식음료/카페',
         date: '2026-10-11',
         payerName: '구본영',
         isAssetTransfer: false,
-        tagNames: ['개인지출'],
+        tagNames: ['개인지출', '명세서확정'],
+        reconciliationStatus: 'CONFIRMED',
+        statementCardName: '우리카드 (다둥이)',
+        statementDiscount: 1000,
+        proofs: [
+          {
+            id: 'prf-p1-1',
+            type: 'MANUAL',
+            title: '구본영 모아보고 앱 수기 등록',
+            amount: 8200,
+            date: '2026-10-11 14:30',
+            source: '모아보고 빠른등록',
+          },
+          {
+            id: 'prf-p1-2',
+            type: 'RECEIPT_OCR',
+            title: '전자 영수증 OCR 촬영 (품목 파싱)',
+            amount: 8200,
+            date: '2026-10-11 14:32',
+            source: '스타벅스 e-영수증',
+            details: ['스타벅스 강남R점', '아메리카노 T 4,500원', '바닐라 라떼 G 5,500원', '개인컵 할인 -1,800원'],
+          },
+          {
+            id: 'prf-p1-3',
+            type: 'SMS_NOTIFICATION',
+            title: '우리카드 결제 승인 문자 (SMS)',
+            amount: 8200,
+            date: '2026-10-11 14:32',
+            source: '카드사 승인 전문',
+          },
+          {
+            id: 'prf-p1-4',
+            type: 'STATEMENT_LINE',
+            title: '10월 이용대금명세서 최종 확정 (Golden Record)',
+            amount: 7200,
+            date: '2026-10-12',
+            source: '우리카드 10월 명세서',
+            details: ['카페 청구할인 -1,000원 자동 보정', '실제 통장 출금액 7,200원 확정', '우리카드 TOP 36P 적립'],
+          },
+        ],
+      },
+      {
+        id: 'tx-p-04',
+        ledgerId: 'led-personal-01',
+        title: '밝은미소이치과의원 치과 치료비 (3/3회차 완납)',
+        type: 'EXPENSE',
+        amount: 400000,
+        category: '의료/건강',
+        date: '2026-07-15',
+        payerName: '네이버 현대카드',
+        isAssetTransfer: false,
+        tagNames: ['할부지출', '3/3회차완납', '11월소멸'],
+        reconciliationStatus: 'CONFIRMED',
+        statementCardName: '현대카드',
+        proofs: [
+          {
+            id: 'prf-p4-1',
+            type: 'MANUAL',
+            title: '치과 무이자 3개월 할부 약정',
+            amount: 1200000,
+            date: '2026-07-15',
+            source: '병원 수납처',
+          },
+          {
+            id: 'prf-p4-2',
+            type: 'STATEMENT_LINE',
+            title: '현대카드 10월 명세서 (최종 3/3회차)',
+            amount: 400000,
+            date: '2026-10-09',
+            source: '현대카드 10월 이용대금명세서',
+            details: ['원금 1,200,000원 중 당월 400,000원 청구', '할부 수수료 0원 (무이자)', '🎉 이번 10월로 전액 완납되어 11월 청구 소멸!'],
+          },
+        ],
       },
       {
         id: 'tx-p-02',
@@ -1202,8 +1531,15 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   }, [currentTransactions]);
 
   // --------------------------------------------------------------------------
-  // 7. 모달 상태
+  // 7. 모달 상태 및 서브 뷰 토글 (명세서 분석 Bento & 멀티 증빙)
   // --------------------------------------------------------------------------
+  const [activeSubView, setActiveSubView] = useState<'LEDGER' | 'STATEMENT_BENTO'>('LEDGER');
+  const [selectedTxForProofs, setSelectedTxForProofs] = useState<LedgerTransaction | null>(null);
+  const [decompressSimulating, setDecompressSimulating] = useState(false);
+  const [decompressSuccessMsg, setDecompressSuccessMsg] = useState<string | null>(null);
+  const [streamPurgePolicy, setStreamPurgePolicy] = useState<'INSTANT' | '1_DAY' | '30_DAYS'>('INSTANT');
+  const [expandedCardCode, setExpandedCardCode] = useState<string | null>('WOORI');
+
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [newLedgerModalOpen, setNewLedgerModalOpen] = useState(false);
   const [newTxModalOpen, setNewTxModalOpen] = useState(false);
@@ -1907,208 +2243,966 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-              거래 내역 관리
-            </span>
-            <ElmCnt01 count={filteredTransactions.length} label="총" />
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="w-full sm:w-64">
-              <ElmInp04
-                value={searchWord}
-                onChange={setSearchWord}
-                placeholder="가맹점, 입출금자 검색..."
-              />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                회계 원장 및 지출 분석
+              </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (isLedgerClosed) {
-                  setNoticeMessage('[마감 제한] 정산 및 회계가 마감된 장부에는 신규 거래를 등록할 수 없습니다.');
-                  return;
-                }
-                if (!canAddTransaction) {
-                  setNoticeMessage('[권한 제한] 조회 전용(VIEWER) 권한은 거래를 추가할 수 없습니다.');
-                  return;
-                }
-                setNewTxModalOpen(true);
-              }}
-              disabled={!canAddTransaction}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${
-                canAddTransaction
-                  ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 cursor-pointer'
-                  : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
-              }`}
-            >
-              {isLedgerClosed ? (
-                <>
-                  <Lock className="w-4 h-4" />
-                  <span>마감됨 (입력 잠금)</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  <span>새 거래 등록</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* 카테고리 필터 바 */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 dark:border-zinc-800/80 py-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-            <ElmFlt01
-              label="전체"
-              selected={categoryFilter === 'ALL'}
-              onClick={() => setCategoryFilter('ALL')}
-            />
-            <ElmFlt01
-              label="식료품/마트"
-              selected={categoryFilter === '식료품/마트'}
-              onClick={() => setCategoryFilter('식료품/마트')}
-            />
-            <ElmFlt01
-              label="외식/식음료"
-              selected={categoryFilter === '외식/식음료'}
-              onClick={() => setCategoryFilter('외식/식음료')}
-            />
-            <ElmFlt01
-              label="주거/통신"
-              selected={categoryFilter === '주거/통신'}
-              onClick={() => setCategoryFilter('주거/통신')}
-            />
-            <ElmFlt01
-              label="자산이동"
-              selected={categoryFilter === '가족 내부 이동' || categoryFilter === '자산 내부 이동'}
-              onClick={() =>
-                setCategoryFilter(
-                  currentLedger.type === 'GROUP' ? '가족 내부 이동' : '자산 내부 이동'
-                )
-              }
-            />
-          </div>
-
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={excludeAssetTransfer}
-              onChange={(e) => setExcludeAssetTransfer(e.target.checked)}
-              className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
-            />
-            <span>자산이동 분리 표시</span>
-          </label>
-        </div>
-
-        {/* 거래 항목 테이블 리스트 */}
-        <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
-          {filteredTransactions.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs font-medium">
-              조건에 해당하는 거래 내역이 없습니다.
-            </div>
-          ) : (
-            filteredTransactions.map((tx) => (
-              <div
-                key={tx.id}
-                className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+            {/* 서브 뷰 토글 탭 */}
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-2xl border border-slate-200 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setActiveSubView('LEDGER')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSubView === 'LEDGER'
+                    ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
-                      tx.isAssetTransfer
-                        ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
-                        : tx.type === 'EXPENSE'
-                        ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300'
-                        : tx.type === 'INCOME'
-                        ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
-                        : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300'
-                    }`}
-                  >
-                    {tx.isAssetTransfer ? (
-                      <ArrowRightLeft className="w-5 h-5" />
-                    ) : tx.type === 'EXPENSE' ? (
-                      <TrendingDown className="w-5 h-5" />
-                    ) : tx.type === 'INCOME' ? (
-                      <TrendingUp className="w-5 h-5" />
-                    ) : (
-                      <ArrowRightLeft className="w-5 h-5" />
-                    )}
-                  </div>
+                <FileText className="w-3.5 h-3.5" />
+                <span>원장 거래 목록</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-zinc-700 text-[10px] font-mono">
+                  {filteredTransactions.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubView('STATEMENT_BENTO')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSubView === 'STATEMENT_BENTO'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>10월 카드명세서 분석 Bento</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black">
+                  6개사 ₩602만
+                </span>
+              </button>
+            </div>
+          </div>
 
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                        {tx.title}
-                      </span>
-
-                      {tx.isAssetTransfer && (
-                        <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
-                          <ArrowRightLeft className="w-2.5 h-2.5" />
-                          <span>자산이동 (생활비제외)</span>
-                          {tx.relatedTransferId && (
-                            <span className="text-[9px] font-mono text-purple-500 dark:text-purple-400">
-                              · 1:1 페어링 연동
-                            </span>
-                          )}
-                        </span>
-                      )}
-
-                      {tx.tagNames.map((tag) => (
-                        <span
-                          key={tag}
-                          className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                            tag.includes('대납') || tag.includes('정산')
-                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
-                          }`}
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <span>{tx.date}</span>
-                      <span>•</span>
-                      <span>결제: {tx.payerName}</span>
-                      {tx.note && (
-                        <>
-                          <span>•</span>
-                          <span className="text-slate-500 dark:text-zinc-400 truncate max-w-xs">
-                            {tx.note}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <div
-                    className={`font-mono font-extrabold text-sm sm:text-base ${
-                      tx.isAssetTransfer
-                        ? 'text-purple-600 dark:text-purple-400'
-                        : tx.type === 'EXPENSE'
-                        ? 'text-rose-600 dark:text-rose-400'
-                        : tx.type === 'INCOME'
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-indigo-600 dark:text-indigo-400'
-                    }`}
-                  >
-                    {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'} ₩
-                    {tx.amount.toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{tx.category}</span>
-                </div>
+          {activeSubView === 'LEDGER' && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="w-full sm:w-56">
+                <ElmInp04
+                  value={searchWord}
+                  onChange={setSearchWord}
+                  placeholder="가맹점, 입출금자 검색..."
+                />
               </div>
-            ))
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLedgerClosed) {
+                    setNoticeMessage('[마감 제한] 정산 및 회계가 마감된 장부에는 신규 거래를 등록할 수 없습니다.');
+                    return;
+                  }
+                  if (!canAddTransaction) {
+                    setNoticeMessage('[권한 제한] 조회 전용(VIEWER) 권한은 거래를 추가할 수 없습니다.');
+                    return;
+                  }
+                  setNewTxModalOpen(true);
+                }}
+                disabled={!canAddTransaction}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${
+                  canAddTransaction
+                    ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 cursor-pointer'
+                    : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
+                }`}
+              >
+                {isLedgerClosed ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>마감됨 (입력 잠금)</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>새 거래 등록</span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
+
+        {/* 서브 뷰 1: 원장 거래 목록 (LEDGER) */}
+        {activeSubView === 'LEDGER' && (
+          <div className="space-y-4">
+            {/* 카테고리 필터 바 */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 dark:border-zinc-800/80 py-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+                <ElmFlt01
+                  label="전체"
+                  selected={categoryFilter === 'ALL'}
+                  onClick={() => setCategoryFilter('ALL')}
+                />
+                <ElmFlt01
+                  label="식료품/마트"
+                  selected={categoryFilter === '식료품/마트'}
+                  onClick={() => setCategoryFilter('식료품/마트')}
+                />
+                <ElmFlt01
+                  label="외식/식음료"
+                  selected={categoryFilter === '외식/식음료'}
+                  onClick={() => setCategoryFilter('외식/식음료')}
+                />
+                <ElmFlt01
+                  label="주거/통신"
+                  selected={categoryFilter === '주거/통신'}
+                  onClick={() => setCategoryFilter('주거/통신')}
+                />
+                <ElmFlt01
+                  label="자산이동"
+                  selected={categoryFilter === '가족 내부 이동' || categoryFilter === '자산 내부 이동'}
+                  onClick={() =>
+                    setCategoryFilter(
+                      currentLedger.type === 'GROUP' ? '가족 내부 이동' : '자산 내부 이동'
+                    )
+                  }
+                />
+              </div>
+
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={excludeAssetTransfer}
+                  onChange={(e) => setExcludeAssetTransfer(e.target.checked)}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                />
+                <span>자산이동 분리 표시</span>
+              </label>
+            </div>
+
+            {/* 거래 항목 테이블 리스트 */}
+            <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+              {filteredTransactions.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                  조건에 해당하는 거래 내역이 없습니다.
+                </div>
+              ) : (
+                filteredTransactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                          tx.isAssetTransfer
+                            ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
+                            : tx.type === 'EXPENSE'
+                            ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300'
+                            : tx.type === 'INCOME'
+                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
+                            : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300'
+                        }`}
+                      >
+                        {tx.isAssetTransfer ? (
+                          <ArrowRightLeft className="w-5 h-5" />
+                        ) : tx.type === 'EXPENSE' ? (
+                          <TrendingDown className="w-5 h-5" />
+                        ) : tx.type === 'INCOME' ? (
+                          <TrendingUp className="w-5 h-5" />
+                        ) : (
+                          <ArrowRightLeft className="w-5 h-5" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                            {tx.title}
+                          </span>
+
+                          {tx.isAssetTransfer && (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                              <ArrowRightLeft className="w-2.5 h-2.5" />
+                              <span>자산이동 (생활비제외)</span>
+                              {tx.relatedTransferId && (
+                                <span className="text-[9px] font-mono text-purple-500 dark:text-purple-400">
+                                  · 1:1 페어링 연동
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          {tx.tagNames.map((tag) => (
+                            <span
+                              key={tag}
+                              className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                tag.includes('대납') || tag.includes('정산')
+                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                              }`}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                          <span>{tx.date}</span>
+                          <span>•</span>
+                          <span>결제: {tx.payerName}</span>
+                          {tx.note && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-500 dark:text-zinc-400 truncate max-w-xs">
+                                {tx.note}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* [태스크 0008-02] 원자 지출 대사 뱃지 & 멀티 증빙 체인 버튼 */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          {tx.reconciliationStatus === 'CONFIRMED' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <span>명세서 대사 확정</span>
+                              {tx.statementCardName && (
+                                <span className="opacity-75 font-normal">({tx.statementCardName})</span>
+                              )}
+                              {tx.statementDiscount && tx.statementDiscount > 0 && (
+                                <span className="text-emerald-700 dark:text-emerald-300 font-extrabold font-mono ml-0.5">
+                                  -₩{tx.statementDiscount.toLocaleString()} 할인
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          {tx.reconciliationStatus === 'PENDING' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>영수증 선등록 (명세서 대사 대기)</span>
+                            </span>
+                          )}
+
+                          {tx.proofs && tx.proofs.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTxForProofs(tx)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold transition-all cursor-pointer shadow-2xs hover:scale-102"
+                              title="N개 멀티 증빙 체인 및 0원 스토리지 아카이브 확인"
+                            >
+                              <Layers className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                              <span>증빙 체인 ({tx.proofs.length}건)</span>
+                              <Eye className="w-2.5 h-2.5 opacity-60 ml-0.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div
+                        className={`font-mono font-extrabold text-sm sm:text-base ${
+                          tx.isAssetTransfer
+                            ? 'text-purple-600 dark:text-purple-400'
+                            : tx.type === 'EXPENSE'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : tx.type === 'INCOME'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-indigo-600 dark:text-indigo-400'
+                        }`}
+                      >
+                        {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'} ₩
+                        {tx.amount.toLocaleString()}
+                      </div>
+                      <span className="text-[10px] text-slate-400">{tx.category}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 서브 뷰 2: 10월 6대 카드사 명세서 분석 Bento 그리드 (STATEMENT_BENTO) */}
+        {activeSubView === 'STATEMENT_BENTO' && (
+          <div className="space-y-5 animate-in fade-in-50">
+            {/* Bento 상단 총괄 헤더 카드 */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-zinc-950 text-white shadow-xl border border-indigo-500/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-[10px] border border-indigo-400/30">
+                      신뢰도 100% 골든 소스 (SSOT)
+                    </span>
+                    <span className="text-xs text-slate-300 font-medium">
+                      2026년 10월 6대 카드사 실제 청구 전수 집계
+                    </span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black tracking-tight">
+                    10월 총 카드 청구액{' '}
+                    <span className="text-amber-400 font-mono">₩6,029,542</span>
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/10 text-right">
+                    <span className="text-[10px] text-slate-300 block">청구할인/캐시백 혜택</span>
+                    <span className="text-xs sm:text-sm font-extrabold text-emerald-400 font-mono">
+                      -₩70,824 절감
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 지출 구조 분해 칩 바 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                  <span className="text-[10px] text-slate-400 block">일시불 (당월소비)</span>
+                  <div className="font-mono font-bold text-slate-200">
+                    ₩3,994,068 <span className="text-[10px] text-indigo-300 font-normal">(66.2%)</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                  <span className="text-[10px] text-slate-400 block">할부 청구액</span>
+                  <div className="font-mono font-bold text-amber-300">
+                    ₩1,266,672 <span className="text-[10px] text-amber-400/80 font-normal">(21.0%)</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                  <span className="text-[10px] text-slate-400 block">리볼빙 (약정 100%)</span>
+                  <div className="font-mono font-bold text-sky-300">
+                    ₩690,942 <span className="text-[10px] text-sky-400/80 font-normal">(11.5%)</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                  <span className="text-[10px] text-slate-400 block">금융수수료/연회비</span>
+                  <div className="font-mono font-bold text-rose-300">
+                    ₩11,040 <span className="text-[10px] text-rose-400/80 font-normal">(0.2%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento 그리드 핵심 분석 영역 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Bento 1: 11월 도래 완납 세이빙 경보 (Saving Sentinel) */}
+              <div className="md:col-span-2 p-5 rounded-3xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      🎉
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-emerald-950 dark:text-emerald-100">
+                        11월 도래 할부 완납 세이빙 경보 (Saving Sentinel)
+                      </h4>
+                      <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                        10월 최종회차 납부로 11월부터 청구가 완전히 사라지는 고정비
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 text-xs font-black font-mono">
+                    -₩604,083원 절감!
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-emerald-100 dark:border-emerald-900/50 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 dark:text-white">
+                        우리카드: 건강보험_엘카드
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                        3/3회차 최종 완납
+                      </span>
+                    </div>
+                    <div className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      ₩204,083 <span className="text-[11px] text-slate-400 font-normal">/월 소멸</span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 dark:text-zinc-400">
+                      공과금 분할납부 3회차 만기로 11월부터 계좌 출금액 20.4만 원 영구 감소.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-emerald-100 dark:border-emerald-900/50 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 dark:text-white">
+                        현대카드: 밝은미소이치과의원
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                        3/3회차 최종 완납
+                      </span>
+                    </div>
+                    <div className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      ₩400,000 <span className="text-[11px] text-slate-400 font-normal">/월 소멸</span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 dark:text-zinc-400">
+                      총 120만 원 치과 진료비 분납 완료! 11월 현대카드 청구 부담 71% 급감.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-emerald-100/60 dark:bg-emerald-950/50 text-[11px] text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+                  <span>
+                    💡 <strong>차월 추가 완납 예정</strong>: 삼성카드 딴지그룹(34.5만 원 3/3회차) + 농협 네이버페이(6.8만 원 6/6회차)
+                  </span>
+                  <span className="font-mono font-bold text-xs">총 41.3만 원 추가 완납 대기</span>
+                </div>
+              </div>
+
+              {/* Bento 2: 리볼빙 및 고위험 수수료 방어 (Risk Sentinel) */}
+              <div className="p-5 rounded-3xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-3.5 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    ⚠️
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-amber-950 dark:text-amber-100">
+                      리볼빙 & 수수료 누수 방어
+                    </h4>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                      이자 누수 위험 선제적 차단 상태
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-900/40 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-zinc-200">KB국민 리볼빙 약정</span>
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                        약정비율 100%
+                      </span>
+                    </div>
+                    <div className="text-sm font-mono font-extrabold text-amber-600 dark:text-amber-400">
+                      ₩690,942 <span className="text-[10px] text-slate-400 font-normal">(당월 전액청구)</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
+                      * 리볼빙 수수료율 <strong>연 14.1%</strong> 활성 상태이나, 약정비율 100% 설정으로 이월이자 <strong>0원 완벽 방어</strong> 중.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-900/40 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-zinc-200">금융 수수료 실청구액</span>
+                      <span className="font-mono font-bold text-rose-600">₩11,040</span>
+                    </div>
+                    <ul className="text-[10.5px] text-slate-500 dark:text-zinc-400 space-y-0.5 list-disc list-inside">
+                      <li>현대카드 네이버 본인 연회비: 10,000원</li>
+                      <li>NH농협 SKT 단말기 할부수수료: 1,040원 (연 5.9%)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento 3: 고정비 & 정기결제 구조 (Fixed Expense Radar) */}
+            <div className="p-5 rounded-3xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 space-y-3.5 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    📡
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-indigo-950 dark:text-indigo-100">
+                      10월 고정비 & 정기결제 레이더 (Fixed Expense Radar)
+                    </h4>
+                    <p className="text-[11px] text-indigo-800 dark:text-indigo-300">
+                      자동이체 및 정기결제로 빠져나간 필수 고정비 전수 분석
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-indigo-700 dark:text-indigo-300 block">고정비 합계 (총 지출의 32.1%)</span>
+                  <span className="text-base sm:text-lg font-black font-mono text-indigo-950 dark:text-white">
+                    ₩1,933,767원
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 text-center space-y-0.5">
+                  <span className="text-[10px] text-slate-400">보습학원 (교육비)</span>
+                  <div className="font-mono font-bold text-slate-800 dark:text-zinc-100">₩1,060,000</div>
+                  <span className="text-[9.5px] text-indigo-600">우리카드 (2건)</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 text-center space-y-0.5">
+                  <span className="text-[10px] text-slate-400">KB아파트관리비</span>
+                  <div className="font-mono font-bold text-slate-800 dark:text-zinc-100">₩355,140</div>
+                  <span className="text-[9.5px] text-indigo-600">KB국민 (자동납부)</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 text-center space-y-0.5">
+                  <span className="text-[10px] text-slate-400">4대 사회보험</span>
+                  <div className="font-mono font-bold text-slate-800 dark:text-zinc-100">₩302,671</div>
+                  <span className="text-[9.5px] text-indigo-600">우리카드 (2건)</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 text-center space-y-0.5">
+                  <span className="text-[10px] text-slate-400">정기 보험료 (보장)</span>
+                  <div className="font-mono font-bold text-slate-800 dark:text-zinc-100">₩300,825</div>
+                  <span className="text-[9.5px] text-indigo-600">우리카드 (다둥이)</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 text-center space-y-0.5 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] text-slate-400">통신/도시가스/K패스</span>
+                  <div className="font-mono font-bold text-slate-800 dark:text-zinc-100">₩218,200</div>
+                  <span className="text-[9.5px] text-indigo-600">농협·국민·BC바로</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento 4: 6대 카드사별 세부 명세서 아코디언 피드 (Card Statements Feed) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    6대 카드사별 확정 명세서 세부 내역 및 결제 계좌
+                  </h4>
+                </div>
+                <span className="text-[11px] text-slate-400">카드명을 클릭하여 상세 승인 내역 확인</span>
+              </div>
+
+              {/* 카드사 탭 선택 버튼 */}
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                {OCTOBER_CARD_STATEMENTS.map((card) => {
+                  const isSelected = expandedCardCode === card.cardCode;
+                  return (
+                    <button
+                      key={card.cardCode}
+                      type="button"
+                      onClick={() => setExpandedCardCode(isSelected ? null : card.cardCode)}
+                      className={`p-3 rounded-2xl text-left transition-all border cursor-pointer ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-102 dark:bg-zinc-800 dark:border-indigo-500'
+                          : 'bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-800 hover:border-indigo-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black truncate">{card.cardName}</span>
+                        {card.fees > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="수수료 발생" />
+                        )}
+                      </div>
+                      <div className="font-mono font-extrabold text-xs">
+                        ₩{(card.totalBilled / 10000).toFixed(0)}만 원
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 선택된 카드사 세부 명세서 상세 패널 */}
+              {OCTOBER_CARD_STATEMENTS.filter((c) => c.cardCode === expandedCardCode).map((card) => (
+                <div
+                  key={card.cardCode}
+                  className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm space-y-4 animate-in fade-in-50"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-base text-slate-900 dark:text-white">
+                          {card.cardName} {card.cardAlias}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                          결제일: {card.paymentDate}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-400 font-mono">출금계좌: {card.account}</span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400 block">당월 최종 청구금액</span>
+                      <span className="text-xl font-black font-mono text-indigo-600 dark:text-indigo-400">
+                        ₩{card.totalBilled.toLocaleString()}원
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 세부 구성 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60">
+                      <span className="text-[10.5px] text-slate-400 block">일시불</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-zinc-200">
+                        ₩{card.lumpSum.toLocaleString()}원
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60">
+                      <span className="text-[10.5px] text-slate-400 block">할부</span>
+                      <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                        ₩{card.installment.toLocaleString()}원
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60">
+                      <span className="text-[10.5px] text-slate-400 block">리볼빙 / 수수료</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-zinc-200">
+                        {card.revolving ? `₩${card.revolving.toLocaleString()} (리볼빙)` : `₩${card.fees.toLocaleString()} (수수료)`}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
+                      <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 block">청구할인 혜택</span>
+                      <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                        -₩{card.benefitDiscount.toLocaleString()}원
+                      </span>
+                    </div>
+                  </div>
+
+                  {card.installmentAlert && (
+                    <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="font-medium">{card.installmentAlert}</span>
+                    </div>
+                  )}
+
+                  {/* 주요 승인 항목 리스트 */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                      주요 승인 내역 및 대사 연결 타겟
+                    </span>
+                    <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-100 dark:border-zinc-800 rounded-2xl overflow-hidden text-xs">
+                      {card.notableItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 flex items-center justify-center text-[10px] font-mono shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="text-slate-800 dark:text-zinc-200 font-medium truncate">
+                              {item}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold shrink-0 border border-emerald-200 dark:border-emerald-800">
+                            대사 연계 완료
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Bento 5: 영수증-명세서 다중 증빙 대사 엔진 & 무비용 스토리지 상태 카드 */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 text-white space-y-4 border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <Database className="w-5 h-5 text-indigo-400" />
+                  <div>
+                    <h4 className="font-extrabold text-sm sm:text-base">
+                      영수증-명세서 대사 수렴 엔진 & 무비용 스토리지 (Zero-Cost Storage Tiering)
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      카드명세서 단일진실원천(SSOT) 확정 및 30일 경과 증빙 tarball 온디맨드 압축 해제
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
+                    ✓ 홈서버 2GB RAM OOM 방어 가동중
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-1.5">
+                  <div className="font-bold text-indigo-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>전역 원자 지출 불변 원장 (SSOT)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    실제 결제 사건은 시스템 전체에 1건만 불변 기록됩니다. 장부에서 삭제되더라도 즉시 영구 파기되지 않고 <code className="text-amber-400 font-mono">UNALLOCATED</code> 상태로 보존됩니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-1.5">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4" />
+                    <span>미아 데이터(Orphan) 수명주기</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    어떤 장부에도 귀속되지 않은 미아 데이터는 <strong>90일 TTL 유예 기간</strong> 동안 안전하게 보존된 후 가비지 컬렉션(GC) 스케줄러를 통해 자동 정리됩니다.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-1.5">
+                  <div className="font-bold text-sky-300 flex items-center gap-1.5">
+                    <HardDrive className="w-4 h-4" />
+                    <span>운영비 0원 온디맨드 스토리지</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    30일 초과 과거 증빙은 <code className="text-sky-300 font-mono">proofs_2026_09.tar.gz</code> 압축 패킹되어 용량을 92% 절감하고, 사용자 조회 시에만 임시 메모리에 일시 해제 후 즉시 파기합니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ==================================================================== */}
+      {/* [태스크 0008-02 신규] N개 멀티 증빙 인스펙터 모달 (Multi-Proof Inspector) */}
+      {/* ==================================================================== */}
+      {selectedTxForProofs && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in-50">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* 모달 헤더 */}
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-zinc-800 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black">
+                    전역 원자 지출 SSOT
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">
+                    ID: atx-{selectedTxForProofs.id.slice(0, 8)}
+                  </span>
+                </div>
+                <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white">
+                  {selectedTxForProofs.title}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTxForProofs(null);
+                  setDecompressSuccessMsg(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 원자 지출 메타데이터 및 확정 정보 */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-400 block">최종 대사 확정 금액</span>
+                  <div className="text-xl font-black font-mono text-slate-900 dark:text-white">
+                    ₩{selectedTxForProofs.amount.toLocaleString()}원
+                    {selectedTxForProofs.statementDiscount && selectedTxForProofs.statementDiscount > 0 && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 ml-2 font-bold">
+                        (카드사 청구할인 -₩{selectedTxForProofs.statementDiscount.toLocaleString()} 반영됨)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>대사 수렴 상태: {selectedTxForProofs.reconciliationStatus || 'CONFIRMED'}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 border-t border-slate-200 dark:border-zinc-700/60">
+                <div>
+                  <span className="text-[10px] text-slate-400 block">결제 일시</span>
+                  <span className="font-medium text-slate-700 dark:text-zinc-300">{selectedTxForProofs.date}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">표준 카테고리</span>
+                  <span className="font-medium text-slate-700 dark:text-zinc-300">{selectedTxForProofs.category}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">장부 귀속 상태</span>
+                  <span className="font-medium text-indigo-600 dark:text-indigo-400">ALLOCATED (귀속됨)</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">미아 유예 정책</span>
+                  <span className="font-medium text-amber-600">90일 TTL GC</span>
+                </div>
+              </div>
+            </div>
+
+            {/* N개 멀티 증빙 타임라인 (Multi-Proof Chain) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    N개 멀티 증빙 연결 체인 ({selectedTxForProofs.proofs?.length || 0}건 매핑)
+                  </h4>
+                </div>
+                <span className="text-[10.5px] text-slate-400">발생 시점 순 증빙 수렴 이력</span>
+              </div>
+
+              <div className="space-y-3">
+                {selectedTxForProofs.proofs?.map((prf, pIdx) => (
+                  <div
+                    key={prf.id}
+                    className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-2.5 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[10px] font-black">
+                          {pIdx + 1}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white">
+                              {prf.title}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
+                              {prf.type}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">
+                            {prf.date} • {prf.source}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                          ₩{prf.amount.toLocaleString()}원
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 세부 파싱 품목 리스트 */}
+                    {prf.details && prf.details.length > 0 && (
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/50 text-[11px] space-y-1 text-slate-600 dark:text-zinc-300">
+                        <span className="font-bold text-slate-700 dark:text-zinc-200 text-[10.5px] block">
+                          📋 파싱된 상세 품목 및 메타데이터:
+                        </span>
+                        <ul className="space-y-0.5 pl-4 list-disc">
+                          {prf.details.map((d, dIdx) => (
+                            <li key={dIdx}>{d}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 운영비 0원 온디맨드 스토리지 아카이브 해제 시뮬레이터 */}
+            <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-950 dark:text-indigo-200">
+                    <Archive className="w-4 h-4 text-indigo-600" />
+                    <span>운영비 0원 온디맨드 스토리지 (30일 초과 tarball 압축 아카이빙)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                    30일이 지난 원본 이미지는 월별 <code className="font-mono text-indigo-700 dark:text-indigo-300">proofs_2026_09.tar.gz</code>로 압축 보관되며, 요청 시에만 임시 메모리에 일시 해제됩니다.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDecompressSimulating(true);
+                    setTimeout(() => {
+                      setDecompressSimulating(false);
+                      const policyText =
+                        streamPurgePolicy === 'INSTANT'
+                          ? '모달 종료 시 0.0초 내 즉시 파기 (홈서버 2GB RAM OOM 방어)'
+                          : streamPurgePolicy === '1_DAY'
+                          ? '24시간 당일 임시 캐시 유지 후 자동 파기'
+                          : '30일간 월간 정산 캐시 유지 후 자동 아카이브 환원';
+                      setDecompressSuccessMsg(`✓ tarball 스트림 단건 임시 해제 완료 (고해상도 원본 렌더링됨 • 파기정책: ${policyText})`);
+                    }, 500);
+                  }}
+                  disabled={decompressSimulating}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {decompressSimulating ? (
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>임시 스트림 해제 중...</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <DownloadCloud className="w-3.5 h-3.5" />
+                      <span>온디맨드 원본 압축 해제 체험</span>
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* [사용자 요청 반영] 고해상도 메모리 스트림 파기 운영정책 옵션 */}
+              <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-slate-700 dark:text-zinc-300 flex items-center gap-1">
+                    <HardDrive className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>메모리 스트림 파기 운영정책 (Retention Policy)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">설정으로 관리되는 수명주기</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStreamPurgePolicy('INSTANT')}
+                    className={`px-2.5 py-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                      streamPurgePolicy === 'INSTANT'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
+                        : 'bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="text-[10.5px]">0초 즉시 파기</div>
+                    <div className="text-[9px] opacity-80 truncate">모달 닫힘 시 OOM 방어</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStreamPurgePolicy('1_DAY')}
+                    className={`px-2.5 py-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                      streamPurgePolicy === '1_DAY'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
+                        : 'bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="text-[10.5px]">1일 임시 보관</div>
+                    <div className="text-[9px] opacity-80 truncate">당일 재조회 캐시 유지</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStreamPurgePolicy('30_DAYS')}
+                    className={`px-2.5 py-1.5 rounded-lg text-left border transition-all cursor-pointer ${
+                      streamPurgePolicy === '30_DAYS'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
+                        : 'bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="text-[10.5px]">1달 보관</div>
+                    <div className="text-[9px] opacity-80 truncate">월간 정산 완료 시까지</div>
+                  </button>
+                </div>
+              </div>
+
+              {decompressSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800 text-[11px] text-emerald-900 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in-50">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{decompressSuccessMsg}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 모달 닫기 버튼 */}
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTxForProofs(null);
+                  setDecompressSuccessMsg(null);
+                }}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 text-xs font-bold transition-colors cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* 6. 모아보고 금전관리 3대 원칙 안내 레이어 모달 (물음표 ❓ 클릭 시) */}
