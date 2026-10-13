@@ -201,17 +201,29 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     );
   };
 
-  // 7. 정산 만원 프리셋 슬라이드 드래그/휠 스크롤 Ref & 핸들러
+  // 7. 정산 만원 프리셋 슬라이드 드래그/휠 스크롤 Ref & 네이티브 논패시브 휠 리스너 (페이지 스크롤 전파 원천 차단)
   const presetScrollRef = React.useRef<HTMLDivElement>(null);
   const isDraggingPresetRef = React.useRef(false);
   const presetStartXRef = React.useRef(0);
   const presetScrollLeftRef = React.useRef(0);
 
-  const handlePresetWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.deltaY !== 0) {
-      e.currentTarget.scrollLeft += e.deltaY;
-    }
-  };
+  useEffect(() => {
+    const el = presetScrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.deltaY !== 0) {
+        el.scrollLeft += e.deltaY;
+      } else if (e.deltaX !== 0) {
+        el.scrollLeft += e.deltaX;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    return () => {
+      el.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
+    };
+  }, []);
 
   const handlePresetMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     isDraggingPresetRef.current = true;
@@ -231,6 +243,21 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   const handlePresetMouseUpOrLeave = () => {
     isDraggingPresetRef.current = false;
+  };
+
+  const handlePresetTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    isDraggingPresetRef.current = true;
+    if (presetScrollRef.current && e.touches.length > 0) {
+      presetStartXRef.current = e.touches[0].pageX - presetScrollRef.current.offsetLeft;
+      presetScrollLeftRef.current = presetScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handlePresetTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDraggingPresetRef.current || !presetScrollRef.current || e.touches.length === 0) return;
+    const x = e.touches[0].pageX - presetScrollRef.current.offsetLeft;
+    const walk = (x - presetStartXRef.current) * 1.5;
+    presetScrollRef.current.scrollLeft = presetScrollLeftRef.current - walk;
   };
 
   // 7. 정산 금액 만원/천원 증감 핸들러
@@ -275,6 +302,56 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     { value: 1.5, label: '1.5x', interval: 13 },
   ];
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
+
+  // 4. [수치조절 바 휠이벤트] 배경 및 페이지 스크롤 전파 차단 + 값 증감 제어 훅
+  const useWheelControl = (onAdjust: (delta: number) => void) => {
+    const elRef = useRef<HTMLDivElement>(null);
+    const callbackRef = useRef(onAdjust);
+    callbackRef.current = onAdjust;
+
+    useEffect(() => {
+      const el = elRef.current;
+      if (!el) return;
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.deltaY < 0) {
+          callbackRef.current(1);
+        } else if (e.deltaY > 0) {
+          callbackRef.current(-1);
+        }
+      };
+      const onStopPropagation = (e: Event) => {
+        e.stopPropagation();
+      };
+
+      el.addEventListener('wheel', onWheel, { passive: false, capture: true });
+      el.addEventListener('pointerdown', onStopPropagation, { capture: true });
+      el.addEventListener('pointermove', onStopPropagation, { capture: true });
+      el.addEventListener('touchstart', onStopPropagation, { capture: true, passive: true });
+      el.addEventListener('touchmove', onStopPropagation, { capture: true, passive: true });
+      return () => {
+        el.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
+        el.removeEventListener('pointerdown', onStopPropagation, { capture: true } as EventListenerOptions);
+        el.removeEventListener('pointermove', onStopPropagation, { capture: true } as EventListenerOptions);
+        el.removeEventListener('touchstart', onStopPropagation, { capture: true } as EventListenerOptions);
+        el.removeEventListener('touchmove', onStopPropagation, { capture: true } as EventListenerOptions);
+      };
+    }, []);
+    return elRef;
+  };
+
+  const settleMemberSliderRef = useWheelControl((delta) => {
+    handleUpdateMemberCount(memberCount + delta);
+  });
+
+  const ladderMemberSliderRef = useWheelControl((delta) => {
+    handleUpdateMemberCount(memberCount + delta);
+  });
+
+  const ladderWinnerSliderRef = useWheelControl((delta) => {
+    setWinnerCount((prev) => Math.max(1, Math.min(memberCount - 1, prev + delta)));
+  });
 
   // 1 & 2 & 3. 발자국 추적용 ElmSld03 Ref 및 목적 도착 1초 팝업 & 일시정지 제어 상태
   const ladderSliderRef = useRef<HTMLDivElement>(null);
@@ -679,9 +756,45 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // ---------------------------------------------------------------------------
   const [useRouletteWeight, setUseRouletteWeight] = useState<boolean>(false);
   const [rouletteRotation, setRouletteRotation] = useState<number>(0);
-  const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(2800);
+  const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3000);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [selectedTagger, setSelectedTagger] = useState<Participant | null>(null);
+  
+  // [중복제거 튜닝 1] 당첨자 제외 모드 & 제외된 인원 보관함
+  const [excludeWinnerMode, setExcludeWinnerMode] = useState<boolean>(false);
+  const [excludedWinners, setExcludedWinners] = useState<Participant[]>([]);
+
+  // [중복제거 튜닝 2] 중복 참가자 이름 감지
+  const duplicateNameCount = useMemo(() => {
+    const nameMap: Record<string, number> = {};
+    members.forEach((m) => {
+      const trimmed = m.name.trim();
+      nameMap[trimmed] = (nameMap[trimmed] || 0) + 1;
+    });
+    return Object.values(nameMap).filter((cnt) => cnt > 1).length;
+  }, [members]);
+
+  // 중복 참가자 이름 원터치 넘버링 정리
+  const handleDeduplicateNames = () => {
+    const seen: Record<string, number> = {};
+    setMembers((prev) =>
+      prev.map((m) => {
+        const base = m.name.replace(/\s*\(\d+\)$/, '').trim() || '참가자';
+        seen[base] = (seen[base] || 0) + 1;
+        const newName = seen[base] > 1 ? `${base} (${seen[base]})` : base;
+        return { ...m, name: newName };
+      })
+    );
+  };
+
+  // 제외된 당첨자 복원
+  const handleRestoreExcludedWinners = () => {
+    if (excludedWinners.length === 0) return;
+    setMembers((prev) => [...prev, ...excludedWinners]);
+    setMemberCount((prev) => prev + excludedWinners.length);
+    setExcludedWinners([]);
+    setSelectedTagger(null);
+  };
 
   const totalRouletteWeight = useMemo(() => {
     if (!useRouletteWeight) return members.length;
@@ -692,7 +805,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     let currentAngle = 0;
     const slices = members.map((member) => {
       const weight = useRouletteWeight ? (member.weight || 1) : 1;
-      const angle = (weight / totalRouletteWeight) * 360;
+      const angle = (weight / Math.max(1, totalRouletteWeight)) * 360;
       const slice = {
         member,
         startAngle: currentAngle,
@@ -705,27 +818,30 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     return slices;
   }, [members, useRouletteWeight, totalRouletteWeight]);
 
-  const handleSpinRoulette = (skip = false) => {
-    if (isSpinning) return;
+  // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수
+  const handleSpinRoulette = (skip = false, overrideChosen?: Participant) => {
+    if (isSpinning || members.length === 0) return;
     setSelectedTagger(null);
 
-    let rand = Math.random() * totalRouletteWeight;
-    let chosen = members[0];
-    for (const m of members) {
-      const w = useRouletteWeight ? (m.weight || 1) : 1;
-      if (rand <= w) {
-        chosen = m;
-        break;
+    let chosen = overrideChosen || members[0];
+    if (!overrideChosen) {
+      let rand = Math.random() * totalRouletteWeight;
+      for (const m of members) {
+        const w = useRouletteWeight ? (m.weight || 1) : 1;
+        if (rand <= w) {
+          chosen = m;
+          break;
+        }
+        rand -= w;
       }
-      rand -= w;
     }
 
     if (skip) {
-      setRouletteTransitionDuration(600);
+      setIsSpinning(true);
+      setRouletteTransitionDuration(500);
       const chosenSlice = rouletteSlices.find((s) => s.member.id === chosen.id);
       const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
       
-      // 당첨자 슬라이스의 정가운데가 상단 화살표(270도) 위치에 정확히 오도록 판 회전
       const targetBase = 270 - sliceMidAngle;
       const currentNorm = ((rouletteRotation % 360) + 360) % 360;
       let diff = targetBase - currentNorm;
@@ -735,23 +851,55 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       const nextRotation = rouletteRotation + diff;
       setRouletteRotation(nextRotation);
 
-      setSelectedTagger(chosen);
-      setIsSpinning(false);
+      setTimeout(() => {
+        setIsSpinning(false);
+        setSelectedTagger(chosen);
+
+        // 당첨자 자동 제외 모드가 켜져 있는 경우 (2명 초과 시만 안전 자동 제외)
+        if (excludeWinnerMode && members.length > 2) {
+          setExcludedWinners((prev) => [...prev, chosen]);
+          setMembers((prev) => prev.filter((m) => m.id !== chosen.id));
+          setMemberCount((prev) => Math.max(2, prev - 1));
+        }
+      }, 500);
       return;
     }
 
     setIsSpinning(true);
-    setRouletteTransitionDuration(2800);
+    setRouletteTransitionDuration(3000);
     const chosenSlice = rouletteSlices.find((s) => s.member.id === chosen.id);
     const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
-    const targetDeg = 360 * 5 + (270 - sliceMidAngle);
+    const targetDeg = 360 * 6 + (270 - sliceMidAngle);
 
     setRouletteRotation((prev) => prev + targetDeg);
 
     setTimeout(() => {
       setIsSpinning(false);
       setSelectedTagger(chosen);
-    }, 2800);
+
+      // 당첨자 자동 제외 모드가 켜져 있는 경우 (2명 초과 시만 안전 자동 제외)
+      if (excludeWinnerMode && members.length > 2) {
+        setExcludedWinners((prev) => [...prev, chosen]);
+        setMembers((prev) => prev.filter((m) => m.id !== chosen.id));
+        setMemberCount((prev) => Math.max(2, prev - 1));
+      }
+    }, 3000);
+  };
+
+
+  // [중복제거 튜닝 3] 당첨자 수동 제외 후 즉시 다음 룰렛 돌리기
+  const handleExcludeWinnerAndSpinAgain = () => {
+    if (!selectedTagger) return;
+    const winner = selectedTagger;
+    if (members.length <= 2) {
+      alert('룰렛 최소 참여 인원은 2명입니다. 더 이상 제외할 수 없습니다.');
+      return;
+    }
+    const remaining = members.filter((m) => m.id !== winner.id);
+    setExcludedWinners((prev) => [...prev, winner]);
+    setMembers(remaining);
+    setMemberCount(remaining.length);
+    setSelectedTagger(null);
   };
 
   // 1. 테마별 배경/텍스트 클래스 매핑 (여명 블루: 은은하고 산뜻한 파스텔 블루 톤)
@@ -825,7 +973,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             }`}
           >
             <UserPlus className="w-4 h-4" />
-            <span>무료 회원가입</span>
+            <span>회원가입</span>
           </button>
         </div>
       </header>
@@ -1060,11 +1208,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     {/* 2행: 만원단위 슬라이드드래그휠 영역 (PC·태블릿·모바일 통일 전폭 w-full) */}
                     <div
                       ref={presetScrollRef}
-                      onWheel={handlePresetWheel}
                       onMouseDown={handlePresetMouseDown}
                       onMouseMove={handlePresetMouseMove}
                       onMouseUp={handlePresetMouseUpOrLeave}
                       onMouseLeave={handlePresetMouseUpOrLeave}
+                      onTouchStart={handlePresetTouchStart}
+                      onTouchMove={handlePresetTouchMove}
+                      onTouchEnd={handlePresetMouseUpOrLeave}
+                      style={{ touchAction: 'pan-x' }}
                       className="w-full flex items-center gap-1.5 overflow-x-auto py-1 px-1 cursor-grab active:cursor-grabbing select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                       title="마우스 휠 또는 좌우 드래그로 탐색할 수 있습니다."
                     >
@@ -1123,12 +1274,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div
+                    ref={settleMemberSliderRef}
+                    className="flex items-center gap-2"
+                    title="마우스 휠을 굴려 인원수를 조절할 수 있습니다"
+                  >
                     <button
                       type="button"
                       onClick={() => handleUpdateMemberCount(memberCount - 1)}
                       disabled={memberCount <= 2}
-                      className={`p-2 rounded-lg border disabled:opacity-40 transition-all ${
+                      className={`p-2 rounded-lg border disabled:opacity-40 transition-all cursor-pointer ${
                         resolvedTheme === 'dawn'
                           ? 'bg-white border-[#bfdbfe] text-blue-700 hover:bg-blue-50'
                           : isDark
@@ -1144,12 +1299,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       max={Math.max(20, memberCount)}
                       value={memberCount}
                       onChange={(e) => handleUpdateMemberCount(Number(e.target.value))}
-                      className="flex-1 accent-indigo-600"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
+                      style={{ touchAction: 'pan-x' }}
+                      className="flex-1 accent-indigo-600 cursor-ew-resize"
                     />
                     <button
                       type="button"
                       onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                      className={`p-2 rounded-lg border transition-all ${
+                      className={`p-2 rounded-lg border transition-all cursor-pointer ${
                         resolvedTheme === 'dawn'
                           ? 'bg-white border-[#bfdbfe] text-blue-700 hover:bg-blue-50'
                           : isDark
@@ -1302,12 +1461,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         <span className="text-xs text-indigo-400 font-extrabold">명</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div
+                      ref={ladderMemberSliderRef}
+                      className="flex items-center gap-2"
+                      title="마우스 휠을 굴려 참여 인원수를 조절할 수 있습니다"
+                    >
                       <button
                         type="button"
                         onClick={() => handleUpdateMemberCount(memberCount - 1)}
                         disabled={memberCount <= 2}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20"
+                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -1317,22 +1480,26 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         max={Math.max(10, memberCount)}
                         value={memberCount}
                         onChange={(e) => handleUpdateMemberCount(Number(e.target.value))}
-                        className="flex-1 accent-indigo-600"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        style={{ touchAction: 'pan-x' }}
+                        className="flex-1 accent-indigo-600 cursor-ew-resize"
                       />
                       <button
                         type="button"
                         onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                        className="p-2 rounded-lg border bg-black/20"
+                        className="p-2 rounded-lg border bg-black/20 hover:bg-black/30 cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* 당첨/벌칙 인원수 */}
+                  {/* 선택 인원수 */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold">당첨/벌칙 인원수 (10인 기본 + 확장가능)</span>
+                      <span className="text-xs font-bold">선택 인원수</span>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number"
@@ -1351,12 +1518,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         <span className="text-xs text-rose-400 font-extrabold">명</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div
+                      ref={ladderWinnerSliderRef}
+                      className="flex items-center gap-2"
+                      title="마우스 휠을 굴려 선택 인원수를 조절할 수 있습니다"
+                    >
                       <button
                         type="button"
                         onClick={() => setWinnerCount(Math.max(1, winnerCount - 1))}
                         disabled={winnerCount <= 1}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20"
+                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -1366,13 +1537,17 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         max={Math.max(10, memberCount - 1)}
                         value={winnerCount}
                         onChange={(e) => setWinnerCount(Number(e.target.value))}
-                        className="flex-1 accent-rose-600"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        style={{ touchAction: 'pan-x' }}
+                        className="flex-1 accent-rose-600 cursor-ew-resize"
                       />
                       <button
                         type="button"
                         onClick={() => setWinnerCount(Math.min(memberCount - 1, winnerCount + 1))}
                         disabled={winnerCount >= memberCount - 1}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20"
+                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
@@ -1829,22 +2004,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
                   <button
                     type="button"
-                    onClick={handleShuffleLadder}
-                    disabled={isLadderTracing}
-                    className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold text-xs border border-slate-200 dark:border-zinc-700 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer shadow-xs active:scale-95"
-                    title="사다리 가로줄을 무작위로 새로 섞습니다"
-                  >
-                    <span
-                      className="inline-block transition-transform duration-500"
-                      style={{ transform: isDiceRolling ? 'rotate(360deg)' : 'rotate(0deg)' }}
-                    >
-                      🎲
-                    </span>
-                    <span>사다리 재배치</span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => handlePlayLadder(false)}
                     disabled={isLadderTracing}
                     className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer"
@@ -2179,9 +2338,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold">인원수 설정</span>
                       <span className="text-xs text-indigo-400 font-extrabold">{memberCount}명</span>
+                      {excludedWinners.length > 0 && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          {excludedWinners.length}명 당첨 제외 중
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400">
-                      참가자 중 오늘의 당첨 1명을 룰렛으로 결정합니다.
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      참가자 중 오늘의 당첨자 1명을 공정하게 선정합니다.
                     </p>
                   </div>
 
@@ -2190,7 +2354,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       type="button"
                       onClick={() => handleUpdateMemberCount(memberCount - 1)}
                       disabled={memberCount <= 2}
-                      className="p-2 rounded-lg border disabled:opacity-40 bg-black/20"
+                      className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -2198,93 +2362,136 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     <button
                       type="button"
                       onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                      className="p-2 rounded-lg border bg-black/20"
+                      className="p-2 rounded-lg border bg-black/20 hover:bg-black/30 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* 4. 불필요 괄호 문구 삭제 */}
+                {/* [중복제거 튜닝] 중복 이름 감지 및 클린업 바 */}
+                {duplicateNameCount > 0 && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <span className="text-base">⚠️</span>
+                      <span>중복된 참가자 이름이 {duplicateNameCount}건 있습니다.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDeduplicateNames}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] transition-all cursor-pointer shadow-xs"
+                    >
+                      자동 번호 정리
+                    </button>
+                  </div>
+                )}
+
+                {/* 룰렛 옵션: 가중치 설정 & [중복제거 튜닝] 당첨자 제외 모드 */}
                 <div
-                  className={`pt-2 border-t ${
+                  className={`pt-3 border-t flex flex-wrap items-center justify-between gap-3 ${
                     resolvedTheme === 'dawn' ? 'border-[#bfdbfe]' : isDark ? 'border-[#27272a]' : 'border-slate-200/80'
                   }`}
                 >
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={useRouletteWeight}
-                      onChange={(e) => setUseRouletteWeight(e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded-sm"
-                    />
-                    <span className="text-xs font-bold">확률 가중치 및 참가자 이름 설정</span>
-                  </label>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={useRouletteWeight}
+                        onChange={(e) => setUseRouletteWeight(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded-sm cursor-pointer"
+                      />
+                      <span className="text-xs font-bold">확률 가중치 설정</span>
+                    </label>
 
-                  {useRouletteWeight && (
-                    <div
-                      className={`mt-3 p-3 rounded-lg border space-y-2.5 ${
-                        resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#151518] border-[#27272a]' : 'bg-white border-indigo-100'
-                      }`}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={excludeWinnerMode}
+                        onChange={(e) => setExcludeWinnerMode(e.target.checked)}
+                        className="w-4 h-4 text-rose-600 rounded-sm cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                        당첨자 자동 제외 모드 (중복 당첨 방지)
+                      </span>
+                    </label>
+                  </div>
+
+                  {excludedWinners.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleRestoreExcludedWinners}
+                      className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 underline cursor-pointer"
                     >
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
-                        {members.map((m) => {
-                          const pct = Math.round(((m.weight || 1) / totalRouletteWeight) * 100);
-                          return (
-                            <div
-                              key={m.id}
-                              className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10"
-                            >
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span className="text-base">{m.avatar}</span>
-                                <input
-                                  type="text"
-                                  lang="ko"
-                                  inputMode="text"
-                                  autoCapitalize="none"
-                                  autoCorrect="off"
-                                  value={m.name}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                                  className="w-20 sm:w-28 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => updateMemberWeight(m.id, -1)}
-                                  disabled={(m.weight || 1) <= 1}
-                                  className="p-1 rounded border bg-black/20"
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </button>
-                                <span className="text-xs font-bold w-4 text-center">{m.weight || 1}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateMemberWeight(m.id, 1)}
-                                  disabled={(m.weight || 1) >= 10}
-                                  className="p-1 rounded border bg-black/20"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                                <span className="text-xs font-extrabold text-indigo-400 w-8 text-right">
-                                  {pct}%
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      <RotateCcw className="w-3 h-3" />
+                      <span>제외된 {excludedWinners.length}명 전체 복원</span>
+                    </button>
                   )}
                 </div>
+
+                {useRouletteWeight && (
+                  <div
+                    className={`mt-2 p-3 rounded-lg border space-y-2.5 ${
+                      resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#151518] border-[#27272a]' : 'bg-white border-indigo-100'
+                    }`}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                      {members.map((m) => {
+                        const pct = Math.round(((m.weight || 1) / totalRouletteWeight) * 100);
+                        return (
+                          <div
+                            key={m.id}
+                            className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="text-base">{m.avatar}</span>
+                              <input
+                                type="text"
+                                lang="ko"
+                                inputMode="text"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                value={m.name}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                                className="w-20 sm:w-28 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateMemberWeight(m.id, -1)}
+                                disabled={(m.weight || 1) <= 1}
+                                className="p-1 rounded border bg-black/20 hover:bg-black/30 cursor-pointer"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-xs font-bold w-4 text-center">{m.weight || 1}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateMemberWeight(m.id, 1)}
+                                disabled={(m.weight || 1) >= 10}
+                                className="p-1 rounded border bg-black/20 hover:bg-black/30 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                              <span className="text-xs font-extrabold text-indigo-400 w-8 text-right">
+                                {pct}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 룰렛 캔버스 */}
               <div
-                className={`p-6 rounded-2xl border-2 flex flex-col items-center space-y-5 ${
+                className={`p-6 rounded-2xl border-2 flex flex-col items-center space-y-5 transition-all ${
                   resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-white border-indigo-100'
                 }`}
+                title="버튼을 눌러 룰렛을 회전시키세요"
               >
                 {/* 참가자 영역 및 당첨자 가리키는 화살표 인디케이터 */}
                 <div
@@ -2308,7 +2515,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             id={`roulette-member-${m.id}`}
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs transition-all duration-300 ${
                               isChosen
-                                ? 'bg-rose-500 text-white border-rose-600 scale-110 ring-4 ring-rose-400/40 shadow-lg mt-1.5'
+                                ? 'bg-rose-500 text-white border-rose-600 scale-110 ring-4 ring-rose-400/40 shadow-lg mt-1.5 font-black'
                                 : `${m.bgLight} ${m.color}`
                             }`}
                           >
@@ -2328,17 +2535,19 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </div>
                 </div>
 
-                <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
-                  <div className="absolute -top-3 z-20 text-rose-600 filter drop-shadow">
+                <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center select-none">
+                  {/* [휠 튜닝] 포인터 화살표의 틱 튕김 인터랙션 */}
+                  <div className={`absolute -top-3 z-20 text-rose-600 filter drop-shadow transition-transform ${isSpinning ? 'animate-bounce scale-110' : ''}`}>
                     <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[18px] border-t-rose-600" />
                   </div>
 
                   <svg
                     viewBox="-100 -100 200 200"
-                    className="w-full h-full rounded-full shadow-xl transition-transform ease-out"
+                    className="w-full h-full rounded-full shadow-2xl transition-transform"
                     style={{
                       transform: `rotate(${rouletteRotation}deg)`,
                       transitionDuration: `${rouletteTransitionDuration}ms`,
+                      transitionTimingFunction: 'cubic-bezier(0.12, 0.88, 0.24, 1.0)',
                     }}
                   >
                     {rouletteSlices.map((slice, i) => {
@@ -2388,7 +2597,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     type="button"
                     onClick={() => handleSpinRoulette(false)}
                     disabled={isSpinning}
-                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0"
+                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95"
                   >
                     <RotateCcw className={`w-4 h-4 shrink-0 ${isSpinning ? 'animate-spin' : ''}`} />
                     <span className="whitespace-nowrap">{isSpinning ? '룰렛 회전 중...' : '룰렛 돌리기'}</span>
@@ -2397,18 +2606,19 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     type="button"
                     onClick={() => handleSpinRoulette(true)}
                     disabled={isSpinning}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 font-bold text-xs transition-all whitespace-nowrap shrink-0"
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     <FastForward className="w-4 h-4 shrink-0" />
-                    <span className="whitespace-nowrap">룰렛결과</span>
+                    <span className="whitespace-nowrap">즉시 결과</span>
                   </button>
                 </div>
               </div>
 
+              {/* 당첨자 결과 카드 & [중복제거 튜닝 3] 원터치 제외 후 다음 룰렛 돌리기 */}
               {selectedTagger && (
                 <div
                   id="roulette-winner-card"
-                  className={`p-5 rounded-2xl border-2 shadow-md text-center space-y-2 animate-in fade-in ${
+                  className={`p-5 rounded-2xl border-2 shadow-md text-center space-y-3 animate-in fade-in ${
                     resolvedTheme === 'dawn'
                       ? 'bg-white border-rose-300 text-rose-900 shadow-rose-100/50'
                       : isDark
@@ -2419,12 +2629,35 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   <span className="text-3xl inline-block p-2 rounded-2xl bg-black/10 dark:bg-black/20 shadow-xs">
                     {selectedTagger.avatar}
                   </span>
-                  <h3 className="text-base sm:text-lg font-extrabold">
-                    🎯 오늘의 룰렛 당첨: [{selectedTagger.name}] 님!
-                  </h3>
-                  <p className="text-xs text-rose-500 font-medium">
-                    축하합니다! 오늘의 주인공입니다.
-                  </p>
+                  <div className="space-y-1">
+                    <h3 className="text-base sm:text-lg font-extrabold">
+                      🎯 오늘의 룰렛 당첨: [{selectedTagger.name}] 님!
+                    </h3>
+                    <p className="text-xs text-rose-500 font-medium">
+                      축하합니다! 오늘의 주인공입니다.
+                    </p>
+                  </div>
+
+                  {/* 중복 제거 액션 버튼 */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleExcludeWinnerAndSpinAgain}
+                      disabled={members.length <= 2}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40"
+                    >
+                      <span>🎯</span>
+                      <span>이 당첨자 제외하기 ({members.length - 1}명 남음)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSpinRoulette(false)}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>다시 돌리기</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
