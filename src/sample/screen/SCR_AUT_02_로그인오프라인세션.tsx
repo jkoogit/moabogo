@@ -143,7 +143,7 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
   };
 
   return (
-    <div className="w-full bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-start pt-2 sm:pt-6 transition-colors">
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-center transition-colors">
       {/* 최상단 오프라인 인디케이터 토큰 (ELM-OFF-01) */}
       <ElmOff01 isOffline={isOffline} pendingCount={isOffline ? 2 : 0} />
 
@@ -384,7 +384,7 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
                 onClick={onGoSignup}
                 className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline ml-1 cursor-pointer whitespace-nowrap"
               >
-                회원가입하기
+                무료 회원가입하기
               </button>
             </div>
           </div>

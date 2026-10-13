@@ -55,4 +55,25 @@
 - **게스트홈 정산 프리셋 flex-wrap & 버튼명 직관화**: 가로 스크롤을 배제한 반응형 칩 배열과 '목표 재배치', '사다리 재배치' 직관적 네이밍 아키텍처.
 - **로그인 사용자 전용 게임 프리셋 아키텍처**: 자주 쓰는 인원(4인 가족, 팀 회식)과 벌칙 설정을 영속화된 프리셋으로 관리하고, 원클릭 즉시 플레이 지원.
 
+---
+
+## 5. 회계 트랜잭션 엔진 & 장부 생명주기 아키텍처
+
+### 5.1 TRANSFER 1:1 자기참조 페어링 엔진 (Zero-Imbalance Protocol)
+- **트랜잭션 원자성**: `transactions.is_asset_transfer = true`인 거래는 반드시 쌍(Pair)으로 생성되며, `related_transfer_id`로 상호 바인딩.
+- **수정/삭제 멱등 전파**:
+  - 출금 트랜잭션 $Tx_A$ 수정 시 $\rightarrow$ $Tx_B$ (입금)도 금액/일자 즉시 동기화.
+  - $Tx_A$ 삭제 시 $\rightarrow$ $Tx_B$도 자동 연쇄 삭제(Cascade Cancel)되어 가계부 간 잔액 오차(Imbalance) 원천 차단.
+- **집계 파이프라인**: 모든 가계 대시보드 및 리포트 집계 쿼리는 `is_asset_transfer = false` 조건을 기본 필터로 주입하여 순수 소비/수입과 자산 재배치를 엄격히 격리.
+
+### 5.2 장부 생명주기 상태머신 (Ledger Lifecycle State Machine)
+- **단기 장부 (`SHORT_TERM`)**:
+  - `OPEN` (진행/지출 입력) $\rightarrow$ `SETTLING` (정산 계산/차액 이체) $\rightarrow$ `CLOSED` / `SETTLED` (읽기 전용 보관).
+  - 마감 시점의 결산 영수증(Closing Statement) 스냅샷 생성.
+  - 방장 권한 및 `allow_reopen` 옵션에 따라 필요 시 `OPEN` 복구 가능.
+- **용돈기입장 (`POCKET_MONEY`)**:
+  - `budget_cap` (한도) 대비 누적 실지출(`spent_amount`) 실시간 소진율 모니터링.
+  - 주기별(`reset_cycle`: MONTHLY/WEEKLY) 리셋 시 잔여금 이월/소멸 정책 제어.
+
+
 
