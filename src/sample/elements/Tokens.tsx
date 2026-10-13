@@ -946,6 +946,7 @@ export const ElmSld03: React.FC<{
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
+      e.stopPropagation();
       const maxScroll = el.scrollWidth - el.clientWidth;
       if (maxScroll <= 1) return; // 오버플로우가 없으면 기본 페이지 스크롤 허용
 
@@ -963,7 +964,6 @@ export const ElmSld03: React.FC<{
       // 가로 스크롤 가능한 구간에서는 브라우저 상하 스크롤을 방지하고 가로 슬라이드 실행
       if ((delta > 0 && !atEnd) || (delta < 0 && !atStart)) {
         e.preventDefault();
-        e.stopPropagation();
         el.scrollLeft += delta;
       }
     };
