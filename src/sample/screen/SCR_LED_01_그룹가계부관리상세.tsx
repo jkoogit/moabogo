@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ElmTyp01,
   ElmInp01,
@@ -17,6 +17,7 @@ import {
   TrendingUp,
   ArrowRightLeft,
   ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronDown,
   Book,
@@ -68,6 +69,12 @@ import {
   Bell,
   ExternalLink,
   FileSpreadsheet,
+  Play,
+  Pause,
+  Maximize2,
+  Minimize2,
+  FolderOpen,
+  FileBarChart,
 } from 'lucide-react';
 
 // ============================================================================
@@ -79,9 +86,46 @@ export type LedgerSubType = 'STANDARD' | 'POCKET_MONEY';
 export type LedgerClosingStatus = 'OPEN' | 'CLOSED' | 'SETTLED';
 export type LedgerRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' | 'GUEST';
 
-// 3대 대메뉴 덱 탭 (시안 B: 지출 / 수입 / 분석)
+// 2대 대메뉴 대축: 1. 장부작성(수입·지출) / 2. 분석(현황·보고서)
+export type MainAxisTab = 'WRITE' | 'ANALYSIS';
+export type WriteSubTab = 'EXPENSE' | 'INCOME';
 export type DeckTab = 'EXPENSE' | 'INCOME' | 'ANALYTICS';
 export type ExpenseSubTab = 'GENERAL' | 'STATEMENT';
+export type IncomeSubTab = 'LIST' | 'FIXED';
+export type AnalysisSubTab = 'STATUS' | 'REPORT';
+
+// 보고서 스냅샷 이력 관리 타입
+export interface AnalysisReportSnapshot {
+  id: string;
+  version: string;
+  title: string;
+  period: string;
+  createdAt: string;
+  totalIncome: number;
+  totalExpense: number;
+  netSavings: number;
+  cardBilledTotal: number;
+  txCount: number;
+  summaryNotes: string[];
+  status: 'VERIFIED' | 'NEEDS_RECOLLECT';
+}
+
+// 유동정보 서류철 인덱스 슬라이드 배너 아이템
+export interface DynamicBannerItem {
+  id: string;
+  tabLabel: string;
+  title: string;
+  amount: number;
+  badge: string;
+  badgeColor: string;
+  description: string;
+  icon: string;
+  details: {
+    label: string;
+    value: string;
+  }[];
+  note: string;
+}
 
 // N개 무제한 멀티 증빙 자료 아이템 (수집방법별 세부 속성 확장)
 export interface ExpenseProofItem {
@@ -1630,9 +1674,225 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     return { income, pureExpense, assetTransfer, reimbursement };
   }, [currentTransactions]);
 
-  // 3대 덱 탭 (시안 B: 지출 / 수입 / 분석)
-  const [activeDeckTab, setActiveDeckTab] = useState<DeckTab>('EXPENSE');
+  // 2대 대메뉴 대축: 1. 장부작성(수입·지출) / 2. 분석(현황·보고서)
+  const [mainAxisTab, setMainAxisTab] = useState<MainAxisTab>('WRITE');
+  const [writeSubTab, setWriteSubTab] = useState<WriteSubTab>('EXPENSE');
   const [expenseSubTab, setExpenseSubTab] = useState<ExpenseSubTab>('GENERAL');
+  const [incomeSubTab, setIncomeSubTab] = useState<IncomeSubTab>('LIST');
+  const [analysisSubTab, setAnalysisSubTab] = useState<AnalysisSubTab>('STATUS');
+
+  // 호환용 레거시 덱 탭 (기존 핸들러 및 모달 동기화)
+  const activeDeckTab = mainAxisTab === 'ANALYSIS' ? 'ANALYTICS' : writeSubTab;
+  const setActiveDeckTab = (tab: DeckTab) => {
+    if (tab === 'ANALYTICS') {
+      setMainAxisTab('ANALYSIS');
+    } else {
+      setMainAxisTab('WRITE');
+      setWriteSubTab(tab);
+    }
+  };
+
+  // 2.2 유동정보 서류철 인덱스 슬라이드 배너 상태
+  const [dynamicBannerIndex, setDynamicBannerIndex] = useState(0);
+  const [isBannerPaused, setIsBannerPaused] = useState(false);
+  const [isBannerHovered, setIsBannerHovered] = useState(false);
+  const [isFolderExpanded, setIsFolderExpanded] = useState(false);
+
+  // 3.2.2 분석 보고서 이력 및 재수집 상태
+  const [isRecollecting, setIsRecollecting] = useState(false);
+  const [selectedReportDetail, setSelectedReportDetail] = useState<AnalysisReportSnapshot | null>(null);
+  const [analysisReports, setAnalysisReports] = useState<AnalysisReportSnapshot[]>([
+    {
+      id: 'rep-202610-02',
+      version: 'v2.1 (정기결산)',
+      title: '2026년 10월 2차 정기 결산 보고서',
+      period: '2026.10.01 ~ 2026.10.13',
+      createdAt: '2026-10-13 18:30',
+      totalIncome: 2577000,
+      totalExpense: 1444690,
+      netSavings: 1132310,
+      cardBilledTotal: 6029542,
+      txCount: 16,
+      summaryNotes: [
+        '월 중순 지출 안정화: 순수 생활비 144.4만 원 집계 완료 (자산이동 45만 원 분리)',
+        '신한/현대/우리 6대 카드사 실제 청구 602.9만 원 SSOT 대사 정합성 100% 확보',
+        '11월 건강보험/치과 할부 완납 도래 세이빙 경보(-60.4만 원 절감 예정)',
+      ],
+      status: 'VERIFIED',
+    },
+    {
+      id: 'rep-202610-01',
+      version: 'v1.0 (중간분석)',
+      title: '2026년 10월 1차 중간 분석 보고서',
+      period: '2026.10.01 ~ 2026.10.07',
+      createdAt: '2026-10-07 21:00',
+      totalIncome: 2500000,
+      totalExpense: 1251000,
+      netSavings: 1249000,
+      cardBilledTotal: 5890000,
+      txCount: 9,
+      summaryNotes: [
+        '급여 입금 후 강릉 여행 숙소 및 바베큐 초기 지출 집중',
+        'TRANSFER 비상금 20만 원 분리로 생활비 왜곡 방지 준수',
+      ],
+      status: 'VERIFIED',
+    },
+    {
+      id: 'rep-202609-final',
+      version: 'v1.0 (월말마감)',
+      title: '2026년 9월 최종 결산 보고서',
+      period: '2026.09.01 ~ 2026.09.30',
+      createdAt: '2026-09-30 23:59',
+      totalIncome: 3950000,
+      totalExpense: 2840000,
+      netSavings: 1110000,
+      cardBilledTotal: 5120000,
+      txCount: 42,
+      summaryNotes: [
+        '9월 목표 예산 300만 원 대비 16만 원 세이빙 달성',
+        '모임 가계부 1/N 정산 100% 회수 완료 및 무결성 보증',
+      ],
+      status: 'VERIFIED',
+    },
+  ]);
+
+  // 유동정보 서류철 인덱스 아이템 리스트 (자산이동, 대납, 정산 등 있을 경우만 동적 구성)
+  const dynamicBannerItems: DynamicBannerItem[] = useMemo(() => {
+    const items: DynamicBannerItem[] = [];
+
+    // 1. 자산 이동 (TRANSFER)
+    if (stats.assetTransfer > 0) {
+      items.push({
+        id: 'dyn-transfer',
+        tabLabel: '자산이동',
+        title: '자산 이동 (TRANSFER 1:1 페어링)',
+        amount: stats.assetTransfer,
+        badge: '생활비 왜곡 방지',
+        badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
+        description: '가계부 및 본인 계좌 간 이동은 순수 생활비에서 제외되며 1:1 페어링으로 무결성 보장',
+        icon: '↔️',
+        details: [
+          { label: '출금/입금 경로', value: '토스뱅크 생활비 ➔ CMA 비상금 계좌' },
+          { label: '페어링 상태', value: '1:1 양방향 매핑 완료 (ID: rel-20261006)' },
+          { label: '적용 건수', value: `${currentTransactions.filter(t => t.isAssetTransfer || t.type === 'TRANSFER').length}건 집계` },
+        ],
+        note: '모아보고 금전관리 원칙 2: TRANSFER 단일 연결에 따라 지출 집계에서 영구 제외',
+      });
+    }
+
+    // 2. 대납 / 모임 정산
+    if (stats.reimbursement > 0) {
+      items.push({
+        id: 'dyn-reimburse',
+        tabLabel: '대납·정산',
+        title: '개인 카드 대납 및 1/N 정산 태깅',
+        amount: stats.reimbursement,
+        badge: '이중계상 방지 태깅',
+        badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+        description: '개인 카드로 모임비를 우선 결제하거나 정산 요청 중인 메타데이터 태그 내역',
+        icon: '🏷️',
+        details: [
+          { label: '대납 결제자', value: '구본영(나) [신한카드 Mr.Life]' },
+          { label: '정산 수납 현황', value: '김민수(송금완료), 이서연(정산대기)' },
+          { label: '태그 명칭', value: '#대납 #정산요청 #1_N_분담' },
+        ],
+        note: '모아보고 금전관리 원칙 3: 태깅 분리로 개인 가계부와 모임 가계부 이중계상 차단',
+      });
+    }
+
+    // 3. 목적별 가계부 내부 이동 / 저축 분리
+    items.push({
+      id: 'dyn-internal',
+      tabLabel: '내부이동',
+      title: '가계부 간 통장 쪼개기·목돈 저축',
+      amount: 350000,
+      badge: '단일 귀속 준수',
+      badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+      description: '개인 기본 가계부에서 목적별 적금/청약 계좌로 안전하게 분리 저축',
+      icon: '🏦',
+      details: [
+        { label: '이동 목적', value: '청약저축 & 여행 비상금 통장 쪼개기' },
+        { label: '귀속 원칙', value: '단일 귀속성 보장 (목적 가계부로 승계)' },
+        { label: '월 자동이체', value: '매월 10일 자동 적립 완료' },
+      ],
+      note: '모아보고 금전관리 원칙 1: 단일 귀속성 보장에 따라 배타적 계좌에 귀속',
+    });
+
+    // 4. 게스트 임시 분담금
+    items.push({
+      id: 'dyn-guest',
+      tabLabel: '게스트분담',
+      title: '게스트 모임 한정 임시 분담금',
+      amount: 68000,
+      badge: '게스트 소멸성 원칙',
+      badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+      description: '회원가입 없는 게스트 임시 식별자(guest_id)로 매핑된 일회성 비용',
+      icon: '🎭',
+      details: [
+        { label: '참여 게스트', value: '임시게스트A (gst_9812), 게스트B (gst_4102)' },
+        { label: '승인 절차', value: '당사자 명시적 승인 전 소급 매핑 금지' },
+        { label: '소멸성 규칙', value: '모임 정산 완료 후 자동 파기 보관' },
+      ],
+      note: '모아보고 게스트 소멸성 원칙: 회원가입 전 데이터 소급 결합 금지',
+    });
+
+    return items;
+  }, [stats, currentTransactions]);
+
+  // 1초 간격 서류철 슬라이더 타이머
+  const isBannerEffectivelyPaused = isBannerPaused || isBannerHovered || isFolderExpanded;
+  useEffect(() => {
+    if (dynamicBannerItems.length <= 1 || isBannerEffectivelyPaused) return;
+
+    const timer = setInterval(() => {
+      setDynamicBannerIndex((prev) => (prev + 1) % dynamicBannerItems.length);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [dynamicBannerItems.length, isBannerEffectivelyPaused]);
+
+  // 슬라이더 좌우 탐색 핸들러
+  const handlePrevBanner = () => {
+    setDynamicBannerIndex((prev) =>
+      prev === 0 ? dynamicBannerItems.length - 1 : prev - 1
+    );
+  };
+  const handleNextBanner = () => {
+    setDynamicBannerIndex((prev) => (prev + 1) % dynamicBannerItems.length);
+  };
+
+  // 분석 데이터 재수집 & 새 보고서 스냅샷 생성
+  const handleRecollectAndCreateReport = () => {
+    setIsRecollecting(true);
+    setTimeout(() => {
+      setIsRecollecting(false);
+      const newSnapshot: AnalysisReportSnapshot = {
+        id: `rep-snapshot-${Date.now()}`,
+        version: `v${(analysisReports.length + 1) * 0.5 + 1.0} (최신재수집)`,
+        title: `2026년 10월 재수집 결산 분석 보고서 (스냅샷)`,
+        period: '2026.10.01 ~ 2026.10.13 (실시간)',
+        createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        totalIncome: stats.income,
+        totalExpense: stats.pureExpense,
+        netSavings: stats.income - stats.pureExpense,
+        cardBilledTotal: 6029542,
+        txCount: currentTransactions.length,
+        summaryNotes: [
+          `재수집 시점 총 잔액: ₩${currentLedger.balance.toLocaleString()}원`,
+          `당월 순수 지출: ₩${stats.pureExpense.toLocaleString()}원 / 수입: ₩${stats.income.toLocaleString()}원`,
+          '6대 카드사 실제 청구 골든 소스 SSOT 대사 정합성 100% 검증',
+          '모아보고 3대 원칙(단일 귀속, TRANSFER 1:1 페어링, 태깅 분리) 전산 감사 통과',
+        ],
+        status: 'VERIFIED',
+      };
+      setAnalysisReports((prev) => [newSnapshot, ...prev]);
+      setNoticeMessage('✓ 최신 수입/지출 원장 및 6대 카드사 명세 데이터를 전수 재수집하여 새 분석 보고서 스냅샷이 생성되었습니다.');
+      setIsDirtyAggregation(false);
+    }, 700);
+  };
+
+  const currentDynamicItem = dynamicBannerItems[dynamicBannerIndex] || dynamicBannerItems[0];
+  const hasDynamicInfo = dynamicBannerItems.length > 0;
   const [receiptOcrModalOpen, setReceiptOcrModalOpen] = useState(false);
   const [receiptOcrSimulating, setReceiptOcrSimulating] = useState(false);
   const [reaggregateSuccessMsg, setReaggregateSuccessMsg] = useState<string | null>(null);
@@ -2492,70 +2752,246 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       )}
 
       {/* ==================================================================== */}
-      {/* 4. 선택된 가계부 요약 벤토 통계 바 */}
+      {/* 4. [2.1 고정정보] (총잔액, 수입합계, 지출합계) + [2.2 유동정보 서류철 인덱스 슬라이드 배너] */}
       {/* ==================================================================== */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* 통계 1: 총 잔액 */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold">
-              {currentLedger.subType === 'POCKET_MONEY' ? '현재 잔여 용돈' : '가계부 총 잔액'}
-            </span>
-            <Wallet className="w-4 h-4 text-emerald-600" />
+      <div className="space-y-3.5">
+        {/* 2.1 고정정보: 3대 핵심 회계 지표 (총 잔액, 수입 합계, 지출 합계) - 항상 표시 */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* 고정 1: 총 잔액 */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-xs font-bold text-slate-600 dark:text-zinc-400">
+                {currentLedger.subType === 'POCKET_MONEY' ? '현재 잔여 용돈' : '가계부 총 잔액'}
+              </span>
+              <Wallet className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="font-mono text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
+              ₩{currentLedger.balance.toLocaleString()}
+            </div>
+            <div className="text-[10.5px] text-emerald-600 font-semibold truncate flex items-center gap-1">
+              <Check className="w-3 h-3 stroke-[2.5]" />
+              <span>단일 귀속 계좌 연동 중</span>
+            </div>
           </div>
-          <div className="font-mono text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
-            ₩{currentLedger.balance.toLocaleString()}
+
+          {/* 고정 2: 수입 합계 금액 */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                수입 합계 금액
+              </span>
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="font-mono text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              +₩{stats.income.toLocaleString()}
+            </div>
+            <div className="text-[10.5px] text-slate-500 font-medium truncate flex items-center justify-between">
+              <span>고정 {fixedIncomeRules.length}건 + 통장/일반</span>
+              <span className="text-[10px] font-mono font-bold text-emerald-600">입금 확정</span>
+            </div>
           </div>
-          <div className="text-[10px] text-emerald-600 font-semibold truncate">
-            단일 귀속 계좌 연동 중
+
+          {/* 고정 3: 지출 합계 금액 */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-xs font-bold text-rose-700 dark:text-rose-400">
+                지출 합계 금액
+              </span>
+              <TrendingDown className="w-4 h-4 text-rose-600" />
+            </div>
+            <div className="font-mono text-xl sm:text-2xl font-extrabold text-rose-600">
+              -₩{stats.pureExpense.toLocaleString()}
+            </div>
+            <div className="text-[10.5px] text-slate-500 font-medium truncate flex items-center justify-between">
+              <span>자산이동 제외 순수 소비</span>
+              <span className="text-[10px] font-mono font-bold text-rose-500">
+                {filteredTransactions.filter((t) => t.type === 'EXPENSE').length}건 집계
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* 통계 2: 당월 순수 생활비 지출 */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold">
-              {currentLedger.subType === 'POCKET_MONEY' ? '실제 용돈 지출' : '당월 순수 생활비'}
-            </span>
-            <TrendingDown className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="font-mono text-lg sm:text-xl font-extrabold text-rose-600">
-            ₩{stats.pureExpense.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-slate-400 font-medium">
-            자산이동 제외 순수 소비
-          </div>
-        </div>
+        {/* 2.2 유동정보: 서류철 인덱스 슬라이드 배너 (자산이동, 대납, 정산 등 서비스 관련 정보가 있을 경우만 표시) */}
+        {hasDynamicInfo && (
+          <div
+            onMouseEnter={() => setIsBannerHovered(true)}
+            onMouseLeave={() => setIsBannerHovered(false)}
+            className="relative rounded-3xl bg-linear-to-br from-stone-100 via-slate-100 to-zinc-100 dark:from-zinc-900 dark:via-stone-900 dark:to-zinc-950 border border-stone-300 dark:border-zinc-700 shadow-md p-3 sm:p-4.5 space-y-3 transition-all"
+          >
+            {/* 서류철 바인더 상단 인덱스 탭 & 슬라이더 컨트롤러 헤더 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-stone-200 dark:border-zinc-800 pb-2.5">
+              {/* 서류철 세로/인덱스 라벨들 (파일 폴더 탭 스타일 - 파일에서 꺼내는 인터랙션) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] py-0.5">
+                <span className="text-[10px] font-black font-mono text-stone-500 dark:text-zinc-400 uppercase tracking-wider px-2 py-1 rounded bg-stone-200/80 dark:bg-zinc-800 shrink-0 flex items-center gap-1">
+                  <FolderOpen className="w-3 h-3 text-indigo-500" />
+                  <span>서류철 인덱스</span>
+                </span>
+                {dynamicBannerItems.map((item, idx) => {
+                  const isActive = dynamicBannerIndex === idx;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setDynamicBannerIndex(idx)}
+                      className={`relative px-3 py-1.5 rounded-t-xl text-xs font-bold transition-all cursor-pointer shrink-0 border-t-2 select-none flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-white dark:bg-zinc-800 text-stone-900 dark:text-white shadow-xs -mb-[11px] pb-3 border-indigo-600 dark:border-indigo-400 font-black z-10 scale-102'
+                          : 'bg-stone-200/70 dark:bg-zinc-800/60 text-stone-600 dark:text-zinc-400 hover:bg-stone-200 dark:hover:bg-zinc-700 border-transparent opacity-75 hover:opacity-100'
+                      }`}
+                      title={`${item.title} 서류 꺼내기`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.tabLabel}</span>
+                      {isActive && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
-        {/* 통계 3: 자산이동 합계 */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-950/60 bg-purple-50/20 dark:bg-purple-950/10 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-              자산 이동 합계
-            </span>
-            <ArrowRightLeft className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="font-mono text-lg sm:text-xl font-extrabold text-purple-700 dark:text-purple-300">
-            ₩{stats.assetTransfer.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
-            생활비 왜곡 방지 분리 (1:1 페어링)
-          </div>
-        </div>
+              {/* 슬라이더 컨트롤러: 1초 슬라이딩 상태, 일시정지/재생, 좌우 탐색, 핸들 */}
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                {/* 1초 자동 슬라이딩 안내 뱃지 */}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-200/90 dark:bg-zinc-800 text-[10px] font-mono text-stone-700 dark:text-zinc-300">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isBannerEffectivelyPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'
+                    }`}
+                  />
+                  <span>{isBannerEffectivelyPaused ? '일시정지' : '1초 슬라이딩'}</span>
+                </div>
 
-        {/* 통계 4: 대납 / 정산 태깅 */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold">대납·정산 태깅</span>
-            <Tag className="w-4 h-4 text-amber-600" />
+                {/* 일시정지 / 재생 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setIsBannerPaused((prev) => !prev)}
+                  className="p-1.5 rounded-lg border border-stone-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-stone-700 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-700 cursor-pointer shadow-2xs transition-colors"
+                  title={isBannerPaused ? '자동 슬라이딩 다시 시작' : '자동 슬라이딩 일시정지'}
+                >
+                  {isBannerPaused ? (
+                    <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                  ) : (
+                    <Pause className="w-3.5 h-3.5 text-stone-600 dark:text-zinc-300 fill-stone-600" />
+                  )}
+                </button>
+
+                {/* 좌우 탐색 버튼 */}
+                <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 rounded-lg border border-stone-300 dark:border-zinc-700 p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={handlePrevBanner}
+                    className="p-1 rounded hover:bg-stone-100 dark:hover:bg-zinc-700 text-stone-700 dark:text-zinc-300 cursor-pointer"
+                    title="이전 유동 서류"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                  <span className="text-[10px] font-mono font-bold px-1.5 text-stone-500">
+                    {dynamicBannerIndex + 1}/{dynamicBannerItems.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextBanner}
+                    className="p-1 rounded hover:bg-stone-100 dark:hover:bg-zinc-700 text-stone-700 dark:text-zinc-300 cursor-pointer"
+                    title="다음 유동 서류"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 서류철 본체 (파일에서 스르륵 꺼낸 서류 시트) */}
+            <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 border border-stone-300 dark:border-zinc-800 shadow-sm p-4 transition-all">
+              {/* 현재 슬라이드 서류 시트 내용 */}
+              <div
+                key={currentDynamicItem.id}
+                className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl p-2 rounded-xl bg-stone-100 dark:bg-zinc-800 border border-stone-200 dark:border-zinc-700 shadow-2xs">
+                      {currentDynamicItem.icon}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${currentDynamicItem.badgeColor}`}
+                        >
+                          {currentDynamicItem.badge}
+                        </span>
+                        <h4 className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-white">
+                          {currentDynamicItem.title}
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-zinc-400 mt-0.5">
+                        {currentDynamicItem.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <span className="text-[10px] text-stone-400 block font-medium">유동 합계액</span>
+                      <span className="font-mono text-lg sm:text-xl font-black text-indigo-600 dark:text-indigo-400">
+                        ₩{currentDynamicItem.amount.toLocaleString()}원
+                      </span>
+                    </div>
+
+                    {/* 핸들 기능: 사용자가 필요한 정보를 펼쳐보는 버튼 */}
+                    <button
+                      type="button"
+                      onClick={() => setIsFolderExpanded((prev) => !prev)}
+                      className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all whitespace-nowrap"
+                      title={isFolderExpanded ? '서류 접어넣기' : '핸들로 서류 펼쳐보기'}
+                    >
+                      {isFolderExpanded ? (
+                        <>
+                          <Minimize2 className="w-3.5 h-3.5 stroke-[2.2]" />
+                          <span>서류 접기</span>
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 className="w-3.5 h-3.5 stroke-[2.2]" />
+                          <span>핸들로 펼쳐보기</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 핸들로 서류를 펼쳤을 때 나타나는 세부 상세 서류철 */}
+                {isFolderExpanded && (
+                  <div className="pt-3 border-t border-dashed border-stone-200 dark:border-zinc-800 space-y-3 animate-in fade-in duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                      {currentDynamicItem.details.map((d, i) => (
+                        <div
+                          key={i}
+                          className="p-2.5 rounded-xl bg-stone-50 dark:bg-zinc-800/70 border border-stone-200 dark:border-zinc-700/60 space-y-1"
+                        >
+                          <span className="text-[10px] text-stone-400 font-bold block">{d.label}</span>
+                          <span className="font-mono text-[11.5px] font-bold text-stone-800 dark:text-zinc-200 block truncate">
+                            {d.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-indigo-900 dark:text-indigo-300 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span>{currentDynamicItem.note}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-indigo-500 font-bold">
+                        AUDIT: 100% VERIFIED
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="font-mono text-lg sm:text-xl font-extrabold text-amber-600">
-            ₩{stats.reimbursement.toLocaleString()}
-          </div>
-          <div className="text-[10px] text-amber-600 font-medium">
-            이중계상 방지 태그
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ==================================================================== */}
@@ -2565,139 +3001,254 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         {/* ==================================================================== */}
         {/* [시안 B] 3대 대메뉴 덱 탭 헤더: [지출(일반/명세)] · [수입(고정/통장)] · [분석(일간/명세Bento)] */}
         {/* ==================================================================== */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-4">
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-800/80 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 overflow-x-auto [scrollbar-width:none]">
-            {/* 1. 지출 탭 */}
-            <button
-              type="button"
-              onClick={() => setActiveDeckTab('EXPENSE')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
-                activeDeckTab === 'EXPENSE'
-                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-indigo-100 dark:border-indigo-900/50'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <CreditCard className="w-4 h-4 text-rose-500" />
-              <span>지출 (Expense)</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 text-[10px] font-mono font-bold">
-                {filteredTransactions.filter((t) => t.type === 'EXPENSE').length}건
-              </span>
-            </button>
-
-            {/* 2. 수입 탭 */}
-            <button
-              type="button"
-              onClick={() => setActiveDeckTab('INCOME')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
-                activeDeckTab === 'INCOME'
-                  ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs border border-emerald-100 dark:border-emerald-900/50'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <span>수입 (Income)</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold">
-                고정 {fixedIncomeRules.length}건
-              </span>
-            </button>
-
-            {/* 3. 분석 탭 */}
-            <button
-              type="button"
-              onClick={() => setActiveDeckTab('ANALYTICS')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
-                activeDeckTab === 'ANALYTICS'
-                  ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-purple-100 dark:border-purple-900/50'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <PieChart className="w-4 h-4 text-purple-500" />
-              <span>분석 (Analytics)</span>
-              {isDirtyAggregation && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black animate-pulse">
-                  재집계 필요
+        {/* ==================================================================== */}
+        {/* 2대 대메뉴 대축: [1. ✍️ 장부작성 (수입·지출)] · [2. 📊 분석 (현황·보고서)] */}
+        {/* ==================================================================== */}
+        <div className="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
+          {/* Level 1: 2대 대축 (장부작성 vs 분석) 스위치 */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80">
+              {/* 축 1: 장부작성 */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMainAxisTab('WRITE');
+                  setActiveDeckTab(writeSubTab);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                  mainAxisTab === 'WRITE'
+                    ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-indigo-100 dark:border-indigo-900/50'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>장부작성 (수입·지출)</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[10px] font-mono font-bold">
+                  {currentTransactions.length}건
                 </span>
-              )}
-            </button>
-          </div>
-
-          {/* 우측 탭별 보조 스위치 및 액션 */}
-          {activeDeckTab === 'EXPENSE' && (
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-zinc-800/40 p-1 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs">
-              <button
-                type="button"
-                onClick={() => setExpenseSubTab('GENERAL')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  expenseSubTab === 'GENERAL'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                일반지출 (원장·영수증)
               </button>
+
+              {/* 축 2: 분석 */}
               <button
                 type="button"
-                onClick={() => setExpenseSubTab('STATEMENT')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  expenseSubTab === 'STATEMENT'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
+                onClick={() => {
+                  setMainAxisTab('ANALYSIS');
+                  setActiveDeckTab('ANALYTICS');
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                  mainAxisTab === 'ANALYSIS'
+                    ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-purple-100 dark:border-purple-900/50'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <span>명세서지출 (카드사 청구)</span>
-                {statementIntakeReviews.some((r) => r.needsReview) && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400" title="수집 검토 필요 건 존재" />
+                <PieChart className="w-4 h-4 text-purple-500" />
+                <span>분석 (현황·보고서)</span>
+                {isDirtyAggregation && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black animate-pulse">
+                    재집계 필요
+                  </span>
                 )}
               </button>
             </div>
-          )}
 
-          {activeDeckTab === 'INCOME' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setManualIncomeModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                <span>일반수입 등록</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFixedIncomeModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
-              >
-                <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                <span>고정수입 설정</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBankImportModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>통장내역 일괄등록</span>
-              </button>
+            {/* Level 2 서브 탭 스위치 */}
+            {mainAxisTab === 'WRITE' ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWriteSubTab('EXPENSE');
+                      setActiveDeckTab('EXPENSE');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      writeSubTab === 'EXPENSE'
+                        ? 'bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 shadow-2xs font-black'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5 text-rose-500" />
+                    <span>3.1.2 지출</span>
+                    <span className="text-[10px] font-mono font-bold text-rose-500">
+                      ({filteredTransactions.filter((t) => t.type === 'EXPENSE').length}건)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWriteSubTab('INCOME');
+                      setActiveDeckTab('INCOME');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      writeSubTab === 'INCOME'
+                        ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs font-black'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>3.1.1 수입</span>
+                    <span className="text-[10px] font-mono font-bold text-emerald-600">
+                      ({filteredTransactions.filter((t) => t.type === 'INCOME').length}건)
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnalysisSubTab('STATUS');
+                      setActiveDeckTab('ANALYTICS');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      analysisSubTab === 'STATUS'
+                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-black'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <PieChart className="w-3.5 h-3.5 text-purple-500" />
+                    <span>3.2.1 현황</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnalysisSubTab('REPORT');
+                      setActiveDeckTab('ANALYTICS');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      analysisSubTab === 'REPORT'
+                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-black'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-purple-500" />
+                    <span>3.2.2 보고서 (이력)</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-mono font-bold">
+                      {analysisReports.length}건
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Level 3: 세부 구분 탭 및 액션 바 */}
+          {mainAxisTab === 'WRITE' && writeSubTab === 'EXPENSE' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setExpenseSubTab('GENERAL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    expenseSubTab === 'GENERAL'
+                      ? 'bg-rose-600 text-white shadow-2xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  3.1.2.1 지출내역 (원장·영수증)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpenseSubTab('STATEMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    expenseSubTab === 'STATEMENT'
+                      ? 'bg-rose-600 text-white shadow-2xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <span>3.1.2.2 카드지출내역 (카드명세서)</span>
+                  {statementIntakeReviews.some((r) => r.needsReview) && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" title="수집 검토 필요 건 존재" />
+                  )}
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                {expenseSubTab === 'GENERAL'
+                  ? '모든 지출 거래의 단일 진실 공급원 (SSOT 원장)'
+                  : '카드지출내역: 3.1.2.1 지출내역에 포함되는 부분정보이며 카드명세서 일괄관리'}
+              </div>
             </div>
           )}
 
-          {activeDeckTab === 'ANALYTICS' && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
-                {(['MONTH', 'QUARTER', 'YEAR'] as const).map((period) => (
-                  <button
-                    key={period}
-                    type="button"
-                    onClick={() => setAnalyticsPeriod(period)}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      analyticsPeriod === period
-                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
-                    }`}
-                  >
-                    {period === 'MONTH' ? '월간 (10월)' : period === 'QUARTER' ? '분기 (4Q)' : '연간 (2026)'}
-                  </button>
-                ))}
+          {mainAxisTab === 'WRITE' && writeSubTab === 'INCOME' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIncomeSubTab('LIST')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    incomeSubTab === 'LIST'
+                      ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  3.1.1.1 수입내역 (전체 입금·통장)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIncomeSubTab('FIXED')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    incomeSubTab === 'FIXED'
+                      ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>3.1.1.2 고정수입내역 (자동등록·알림)</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono">
+                    {fixedIncomeRules.length}건
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setManualIncomeModalOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>일반수입 등록</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBankImportModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>통장내역 일괄등록</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mainAxisTab === 'ANALYSIS' && analysisSubTab === 'STATUS' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                  3.2.1 현황 집계 기간:
+                </span>
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
+                  {(['MONTH', 'QUARTER', 'YEAR'] as const).map((period) => (
+                    <button
+                      key={period}
+                      type="button"
+                      onClick={() => setAnalyticsPeriod(period)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        analyticsPeriod === period
+                          ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
+                      }`}
+                    >
+                      {period === 'MONTH' ? '월간 (10월)' : period === 'QUARTER' ? '분기 (4Q)' : '연간 (2026)'}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {isDirtyAggregation && (
@@ -2719,6 +3270,23 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   <span>{recalculating ? '집계 중...' : '재집계 실행'}</span>
                 </button>
               )}
+            </div>
+          )}
+
+          {mainAxisTab === 'ANALYSIS' && analysisSubTab === 'REPORT' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+              <div className="text-xs text-slate-600 dark:text-zinc-400">
+                <strong>3.2.2 보고서 관리:</strong> 분석 처리 결과의 스냅샷 이력을 관리하고 최신 원장 데이터로 재수집을 수행합니다.
+              </div>
+              <button
+                type="button"
+                onClick={handleRecollectAndCreateReport}
+                disabled={isRecollecting}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 whitespace-nowrap"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRecollecting ? 'animate-spin' : ''}`} />
+                <span>{isRecollecting ? '데이터 재수집 중...' : '🔄 최신 데이터 재수집 & 새 보고서 생성'}</span>
+              </button>
             </div>
           )}
         </div>
@@ -2968,23 +3536,38 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               </div>
             )}
 
-            {/* 서브탭 1-2: 명세서지출 (카드사 청구명세서 파일 등록 및 수집리뷰/조회) */}
+            {/* 서브탭 1-2: 3.1.2.2 카드지출내역 (지출내역의 한 구분정보를 일괄 등록하면서 카드명세서라는 별도 관리 구성 - 3.1.2.1 지출내역에 포함되는 부분정보) */}
             {expenseSubTab === 'STATEMENT' && (
               <div className="space-y-6">
+                {/* 3.1.2.2 카드지출내역 도메인 위상 안내 배너 */}
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
+                  <div className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shrink-0 mt-0.5">
+                    💡
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-[12px] text-amber-900 dark:text-amber-100">
+                      3.1.2.2 카드지출내역 관리 안내
+                    </span>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                      카드지출내역은 <strong>3.1.2.1 지출내역(전역 원장 SSOT)</strong>의 한 구분정보를 카드사 명세서를 통해 일괄 등록하면서, 6대 카드사 청구서 대사 및 분할납부 관리를 지원하는 <strong>지출내역의 부분정보</strong>입니다.
+                    </p>
+                  </div>
+                </div>
+
                 {/* [시나리오 2.1.1] 명세서 등록 및 파일 첨부 영역 */}
                 <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px]">
-                          시나리오 2.1.1
+                          3.1.2.2 일괄등록
                         </span>
                         <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                          카드 이용대금 명세서 첨부 등록 (카드사 구분 무관 지원)
+                          카드 이용대금 명세서 첨부 등록 및 카드지출내역 일괄 생성
                         </h4>
                       </div>
                       <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                        카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 AI 파싱 엔진이 자동으로 승인 라인을 추출합니다.
+                        카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 AI 파싱 엔진이 자동으로 승인 라인을 추출하여 지출내역에 대사 반영합니다.
                       </p>
                     </div>
 
@@ -3255,278 +3838,400 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         )}
 
         {/* ==================================================================== */}
-        {/* 2. [수입 탭 (INCOME)] */}
+        {/* 2. [3.1.1 수입 탭 (INCOME)] */}
         {/* ==================================================================== */}
         {activeDeckTab === 'INCOME' && (
           <div className="space-y-6 animate-in fade-in-50">
-            {/* 2.3.1 고정수입 설정 (급여, 배당, 이자 등 & 알림/대상지정) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px]">
-                      시나리오 2.3.1
-                    </span>
-                    <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                      고정수입 등록 및 자동 귀속 설정 (급여, 배당금, 금융이자)
-                    </h4>
+            {/* 3.1.1.1 수입내역 (전체 입금·통장 거래내역 통합 원장) */}
+            {incomeSubTab === 'LIST' && (
+              <div className="space-y-6">
+                {/* 3.1.1.1 안내 배너 */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-950 dark:text-emerald-200 flex items-start gap-2.5">
+                  <div className="p-1 rounded-lg bg-emerald-600 text-white font-bold text-xs shrink-0 mt-0.5">
+                    💰
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                    반복 발생하는 고정 수입을 등록하면 입금 예정일 알림과 함께 지정한 대상 가계부로 자동 배타적 귀속됩니다.
-                  </p>
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-[12px] text-emerald-900 dark:text-emerald-100">
+                      3.1.1.1 수입내역 (통합 원장)
+                    </span>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                      현재 가계부로 입금된 모든 수입(일반 수기등록, 통장 엑셀 일괄반영, 고정수입 자동귀속)의 전역 원장입니다.
+                    </p>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setFixedIncomeModalOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>새 고정수입 규칙 추가</span>
-                </button>
-              </div>
-
-              {/* 등록된 고정수입 규칙 카드 그리드 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {fixedIncomeRules.map((rule) => (
-                  <div
-                    key={rule.id}
-                    className="p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-2.5 shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                          {rule.name}
+                {/* 실시간 수입 거래내역 리스트 */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px]">
+                          수입 원장
                         </span>
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                          {rule.category}
-                        </span>
+                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                          등록된 수입 거래 목록 ({currentTransactions.filter((t) => t.type === 'INCOME').length}건)
+                        </h4>
                       </div>
-                      <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                        매월 {rule.dayOfMonth}일
-                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        단일 귀속 계좌로 확정 입금된 수입 총액: <strong className="text-emerald-600 font-mono">+₩{stats.income.toLocaleString()}원</strong>
+                      </p>
                     </div>
 
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 block">정기 입금 예정액</span>
-                      <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 block">
-                        +₩{rule.amount.toLocaleString()}원
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualIncomeModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>수입 건별 등록</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 수입 거래 리스트 */}
+                  <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                    {currentTransactions.filter((t) => t.type === 'INCOME').length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        등록된 수입 내역이 없습니다. [일반수입 등록] 또는 [통장내역 일괄등록]을 실행하세요.
+                      </div>
+                    ) : (
+                      currentTransactions
+                        .filter((t) => t.type === 'INCOME')
+                        .map((tx) => (
+                          <div
+                            key={tx.id}
+                            className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-zinc-800/40 text-xs transition-colors"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                  {tx.title}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800">
+                                  {tx.category}
+                                </span>
+                                {tx.tagNames.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400"
+                                  >
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                                <span>{tx.date}</span>
+                                <span>•</span>
+                                <span>입금자/출처: {tx.payerName}</span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">
+                                +₩{tx.amount.toLocaleString()}원
+                              </span>
+                              <span className="text-[10px] text-slate-400 block">원장 반영 완료</span>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 2.3.2 통장 거래내역 첨부 및 수입/지출 일괄정리 (미등록 계좌 감지) */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px]">
+                          통장 일괄정리
+                        </span>
+                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                          통장 거래내역 첨부 및 수입·지출 일괄 정리
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        여러 은행 통장 엑셀/CSV를 동시에 첨부하고, 수집 기간(당월 또는 기간지정 10.01~10.31) 내 거래를 자동 분류합니다.
+                      </p>
                     </div>
 
-                    <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-zinc-800/80 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">지정 장부:</span>
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[140px]">
-                          {rule.targetLedgerTitle}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">입금 계좌:</span>
-                        <span className="font-mono text-slate-700 dark:text-zinc-300 truncate max-w-[140px]">
-                          {rule.account}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-slate-400">장부 등록 알림:</span>
+                    {/* 수집 기간 설정 컨트롤 */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
                         <button
                           type="button"
-                          onClick={() => {
-                            setFixedIncomeRules((prev) =>
-                              prev.map((r) =>
-                                r.id === rule.id ? { ...r, notifyEnabled: !r.notifyEnabled } : r
-                              )
-                            );
-                            setNoticeMessage(
-                              `✓ "${rule.name}" 알림이 ${!rule.notifyEnabled ? '활성화' : '해제'}되었습니다.`
-                            );
-                          }}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                            rule.notifyEnabled
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                              : 'bg-slate-100 text-slate-500 dark:bg-zinc-800'
+                          onClick={() => setBankSelectedPeriod('MONTH')}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            bankSelectedPeriod === 'MONTH'
+                              ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
+                              : 'text-slate-500'
                           }`}
                         >
-                          {rule.notifyEnabled ? '🔔 알림 켜짐' : '🔕 알림 꺼짐'}
+                          당월 (10월)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBankSelectedPeriod('CUSTOM')}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            bankSelectedPeriod === 'CUSTOM'
+                              ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
+                              : 'text-slate-500'
+                          }`}
+                        >
+                          기간 지정
                         </button>
                       </div>
+                      {bankSelectedPeriod === 'CUSTOM' && (
+                        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700">
+                          {bankCustomRange}
+                        </span>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* 2.3.2 통장 거래내역 첨부 및 수입/지출 일괄정리 (미등록 계좌 감지) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px]">
-                      시나리오 2.3.2
-                    </span>
-                    <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                      통장 거래내역 첨부 및 수입·지출 일괄 정리
-                    </h4>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                    여러 은행 통장 엑셀/CSV를 동시에 첨부하고, 수집 기간(당월 또는 기간지정 10.01~10.31) 내 거래를 자동 분류합니다.
-                  </p>
-                </div>
-
-                {/* 수집 기간 설정 컨트롤 */}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setBankSelectedPeriod('MONTH')}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                        bankSelectedPeriod === 'MONTH'
-                          ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      당월 (10월)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBankSelectedPeriod('CUSTOM')}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                        bankSelectedPeriod === 'CUSTOM'
-                          ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      기간 지정
-                    </button>
-                  </div>
-                  {bankSelectedPeriod === 'CUSTOM' && (
-                    <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700">
-                      {bankCustomRange}
-                    </span>
+                  {/* 미등록 계좌 자동 수집 안내 배너 */}
+                  {detectedAutoAccount && (
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>
+                          <strong>신규 미등록 계좌 자동 감지:</strong> {detectedAutoAccount} — 통장 첨부 중 발견되어 사용자설정 계좌관리 시스템에 임시 등록되었습니다.
+                        </span>
+                      </div>
+                      <span className="text-[10.5px] font-bold text-amber-800 dark:text-amber-300 underline cursor-pointer shrink-0">
+                        계좌 별칭 수정 ➔
+                      </span>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              {/* 미등록 계좌 자동 수집 안내 배너 */}
-              {detectedAutoAccount && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>
-                      <strong>신규 미등록 계좌 자동 감지:</strong> {detectedAutoAccount} — 통장 첨부 중 발견되어 사용자설정 계좌관리 시스템에 임시 등록되었습니다.
-                    </span>
-                  </div>
-                  <span className="text-[10.5px] font-bold text-amber-800 dark:text-amber-300 underline cursor-pointer shrink-0">
-                    계좌 별칭 수정 ➔
-                  </span>
-                </div>
-              )}
-
-              {/* 파싱된 통장 거래내역 테이블 */}
-              <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800">
-                <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
-                  <div className="col-span-1 text-center">선택</div>
-                  <div className="col-span-2">거래일자 / 은행</div>
-                  <div className="col-span-3">거래 적요 및 내역</div>
-                  <div className="col-span-2 text-right">입금 (+)</div>
-                  <div className="col-span-2 text-right">출금 (-)</div>
-                  <div className="col-span-2 text-center">유추 유형</div>
-                </div>
-
-                {bankParsedItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-zinc-800/40 text-xs"
-                  >
-                    <div className="col-span-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={item.selected}
-                        onChange={(e) => {
-                          setBankParsedItems((prev) =>
-                            prev.map((b) => (b.id === item.id ? { ...b, selected: e.target.checked } : b))
-                          );
-                        }}
-                        className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
-                      />
+                  {/* 파싱된 통장 거래내역 테이블 */}
+                  <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800">
+                    <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
+                      <div className="col-span-1 text-center">선택</div>
+                      <div className="col-span-2">거래일자 / 은행</div>
+                      <div className="col-span-3">거래 적요 및 내역</div>
+                      <div className="col-span-2 text-right">입금 (+)</div>
+                      <div className="col-span-2 text-right">출금 (-)</div>
+                      <div className="col-span-2 text-center">유추 유형</div>
                     </div>
 
-                    <div className="col-span-2 space-y-0.5">
-                      <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 block">
-                        {item.date}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block truncate">
-                        {item.bankName}
-                      </span>
-                    </div>
-
-                    <div className="col-span-3 font-medium text-slate-900 dark:text-white truncate">
-                      {item.description}
-                    </div>
-
-                    <div className="col-span-2 text-right font-mono font-bold text-emerald-600">
-                      {item.depositAmount > 0 ? `+₩${item.depositAmount.toLocaleString()}` : '-'}
-                    </div>
-
-                    <div className="col-span-2 text-right font-mono font-bold text-rose-600">
-                      {item.withdrawAmount > 0 ? `-₩${item.withdrawAmount.toLocaleString()}` : '-'}
-                    </div>
-
-                    <div className="col-span-2 text-center">
-                      <select
-                        value={item.inferredType}
-                        onChange={(e) => {
-                          const newType = e.target.value as 'INCOME' | 'EXPENSE' | 'TRANSFER';
-                          setBankParsedItems((prev) =>
-                            prev.map((b) => (b.id === item.id ? { ...b, inferredType: newType } : b))
-                          );
-                        }}
-                        className={`text-[10.5px] font-bold rounded-lg border px-2 py-1 focus:outline-hidden ${
-                          item.inferredType === 'INCOME'
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                            : item.inferredType === 'TRANSFER'
-                            ? 'bg-purple-50 border-purple-300 text-purple-800'
-                            : 'bg-rose-50 border-rose-300 text-rose-800'
-                        }`}
+                    {bankParsedItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-zinc-800/40 text-xs"
                       >
-                        <option value="INCOME">💰 수입</option>
-                        <option value="EXPENSE">💳 지출</option>
-                        <option value="TRANSFER">↔️ 자산이동</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div className="col-span-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={(e) => {
+                              setBankParsedItems((prev) =>
+                                prev.map((b) => (b.id === item.id ? { ...b, selected: e.target.checked } : b))
+                              );
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                          />
+                        </div>
 
-              {/* 일괄 등록 실행 바 */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <span className="text-xs text-slate-500">
-                  선택된 {bankParsedItems.filter((b) => b.selected).length}건을 현재 가계부(
-                  <strong className="text-indigo-600">{currentLedger.title}</strong>)의 원장에 일괄 기록합니다.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const selected = bankParsedItems.filter((b) => b.selected);
-                    if (selected.length === 0) return;
-                    setNoticeMessage(`✓ 통장 거래내역 ${selected.length}건이 가계부 원장에 일괄 성공적으로 반영되었습니다.`);
-                    setIsDirtyAggregation(true);
-                  }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>선택 항목 가계부 일괄 반영</span>
-                </button>
+                        <div className="col-span-2 space-y-0.5">
+                          <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 block">
+                            {item.date}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block truncate">
+                            {item.bankName}
+                          </span>
+                        </div>
+
+                        <div className="col-span-3 font-medium text-slate-900 dark:text-white truncate">
+                          {item.description}
+                        </div>
+
+                        <div className="col-span-2 text-right font-mono font-bold text-emerald-600">
+                          {item.depositAmount > 0 ? `+₩${item.depositAmount.toLocaleString()}` : '-'}
+                        </div>
+
+                        <div className="col-span-2 text-right font-mono font-bold text-rose-600">
+                          {item.withdrawAmount > 0 ? `-₩${item.withdrawAmount.toLocaleString()}` : '-'}
+                        </div>
+
+                        <div className="col-span-2 text-center">
+                          <select
+                            value={item.inferredType}
+                            onChange={(e) => {
+                              const newType = e.target.value as 'INCOME' | 'EXPENSE' | 'TRANSFER';
+                              setBankParsedItems((prev) =>
+                                prev.map((b) => (b.id === item.id ? { ...b, inferredType: newType } : b))
+                              );
+                            }}
+                            className={`text-[10.5px] font-bold rounded-lg border px-2 py-1 focus:outline-hidden ${
+                              item.inferredType === 'INCOME'
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                : item.inferredType === 'TRANSFER'
+                                ? 'bg-purple-50 border-purple-300 text-purple-800'
+                                : 'bg-rose-50 border-rose-300 text-rose-800'
+                            }`}
+                          >
+                            <option value="INCOME">💰 수입</option>
+                            <option value="EXPENSE">💳 지출</option>
+                            <option value="TRANSFER">↔️ 자산이동</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 일괄 등록 실행 바 */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                    <span className="text-xs text-slate-500">
+                      선택된 {bankParsedItems.filter((b) => b.selected).length}건을 현재 가계부(
+                      <strong className="text-indigo-600">{currentLedger.title}</strong>)의 원장에 일괄 기록합니다.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selected = bankParsedItems.filter((b) => b.selected);
+                        if (selected.length === 0) return;
+                        setNoticeMessage(`✓ 통장 거래내역 ${selected.length}건이 가계부 원장에 일괄 성공적으로 반영되었습니다.`);
+                        setIsDirtyAggregation(true);
+                      }}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>선택 항목 가계부 일괄 반영</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* 3.1.1.2 고정수입내역 (수입내역의 한 구분정보를 자동등록하면서 알림 공유 및 확인 유도) */}
+            {incomeSubTab === 'FIXED' && (
+              <div className="space-y-6">
+                {/* 3.1.1.2 고정수입내역 안내 배너 */}
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
+                  <div className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shrink-0 mt-0.5">
+                    💡
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-[12px] text-amber-900 dark:text-amber-100">
+                      3.1.1.2 고정수입내역 관리 안내
+                    </span>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                      고정수입내역은 <strong>3.1.1.1 수입내역에 포함되는 부분정보</strong>로서, 매월 반복되는 급여·이자·배당금 등의 구분정보를 자동등록하면서 등록내용을 알림으로 공유하고 확인하도록 유도하는 체계입니다.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 고정수입 규칙 관리 카드 영역 */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px]">
+                          3.1.1.2 고정수입
+                        </span>
+                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                          고정수입 자동등록 규칙 및 알림 상황 공유 ({fixedIncomeRules.length}건)
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                        입금 예정일 도래 시 알림으로 상황을 공유하며, 승인 확인 시 3.1.1.1 수입내역 원장으로 즉시 자동 반영됩니다.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setFixedIncomeModalOpen(true)}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>새 고정수입 규칙 추가</span>
+                    </button>
+                  </div>
+
+                  {/* 등록된 고정수입 규칙 카드 그리드 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {fixedIncomeRules.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                              {rule.name}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                              {rule.category}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                            매월 {rule.dayOfMonth}일
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-slate-400 block">정기 입금 예정액</span>
+                          <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+                            +₩{rule.amount.toLocaleString()}원
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-zinc-800/80 text-[11px]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">지정 장부:</span>
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[140px]">
+                              {rule.targetLedgerTitle}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">입금 계좌:</span>
+                            <span className="font-mono text-slate-700 dark:text-zinc-300 truncate max-w-[140px]">
+                              {rule.account}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-slate-400">자동등록 알림:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFixedIncomeRules((prev) =>
+                                  prev.map((r) =>
+                                    r.id === rule.id ? { ...r, notifyEnabled: !r.notifyEnabled } : r
+                                  )
+                                );
+                                setNoticeMessage(
+                                  `✓ "${rule.name}" 알림이 ${!rule.notifyEnabled ? '활성화' : '해제'}되었습니다.`
+                                );
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                rule.notifyEnabled
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : 'bg-slate-100 text-slate-500 dark:bg-zinc-800'
+                              }`}
+                            >
+                              {rule.notifyEnabled ? '🔔 알림 켜짐' : '🔕 알림 꺼짐'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ==================================================================== */}
-        {/* 3. [분석 탭 (ANALYTICS)] */}
+        {/* 3. [3.2 분석 탭 (ANALYTICS: 3.2.1 현황 & 3.2.2 보고서)] */}
         {/* ==================================================================== */}
         {activeDeckTab === 'ANALYTICS' && (
           <div className="space-y-6 animate-in fade-in-50">
+            {/* 3.2.1 현황 분석 (수입/지출 기준 일간집계 & 6대 카드사 골든소스 SSOT 대사) */}
+            {analysisSubTab === 'STATUS' && (
+              <div className="space-y-6">
             {/* 2.4.2 스마트 재집계 엔진 알림 (Dirty Checksum) */}
             {isDirtyAggregation && (
               <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4059,6 +4764,209 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               </div>
             </div>
           </div>
+            </div>
+          )}
+
+          {/* 3.2.2 보고서 : 분석처리결과 이력정보를 관리하는 기능 (재수집, 이력관리) */}
+          {analysisSubTab === 'REPORT' && (
+            <div className="space-y-6 animate-in fade-in-50">
+              {/* 3.2.2 보고서 안내 배너 & 재수집/내보내기 액션 헤더 */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-purple-600 text-white font-bold text-[10px]">
+                        3.2.2 보고서
+                      </span>
+                      <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                        가계부 분석 결과 이력관리 및 온디맨드 재수집 엔진
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                      수입·지출 원장 및 6대 카드사 명세서 대사 결과를 스냅샷으로 영구 보존하며, 원장 데이터 변동 시 온디맨드로 최신 데이터를 재수집하여 신규 버전을 발행합니다.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRecollectAndCreateReport}
+                      disabled={isRecollecting}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRecollecting ? 'animate-spin' : ''}`} />
+                      <span>{isRecollecting ? '데이터 재수집 중...' : '🔄 최신 데이터 재수집 실행'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoticeMessage('✓ 전체 분석 보고서 이력이 CSV/Excel 파일로 다운로드되었습니다.');
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <DownloadCloud className="w-3.5 h-3.5 text-purple-600" />
+                      <span>보고서 내보내기</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 최신 활성 스냅샷 요약 카드 (Summary Bento) */}
+              <div className="p-5 rounded-3xl bg-linear-to-br from-slate-900 via-indigo-950 to-zinc-950 text-white shadow-xl border border-purple-500/30 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] font-black border border-purple-400/30">
+                        LATEST ACTIVE SNAPSHOT
+                      </span>
+                      <span className="text-xs text-slate-300 font-medium">
+                        {analysisReports[0]?.title}
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-black mt-1">
+                      버전 {analysisReports[0]?.version} · 집계기간 {analysisReports[0]?.period}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-extrabold border border-emerald-400/30 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>무결성 감사 인증완료</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-medium">당시 총 수입</span>
+                    <div className="font-mono text-base font-extrabold text-emerald-400">
+                      +₩{analysisReports[0]?.totalIncome.toLocaleString()}원
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-medium">당시 순수 지출</span>
+                    <div className="font-mono text-base font-extrabold text-rose-400">
+                      -₩{analysisReports[0]?.totalExpense.toLocaleString()}원
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-medium">순수지 (Net Savings)</span>
+                    <div className="font-mono text-base font-extrabold text-purple-300">
+                      +₩{analysisReports[0]?.netSavings.toLocaleString()}원
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-medium">6대 카드사 청구합계</span>
+                    <div className="font-mono text-base font-extrabold text-amber-300">
+                      ₩{analysisReports[0]?.cardBilledTotal.toLocaleString()}원
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10.5px] font-bold text-slate-400 block">핵심 분석 요약</span>
+                  <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                    {analysisReports[0]?.summaryNotes.map((note, idx) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 보고서 스냅샷 이력 관리 목록 (History Management Table) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                  <div>
+                    <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      <span>분석 보고서 스냅샷 이력 ({analysisReports.length}회차)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      재수집 시점마다 과거 보고서가 영구 보존되어 결산 변경 추이를 상시 대조할 수 있습니다.
+                    </p>
+                  </div>
+
+                  <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
+                    총 {analysisReports.length}개 버전 관리 중
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                  <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
+                    <div className="col-span-3">버전 / 보고서명</div>
+                    <div className="col-span-2">집계 기간</div>
+                    <div className="col-span-2 text-right">총 수입 / 순수 지출</div>
+                    <div className="col-span-2 text-right">순수지 (Net)</div>
+                    <div className="col-span-1 text-center">원장 건수</div>
+                    <div className="col-span-2 text-center">관리 액션</div>
+                  </div>
+
+                  {analysisReports.map((rep, idx) => (
+                    <div
+                      key={rep.id}
+                      className="p-3.5 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/60 dark:hover:bg-zinc-800/40 text-xs transition-colors"
+                    >
+                      <div className="col-span-3 space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-extrabold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 text-[10px]">
+                            {rep.version}
+                          </span>
+                          {idx === 0 && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                              최신
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-bold text-slate-900 dark:text-white block truncate">
+                          {rep.title}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          발행: {rep.createdAt}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+                        {rep.period}
+                      </div>
+
+                      <div className="col-span-2 text-right space-y-0.5">
+                        <span className="font-mono font-bold text-emerald-600 block">
+                          +₩{rep.totalIncome.toLocaleString()}
+                        </span>
+                        <span className="font-mono font-bold text-rose-600 block">
+                          -₩{rep.totalExpense.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2 text-right">
+                        <span className="font-mono font-black text-purple-600 dark:text-purple-400 block">
+                          +₩{rep.netSavings.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          카드: ₩{(rep.cardBilledTotal / 10000).toFixed(0)}만
+                        </span>
+                      </div>
+
+                      <div className="col-span-1 text-center font-mono text-slate-500 font-bold">
+                        {rep.txCount}건
+                      </div>
+
+                      <div className="col-span-2 flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedReportDetail(rep)}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                        >
+                          상세 열람
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       </div>
@@ -4571,6 +5479,119 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
           </div>
         );
       })()}
+
+      {/* ==================================================================== */}
+      {/* 5-1. [3.2.2 보고서] 분석 스냅샷 상세 열람 모달 (상세 열람 클릭 시) */}
+      {/* ==================================================================== */}
+      {selectedReportDetail && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in-50">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-5 sm:p-6 space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-black border border-purple-200 dark:border-purple-800 font-mono">
+                    {selectedReportDetail.version}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    ID: {selectedReportDetail.id}
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
+                  {selectedReportDetail.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReportDetail(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 결산 핵심 지표 4분할 */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <span className="text-[10px] text-slate-400 block font-bold">당시 총 수입</span>
+                <span className="font-mono font-black text-emerald-600 text-sm">
+                  +₩{selectedReportDetail.totalIncome.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <span className="text-[10px] text-slate-400 block font-bold">당시 순수 지출</span>
+                <span className="font-mono font-black text-rose-600 text-sm">
+                  -₩{selectedReportDetail.totalExpense.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <span className="text-[10px] text-slate-400 block font-bold">당시 순수지</span>
+                <span className="font-mono font-black text-purple-600 dark:text-purple-400 text-sm">
+                  +₩{selectedReportDetail.netSavings.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <span className="text-[10px] text-slate-400 block font-bold">카드 청구액</span>
+                <span className="font-mono font-black text-amber-600 text-sm">
+                  ₩{selectedReportDetail.cardBilledTotal.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* 집계 기간 및 검증 상태 */}
+            <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-purple-900 dark:text-purple-200">
+                  집계 범위: {selectedReportDetail.period}
+                </span>
+                <span className="font-mono text-[11px] text-slate-500">
+                  발행시각: {selectedReportDetail.createdAt}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-purple-200/60 dark:border-purple-800/60">
+                <span className="text-slate-600 dark:text-zinc-300">
+                  원장 거래 건수: <strong>{selectedReportDetail.txCount}건 전수 집계</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold text-[10px]">
+                  ✓ 골든소스 SSOT 대사 무결성 검증 통과
+                </span>
+              </div>
+            </div>
+
+            {/* 요약 노트 */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                스냅샷 저장 시점 분석 요약 노트:
+              </span>
+              <ul className="text-xs text-slate-600 dark:text-zinc-400 space-y-1.5 list-disc list-inside bg-slate-50 dark:bg-zinc-800/60 p-3.5 rounded-xl border border-slate-100 dark:border-zinc-800">
+                {selectedReportDetail.summaryNotes.map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setNoticeMessage(`✓ [${selectedReportDetail.version}] 보고서가 PDF/인쇄 형식으로 변환되었습니다.`);
+                }}
+                className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-zinc-200"
+              >
+                <DownloadCloud className="w-3.5 h-3.5 text-purple-600" />
+                <span>PDF 내보내기</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReportDetail(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 text-xs font-bold cursor-pointer transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* 6. 모아보고 금전관리 3대 원칙 안내 레이어 모달 (물음표 ❓ 클릭 시) */}
