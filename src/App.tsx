@@ -130,7 +130,7 @@ export default function App() {
     },
     {
       id: 'SCR-LED-01',
-      name: '가계부 관리 상세 (그룹/개인)',
+      name: '통합 가계부·지출내역 종합관리',
       category: '핵심 서비스',
       comp: <SCR_LED_01_그룹가계부관리상세 onBack={() => setCurrentScreen('SCR-DSH-01')} />,
     },
