@@ -15,6 +15,7 @@ import {
   WifiOff,
   Clock,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -1218,6 +1219,113 @@ export const ElmOff01: React.FC<{
           </span>
         )}
       </div>
+    </div>
+  );
+};
+
+/* =========================================================================
+   ELM-TIP-01 : 롱프레스 툴팁 & 클립보드 원클릭 복사 컴포넌트
+   ========================================================================= */
+export const ElmTip01: React.FC<{
+  text: string;
+  children?: React.ReactNode;
+  className?: string;
+  badgeClassName?: string;
+  onCopyNotice?: (msg: string) => void;
+}> = ({ text, children, className = '', badgeClassName = '', onCopyNotice }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startPress = () => {
+    timerRef.current = setTimeout(() => {
+      setIsOpen(true);
+    }, 450);
+  };
+
+  const cancelPress = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopied(true);
+      onCopyNotice?.(`✓ 클립보드에 복사되었습니다: "${text}"`);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div
+      className={`relative inline-flex items-center ${className}`}
+      onMouseDown={startPress}
+      onMouseUp={cancelPress}
+      onMouseLeave={cancelPress}
+      onTouchStart={startPress}
+      onTouchEnd={cancelPress}
+      onTouchCancel={cancelPress}
+    >
+      {children ? (
+        children
+      ) : (
+        <span
+          className={`truncate cursor-help select-text ${badgeClassName}`}
+          title="길게 누르면 전체보기 및 복사"
+        >
+          {text}
+        </span>
+      )}
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/10"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
+          />
+          <div
+            className="absolute left-0 bottom-full mb-1.5 z-50 min-w-[180px] max-w-[320px] p-2.5 rounded-xl bg-slate-900 text-white dark:bg-zinc-800 border border-slate-700 dark:border-zinc-700 shadow-2xl text-xs space-y-1.5 animate-in fade-in zoom-in-95 select-text"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-800 dark:border-zinc-700 pb-1 text-[10px] text-slate-400 font-bold">
+              <span>전체 내용 (롱프레스)</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] cursor-pointer transition-colors"
+                  title="클립보드 복사"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>{copied ? '복사됨' : '복사'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="p-0.5 text-slate-400 hover:text-white rounded cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] font-mono leading-relaxed break-all select-all text-slate-100">
+              {text}
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 };
