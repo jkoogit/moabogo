@@ -931,8 +931,16 @@ export const ElmSld03: React.FC<{
   showNavButtons?: boolean;
   stepWidth?: number;
   className?: string;
+  innerClassName?: string;
   externalRef?: React.RefObject<HTMLDivElement | null>;
-}> = ({ children, showNavButtons = true, stepWidth = 240, className = '', externalRef }) => {
+}> = ({
+  children,
+  showNavButtons = true,
+  stepWidth = 240,
+  className = '',
+  innerClassName = '',
+  externalRef,
+}) => {
   const localContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalRef || localContainerRef;
   const [isDragging, setIsDragging] = useState(false);
@@ -941,39 +949,38 @@ export const ElmSld03: React.FC<{
   const scrollLeftRef = useRef(0);
   const hasDraggedRef = useRef(false);
 
-  // 휠 이벤트: 컨테이너 가로 오버플로우가 있는 경우 마우스 휠(deltaY 또는 deltaX)을 가로 스크롤로 완벽 변환 (자석/snap 없이 부드럽게 유지)
+  // 휠 이벤트: DOM 레벨에서 { passive: false }로 리스너를 바인딩하여 브라우저 배경 스크롤 전파 100% 원천 차단
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
+      // 상위 윈도우 스크롤 체이닝 및 배경 덜컹거림 원천 차단
+      e.preventDefault();
       e.stopPropagation();
-      const maxScroll = el.scrollWidth - el.clientWidth;
-      if (maxScroll <= 1) return; // 오버플로우가 없으면 기본 페이지 스크롤 허용
 
-      // 마우스 휠은 일반적으로 deltaY(상하), 트랙패드는 deltaX(좌우)를 발생시킴
       const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
       if (rawDelta === 0) return;
 
-      // 휠 델타 정규화 (부드럽고 직관적인 스크롤)
+      // 휠 델타 정규화 (부드럽고 직관적인 가로 슬라이드)
       const multiplier = e.deltaMode === 1 ? 24 : 1;
       const delta = rawDelta * multiplier;
+      el.scrollLeft += delta;
+    };
 
-      const atStart = el.scrollLeft <= 0;
-      const atEnd = el.scrollLeft >= maxScroll - 1;
-
-      // 가로 스크롤 가능한 구간에서는 브라우저 상하 스크롤을 방지하고 가로 슬라이드 실행
-      if ((delta > 0 && !atEnd) || (delta < 0 && !atStart)) {
-        e.preventDefault();
-        el.scrollLeft += delta;
-      }
+    const handleNativeTouchMove = (e: TouchEvent) => {
+      // 터치 시 수평 슬라이드인 경우 상위 스크롤로 전파되지 않도록 차단
+      e.stopPropagation();
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchmove', handleNativeTouchMove);
     };
-  }, []);
+  }, [containerRef]);
 
   // 전역 마우스 업 감지 (컨테이너 밖에서 마우스 뗄 때 안전 복원)
   useEffect(() => {
@@ -1023,7 +1030,7 @@ export const ElmSld03: React.FC<{
     }
   };
 
-  // 터치(모바일) 드래그 핸들러: 상하 스와이프는 브라우저 수직 스크롤 허용
+  // 터치(모바일) 드래그 핸들러
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const touchScrollLeft = useRef(0);
@@ -1052,7 +1059,6 @@ export const ElmSld03: React.FC<{
     }
 
     if (isHorizontalTouch.current) {
-      // 가로 터치일 때만 스크롤 제어
       e.stopPropagation();
       hasDraggedRef.current = true;
       el.scrollLeft = touchScrollLeft.current - diffX * 1.2;
@@ -1081,6 +1087,7 @@ export const ElmSld03: React.FC<{
   return (
     <div
       onClick={(e) => e.stopPropagation()}
+      onWheelCapture={(e) => e.stopPropagation()}
       className={`relative w-full group select-none ${className}`}
     >
       {showNavButtons && (
@@ -1104,7 +1111,7 @@ export const ElmSld03: React.FC<{
         </>
       )}
 
-      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 완전 해제, 드래그 & 휠 즉각 반영 */}
+      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 완전 해제, 드래그 & 휠 즉각 반영, overscroll-contain 전파차단 */}
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
@@ -1121,10 +1128,16 @@ export const ElmSld03: React.FC<{
             hasDraggedRef.current = false;
           }
         }}
-        className={`w-full flex items-center gap-3 overflow-x-auto py-2 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none ${
+        className={`w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none overscroll-contain overscroll-x-contain touch-pan-x ${
           isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
-        }`}
-        style={{ scrollBehavior: 'auto', scrollSnapType: 'none' }}
+        } ${innerClassName}`}
+        style={{
+          scrollBehavior: 'auto',
+          scrollSnapType: 'none',
+          overscrollBehavior: 'contain',
+          overscrollBehaviorX: 'contain',
+          overscrollBehaviorY: 'contain',
+        }}
       >
         {children}
       </div>
