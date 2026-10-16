@@ -34,7 +34,7 @@ html.light body {
 }
 
 html.dark body {
-  background-color: #121214;
+  background-color: #090a0f;
   color: #f4f4f5;
 }
 
@@ -44,41 +44,41 @@ html.dawn body {
 }
 
 /* =========================================================================
-   1. 야간 (다크) : 딥 그레이 베이스 & 시맨틱 목적별 텍스트/라벨 식별성 강화
-   목적 분류:
-    - 정보(Info / Notice): 톤다운된 스카이/슬레이트 블루 블렌드
-    - 안내(Guide / Meta): 정제된 실버/징크 그레이
-    - 경고/주의(Warning): 부드러운 웜 앰버
-    - 완료/정상(Success): 차분한 소프트 세이지 그린
-    - 위험/반려(Error): 은은한 덜 레드/로즈
-    - 자금/이동(Asset): 딥 그레이시 바이올렛
+   1. 야간 (다크) : 딥 잉크 블랙 (Deep Obsidian & Midnight Black) 베이스
+      - 메인 캔버스: #090a0f (깊이감 있는 딥 옵시디언 블랙)
+      - 카드 및 서피스: #111318 (세련된 미드나잇 잉크 블랙)
+      - 컨트롤 및 보조 서피스: #1c1e26
+      - 1px 미세 테두리: #1e2029 / #171821
    ========================================================================= */
 
 /* 기본 컨테이너 & 카드 */
 html.dark .bg-slate-50 {
-  background-color: #121214 !important; /* 딥 그레이 메인 캔버스 */
+  background-color: #090a0f !important; /* 딥 옵시디언 메인 캔버스 */
 }
 
-html.dark .bg-white,
+html.dark .bg-white {
+  background-color: #111318 !important; /* 미드나잇 잉크 블랙 카드 */
+}
+
 html.dark .bg-slate-100 {
-  background-color: #1a1a1e !important; /* 카드 타일 */
+  background-color: #141720 !important; /* 서브 카드 타일 */
 }
 
 html.dark .bg-slate-200 {
-  background-color: #27272a !important;
+  background-color: #1c1e26 !important;
 }
 
 /* 1px 미세 테두리 */
 html.dark .border-slate-200 {
-  border-color: #27272a !important;
+  border-color: #1e2029 !important;
 }
 
 html.dark .border-slate-100 {
-  border-color: #1f1f23 !important;
+  border-color: #171821 !important;
 }
 
 html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #27272a !important;
+  border-color: #1e2029 !important;
 }
 
 /* -------------------------------------------------------------------------
@@ -195,16 +195,16 @@ html.dark .bg-indigo-50 {
 
 /* 6) 일반 대기 / 기본 메타 (SLATE) */
 html.dark .bg-slate-100 {
-  background-color: #222227 !important;
+  background-color: #161822 !important;
   color: #d4d4d8 !important;
-  border-color: #33333a !important;
+  border-color: #202330 !important;
 }
 
 /* 건수 카운트 뱃지 (ELM-CNT-01) */
 html.dark .bg-slate-100.text-slate-600 {
-  background-color: #1f1f23 !important;
+  background-color: #1c1e28 !important;
   color: #a1a1aa !important;
-  border-color: #2e2e34 !important;
+  border-color: #252836 !important;
 }
 
 /* -------------------------------------------------------------------------

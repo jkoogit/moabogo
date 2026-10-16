@@ -10,6 +10,7 @@ import {
   ElmChk01,
   ElmTip01,
   ElmSld03,
+  ElmHlp01,
 } from '../elements/Tokens';
 import {
   Wallet,
@@ -1783,10 +1784,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [txViewMode, setTxViewMode] = useState<'CARD' | 'LIST'>('CARD');
   // 특화 관리 서브시트 상태 (카드명세서 / 고정수입)
   const [activeSpecialSheet, setActiveSpecialSheet] = useState<'NONE' | 'STATEMENT' | 'FIXED_INCOME'>('NONE');
-  // 안내정보 필요시 ? 아이콘 토글 상태
-  const [showIntegratedGuide, setShowIntegratedGuide] = useState(false);
-  const [showStatementGuide, setShowStatementGuide] = useState(false);
-  const [showIncomeGuide, setShowIncomeGuide] = useState(false);
 
   const filteredTransactions = useMemo(() => {
     return currentTransactions.filter((tx) => {
@@ -2077,10 +2074,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [statementFilterFixed, setStatementFilterFixed] = useState('ALL');
   const [statementSearchKeyword, setStatementSearchKeyword] = useState('');
   const [isSimulatingOcrUpload, setIsSimulatingOcrUpload] = useState(false);
-  const [showCardStatementGuide, setShowCardStatementGuide] = useState(false);
-  const [showOcrUploadGuide, setShowOcrUploadGuide] = useState(false);
-  const [showStatementFilterGuide, setShowStatementFilterGuide] = useState(false);
-  const [showBankImportGuide, setShowBankImportGuide] = useState(false);
   const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE' | 'TRANSFER'>('ALL');
   const [bankSearchKeyword, setBankSearchKeyword] = useState('');
 
@@ -3745,63 +3738,32 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   <span>통장내역 일괄등록</span>
                 </button>
 
-                {/* 안내정보 도움말 ? 아이콘 버튼 (모바일 화면 밖 사라짐 방지 및 반응형 모달 지원) */}
-                <div className="relative inline-flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowIntegratedGuide((prev) => !prev)}
-                    className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold ${
-                      showIntegratedGuide
-                        ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 shadow-2xs'
-                        : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                    }`}
-                    title="시계열 통합 원장 및 3대 원칙 안내보기"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                    <span className="text-[11px] hidden sm:inline">원장 안내</span>
-                  </button>
-                  {showIntegratedGuide && (
-                    <>
-                      {/* 모바일 화면 밖 클릭 시 닫기 백드롭 */}
-                      <div
-                        className="fixed inset-0 z-40 bg-black/20 sm:hidden"
-                        onClick={() => setShowIntegratedGuide(false)}
-                      />
-                      <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2">
-                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
-                          <span className="flex items-center gap-1">
-                            <HelpCircle className="w-4 h-4 text-indigo-500" />
-                            <span>통합 시계열 원장 (Cash Flow) 안내</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setShowIntegratedGuide(false)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300">
-                          수입과 지출, 자산이동의 모든 입출금 흐름을 하나의 시간 순서대로 파악할 수 있는 단일 진실 공급원(SSOT)입니다.
-                        </p>
-                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/60 text-[10.5px] space-y-1 font-medium">
-                          <div className="flex items-start gap-1">
-                            <span className="text-pink-600 dark:text-pink-400 font-bold shrink-0">① 지출:</span>
-                            <span>모임/개인 배타적 귀속 원칙 준수</span>
-                          </div>
-                          <div className="flex items-start gap-1">
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">② 수입:</span>
-                            <span>확정 입금 및 정기 고정수입 자동 집계</span>
-                          </div>
-                          <div className="flex items-start gap-1">
-                            <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">③ 자산이동:</span>
-                            <span>생활비 왜곡 방지를 위해 순수 지출에서 배타적 제외</span>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* [ELM-HLP-01] 반응형 기능안내 [?] 팝업레이어 토큰 적용 */}
+                <ElmHlp01
+                  title="통합 시계열 원장 (Cash Flow) 안내"
+                  buttonText="원장 안내"
+                  tooltip="시계열 통합 원장 및 3대 원칙 안내보기"
+                  colorScheme="indigo"
+                  align="right"
+                >
+                  <p className="text-[11px] leading-relaxed">
+                    수입과 지출, 자산이동의 모든 입출금 흐름을 하나의 시간 순서대로 파악할 수 있는 단일 진실 공급원(SSOT)입니다.
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#141720] text-[10.5px] space-y-1 font-medium border border-slate-100 dark:border-[#1e2029]">
+                    <div className="flex items-start gap-1">
+                      <span className="text-pink-600 dark:text-pink-400 font-bold shrink-0">① 지출:</span>
+                      <span>모임/개인 배타적 귀속 원칙 준수</span>
+                    </div>
+                    <div className="flex items-start gap-1">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">② 수입:</span>
+                      <span>확정 입금 및 정기 고정수입 자동 집계</span>
+                    </div>
+                    <div className="flex items-start gap-1">
+                      <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">③ 자산이동:</span>
+                      <span>생활비 왜곡 방지를 위해 순수 지출에서 배타적 제외</span>
+                    </div>
+                  </div>
+                </ElmHlp01>
               </ElmSld03>
             ) : (
               <ElmSld03
@@ -3935,43 +3897,18 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                         카드 이용대금 명세서 첨부 등록
                       </h4>
 
-                      {/* [요구사항 2.1] 업무설명 레이어 팝업 (?) 아이콘 */}
-                      <div className="relative inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowCardStatementGuide((prev) => !prev)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-                          title="카드지출내역 및 명세서 대사 안내"
-                        >
-                          <HelpCircle className="w-4 h-4" />
-                        </button>
-                        {showCardStatementGuide && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40 bg-black/20 sm:hidden"
-                              onClick={() => setShowCardStatementGuide(false)}
-                            />
-                            <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2">
-                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
-                                <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-                                  <CreditCard className="w-4 h-4" />
-                                  <span>카드지출내역 관리 안내</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowCardStatementGuide(false)}
-                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                              <p className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300">
-                                카드지출내역은 <strong>통합 시계열 원장(SSOT)</strong>의 한 구분정보를 카드사 명세서를 통해 일괄 등록하면서, 6대 카드사 청구서 대사 및 분할납부 관리를 지원하는 <strong>지출내역의 부분정보</strong>입니다.
-                              </p>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      {/* [ELM-HLP-01] 카드지출내역 관리 안내 */}
+                      <ElmHlp01
+                        title="카드지출내역 관리 안내"
+                        tooltip="카드지출내역 및 명세서 대사 안내"
+                        colorScheme="indigo"
+                        headerIcon={CreditCard}
+                        align="left"
+                      >
+                        <p className="text-[11px] leading-relaxed">
+                          카드지출내역은 <strong>통합 시계열 원장(SSOT)</strong>의 한 구분정보를 카드사 명세서를 통해 일괄 등록하면서, 6대 카드사 청구서 대사 및 분할납부 관리를 지원하는 <strong>지출내역의 부분정보</strong>입니다.
+                        </p>
+                      </ElmHlp01>
                     </div>
                   </div>
 
@@ -3996,36 +3933,19 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                         청구 명세서 파일 첨부 및 OCR 분석
                       </h5>
 
-                      {/* 안내설명 레이어 팝업 (?) 아이콘 */}
-                      <div className="relative inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowOcrUploadGuide((prev) => !prev)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-                          title="명세서 첨부 및 OCR 파싱 안내"
-                        >
-                          <HelpCircle className="w-3.5 h-3.5" />
-                        </button>
-                        {showOcrUploadGuide && (
-                          <>
-                            <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowOcrUploadGuide(false)} />
-                            <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-80 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
-                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
-                                <span className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                  <CreditCard className="w-3.5 h-3.5" />
-                                  <span>명세서 첨부 및 OCR 파싱 안내</span>
-                                </span>
-                                <button type="button" onClick={() => setShowOcrUploadGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                              <p className="text-[11px] leading-relaxed">
-                                카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 파싱 엔진이 자동으로 승인 일자, 가맹점, 금액, 할부 정보를 추출합니다.
-                              </p>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      {/* [ELM-HLP-01] 명세서 첨부 및 OCR 파싱 안내 */}
+                      <ElmHlp01
+                        title="명세서 첨부 및 OCR 파싱 안내"
+                        tooltip="명세서 첨부 및 OCR 파싱 안내"
+                        colorScheme="indigo"
+                        headerIcon={CreditCard}
+                        align="left"
+                        width="sm:w-80"
+                      >
+                        <p className="text-[11px] leading-relaxed">
+                          카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 파싱 엔진이 자동으로 승인 일자, 가맹점, 금액, 할부 정보를 추출합니다.
+                        </p>
+                      </ElmHlp01>
                     </div>
 
                     <button
@@ -4135,36 +4055,19 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       명세서 등록정보
                     </h5>
 
-                    {/* 안내설명 레이어 팝업 (?) 아이콘 */}
-                    <div className="relative inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => setShowStatementFilterGuide((prev) => !prev)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-                        title="명세서 등록정보 필터 안내"
-                      >
-                        <HelpCircle className="w-3.5 h-3.5" />
-                      </button>
-                      {showStatementFilterGuide && (
-                        <>
-                          <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowStatementFilterGuide(false)} />
-                          <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-80 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
-                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
-                              <span className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                <FileSearch className="w-3.5 h-3.5" />
-                                <span>명세서 등록정보 안내</span>
-                              </span>
-                              <button type="button" onClick={() => setShowStatementFilterGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                            <p className="text-[11px] leading-relaxed">
-                              수집된 각 카드사의 청구 승인 라인을 카드사, 할부 구분, 고정비 유형, 가맹점별로 다차원 검색하고 대사 현황을 조회할 수 있습니다.
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {/* [ELM-HLP-01] 명세서 등록정보 필터 안내 */}
+                    <ElmHlp01
+                      title="명세서 등록정보 안내"
+                      tooltip="명세서 등록정보 필터 안내"
+                      colorScheme="indigo"
+                      headerIcon={FileSearch}
+                      align="left"
+                      width="sm:w-80"
+                    >
+                      <p className="text-[11px] leading-relaxed">
+                        수집된 각 카드사의 청구 승인 라인을 카드사, 할부 구분, 고정비 유형, 가맹점별로 다차원 검색하고 대사 현황을 조회할 수 있습니다.
+                      </p>
+                    </ElmHlp01>
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
@@ -5222,16 +5125,21 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm space-y-4 animate-in fade-in-50"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-base text-slate-900 dark:text-white">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-base text-slate-900 dark:text-white break-keep">
                           {card.cardName} {card.cardAlias}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold whitespace-nowrap">
                           결제일: {card.paymentDate}
                         </span>
                       </div>
-                      <span className="text-xs text-slate-400 font-mono">출금계좌: {card.account}</span>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono break-keep">
+                        <span className="text-slate-500 font-sans font-medium text-[11px] shrink-0">출금계좌:</span>
+                        <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-[#141720] text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-[#1e2029] whitespace-nowrap">
+                          {card.account}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="text-right">
@@ -7619,37 +7527,20 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 </div>
               </div>
 
-              {/* 안내설명 레이어 팝업 (?) 아이콘 */}
+              {/* 안내설명 레이어 팝업 (?) 아이콘 및 닫기 버튼 */}
               <div className="flex items-center gap-2">
-                <div className="relative inline-flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowBankImportGuide((prev) => !prev)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-                    title="통장 거래내역 일괄등록 안내"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                  </button>
-                  {showBankImportGuide && (
-                    <>
-                      <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowBankImportGuide(false)} />
-                      <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
-                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
-                          <span className="text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>통장내역 일괄등록 안내</span>
-                          </span>
-                          <button type="button" onClick={() => setShowBankImportGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <p className="text-[11px] leading-relaxed">
-                          은행별 엑셀 다운로드 파일 또는 오픈뱅킹 계좌 내역을 분석하여, 입금(수입), 출금(지출), 계좌간 송금(자산이동)을 자동으로 추론합니다. 체크박스로 원하는 내역만 골라 한 번에 장부에 등록할 수 있습니다.
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* [ELM-HLP-01] 통장내역 일괄등록 안내 */}
+                <ElmHlp01
+                  title="통장내역 일괄등록 안내"
+                  tooltip="통장 거래내역 일괄등록 안내"
+                  colorScheme="sky"
+                  headerIcon={Upload}
+                  align="right"
+                >
+                  <p className="text-[11px] leading-relaxed">
+                    은행별 엑셀 다운로드 파일 또는 오픈뱅킹 계좌 내역을 분석하여, 입금(수입), 출금(지출), 계좌간 송금(자산이동)을 자동으로 추론합니다. 체크박스로 원하는 내역만 골라 한 번에 장부에 등록할 수 있습니다.
+                  </p>
+                </ElmHlp01>
                 <button
                   type="button"
                   onClick={() => setBankImportModalOpen(false)}
@@ -7694,18 +7585,18 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
 
               {/* 가계부 연동 계좌 풀 및 중복제거 안내 */}
               <div className="space-y-1.5 pt-1">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                  <span className="font-bold text-slate-700 dark:text-zinc-300">연동 계좌 풀:</span>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 break-keep">
+                  <span className="font-bold text-slate-700 dark:text-zinc-300 shrink-0">연동 계좌 풀:</span>
                   {registeredBankAccounts.map((acc, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-mono text-[10.5px] border border-slate-200 dark:border-zinc-700"
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-white dark:bg-[#111318] text-slate-700 dark:text-zinc-300 font-mono text-[10.5px] border border-slate-200 dark:border-[#1e2029] whitespace-nowrap"
                     >
                       {acc}
                     </span>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-100/70 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 text-[10.5px] font-medium">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-100/70 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 text-[10.5px] font-medium break-keep">
                   <ShieldCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                   <span>중복 방지 원칙: 엑셀 내역 중 일자·적요·금액 동일 건은 단 1건으로 자동 통합됩니다.</span>
                 </div>
@@ -7719,13 +7610,22 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       key={`${uAcc.bankName}-${uAcc.accountNo}`}
                       className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in"
                     >
-                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <div>
-                          <strong className="font-extrabold text-[12px]">
-                            ⚠️ 미등록 계좌 감지: [{uAcc.bankName}] {uAcc.accountNo} ({uAcc.count}건)
-                          </strong>
-                          <p className="text-[10.5px] text-amber-700 dark:text-amber-300">
+                      <div className="flex items-start sm:items-center gap-2 text-amber-900 dark:text-amber-200">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold break-keep">
+                            <span className="text-amber-800 dark:text-amber-300">⚠️ 미등록 계좌:</span>
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 font-semibold text-amber-950 dark:text-amber-100 whitespace-nowrap">
+                              {uAcc.bankName}
+                            </span>
+                            <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-white dark:bg-[#111318] border border-amber-300 dark:border-amber-800 text-slate-800 dark:text-zinc-200 whitespace-nowrap">
+                              {uAcc.accountNo}
+                            </span>
+                            <span className="text-[10.5px] px-1.5 py-0.2 rounded-full bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 font-bold whitespace-nowrap">
+                              {uAcc.count}건
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-amber-700 dark:text-amber-300 break-keep">
                             가계부에 등록되지 않은 계좌입니다. 새 보조 계좌로 추가하거나 대표 계좌로 귀속 매핑하세요.
                           </p>
                         </div>

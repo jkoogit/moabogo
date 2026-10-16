@@ -137,4 +137,5 @@ docs/
 | 2026-10-16 | 0010 | TASK-LED-10-01 | AI Studio Agent | SCR-LED-01 반응형 요소 줄바꿈, 이벤트 차단, 롱프레스 툴팁복사(ELM-TIP-01) 및 디자인 정책 수립 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0010-01_이슈리뷰-SCR-LED-01_반응형요소줄바꿈_이벤트차단_롱프레스툴팁복사_디자인정책.md |
 | 2026-10-16 | 0011 | TASK-LED-11-01 | AI Studio Agent | SCR-LED-01 슬라이드휠 전파 차단, 증빙 썸네일/원본다운로드, 태블릿 줄바꿈 및 상단 여백 최적화 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0011-01_이슈리뷰-SCR-LED-01_슬라이드휠전파차단_증빙썸네일다운로드_태블릿줄바꿈_여백최적화.md |
 | 2026-10-16 | 0011 | TASK-0011-SESSION-CLOSE | AI Studio Agent | 세션 0011 SCR-LED-01 종합 사용성 회고 및 백로그 명세서 갱신, 이슈 #30 종결 및 브랜치 패스트포워드 승급 완결 | models/gemini-3.8-flash | AI Studio | docs/07.회고/0011-01_세션회고-SCR-LED-01_슬라이드휠전파차단_증빙다운로드_태블릿줄바꿈_여백최적화.md |
+| 2026-10-17 | 0012 | TASK-LED-12-01 | AI Studio Agent | SCR-LED-01 슬라이드드래그휠 공통화, 기능안내 팝업(ELM-HLP-01) 구축, 텍스트 원자화 및 프리미엄 다크모드 고도화 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0012-01_이슈리뷰-SCR-LED-01_슬라이드드래그휠공통화_기능안내팝업레이어_텍스트원자화_프리미엄다크모드.md |
 
