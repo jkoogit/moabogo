@@ -8,11 +8,13 @@ import {
   ElmCnt01,
   ElmBsh01,
   ElmChk01,
+  ElmTip01,
 } from '../elements/Tokens';
 import {
   Wallet,
   Users,
   Plus,
+  Copy,
   TrendingDown,
   TrendingUp,
   ArrowRightLeft,
@@ -75,6 +77,11 @@ import {
   Minimize2,
   FolderOpen,
   FileBarChart,
+  Palette,
+  Camera,
+  LayoutGrid,
+  List,
+  Trash2,
 } from 'lucide-react';
 
 // ============================================================================
@@ -182,6 +189,7 @@ export interface LedgerBook {
   currency: string;
   // 2.5 책별 고유 디자인 (가죽, 하드커버, 크라프트, 패브릭 등 다양한 텍스처/디자인)
   designStyle: 'LEATHER' | 'HARDCOVER' | 'KRAFT' | 'FABRIC' | 'SLATE' | 'VINTAGE_BURGUNDY';
+  customCoverColor?: string; // 사용자 지정 북커버 색상 (Hex 코드)
   colorTheme: {
     bg: string;
     border: string;
@@ -319,8 +327,66 @@ interface SCR_LED_01_Props {
 // - 책등에 선명한 가로 장부 타이틀, 권수(VOL), 잔액 실링, 모임 멤버 수 배지 인쇄
 // - 스택 최상단 책 위에는 클래식 동글이 안경(Vintage Reading Glasses) 오브젝트 얹힘
 // - 책 선택 시 쓱 앞으로 당겨지는 3D 슬라이드 + 리본 펄럭임 효과
-// - 각 책의 상하 위치를 바로 바꿀 수 있는 브라스 스위치 버튼 내장
-// ============================================================================
+// 북커버 추천 시그니처 색상 프리셋
+export const COVER_COLOR_PRESETS = [
+  { name: '클래식 블루', color: '#3a7bbd' },
+  { name: '포레스트 그린', color: '#5f8430' },
+  { name: '어텀 앰버', color: '#e5a622' },
+  { name: '브릭 레드', color: '#b73c26' },
+  { name: '로열 버건디', color: '#9e242f' },
+  { name: '슬레이트 차콜', color: '#475569' },
+  { name: '바이올렛 퍼플', color: '#7c3aed' },
+  { name: '피치 코랄', color: '#f97316' },
+];
+
+// 지출 등록 영수증 OCR 원클릭 샘플 프리셋
+export const SAMPLE_RECEIPTS = [
+  {
+    id: 'rc-1',
+    icon: '🛒',
+    merchant: '이마트 역삼점',
+    amount: 46500,
+    amountStr: '46,500원',
+    category: '식료품/마트',
+    cardName: '현대카드',
+    itemSummary: '신선식품 및 생필품 장보기',
+    fileName: 'emart_receipt_20261014.jpg',
+  },
+  {
+    id: 'rc-2',
+    icon: '☕',
+    merchant: '스타벅스 강남R점',
+    amount: 12400,
+    amountStr: '12,400원',
+    category: '외식/식음료',
+    cardName: '우리카드',
+    itemSummary: '아메리카노 2잔 & 베이글',
+    fileName: 'starbucks_receipt.png',
+  },
+  {
+    id: 'rc-3',
+    icon: '⛽',
+    merchant: 'GS칼텍스 삼화주유소',
+    amount: 50000,
+    amountStr: '50,000원',
+    category: '교통/차량',
+    cardName: '신한카드',
+    itemSummary: '휘발유 50,000원 주유',
+    fileName: 'gs_gas_receipt.jpg',
+  },
+  {
+    id: 'rc-4',
+    icon: '🥐',
+    merchant: '파리바게뜨 판교점',
+    amount: 18200,
+    amountStr: '18,200원',
+    category: '외식/식음료',
+    cardName: 'KB국민카드',
+    itemSummary: '식빵, 샌드위치 간식',
+    fileName: 'paris_baguette_rec.png',
+  },
+];
+
 interface CartoonBookObjectProps {
   book: LedgerBook;
   idx: number; // 0 = 맨 위 책, total-1 = 맨 아래 책
@@ -330,6 +396,17 @@ interface CartoonBookObjectProps {
   onSelect: () => void;
   isDragging?: boolean;
   isDragOver?: boolean;
+}
+
+function adjustBrightness(hex: string, percent: number): string {
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length !== 6) return hex;
+  const num = parseInt(cleanHex, 16);
+  if (isNaN(num)) return hex;
+  const r = Math.min(255, Math.max(0, (num >> 16) + Math.round(255 * (percent / 100))));
+  const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + Math.round(255 * (percent / 100))));
+  const b = Math.min(255, Math.max(0, (num & 0x0000ff) + Math.round(255 * (percent / 100))));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
 const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
@@ -342,8 +419,28 @@ const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
   isDragging = false,
   isDragOver = false,
 }) => {
-  // 사용자가 공유한 이미지의 5가지 시그니처 카툰 북 테마
+  // [요구사항 1] 사용자 지정 커스텀 색상 지원 및 5가지 시그니처 카툰 북 테마
   const theme = (() => {
+    if (book.customCoverColor) {
+      const base = book.customCoverColor;
+      return {
+        id: `cartoon-custom-${book.id}`,
+        coverTop: adjustBrightness(base, 24),
+        coverSpine: base,
+        coverBottom: adjustBrightness(base, -28),
+        pageColor: '#fdfbf2',
+        pageLine: '#cfc6b0',
+        ribbon: '#fbbf24',
+        accent: adjustBrightness(base, 36),
+        labelBg: '#ffffff',
+        labelBorder: adjustBrightness(base, -40),
+        labelText: adjustBrightness(base, -60),
+        badgeBg: adjustBrightness(base, -20),
+        badgeText: '#ffffff',
+        cornerDeco: '#fbbf24',
+        spinePattern: (book.designStyle === 'HARDCOVER' ? 'STRIPE' : book.designStyle === 'LEATHER' ? 'BAND' : book.designStyle === 'SLATE' ? 'DOTS' : 'CHEVRON') as any,
+      };
+    }
     switch (book.designStyle) {
       case 'HARDCOVER':
         return {
@@ -1631,24 +1728,65 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   // 6. 검색 및 필터 상태
   // --------------------------------------------------------------------------
   const [searchWord, setSearchWord] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<'ALL' | 'EXPENSE' | 'INCOME' | 'TRANSFER'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [excludeAssetTransfer, setExcludeAssetTransfer] = useState(true);
+  const [excludeAssetTransfer, setExcludeAssetTransfer] = useState(false);
+  // [요구사항 3] 가로너비 초과로 뭉개짐 방지: 카드형 그리드 보기 / 리스트 보기 뷰 모드
+  const [txViewMode, setTxViewMode] = useState<'CARD' | 'LIST'>('CARD');
+  // 특화 관리 서브시트 상태 (카드명세서 / 고정수입)
+  const [activeSpecialSheet, setActiveSpecialSheet] = useState<'NONE' | 'STATEMENT' | 'FIXED_INCOME'>('NONE');
+  // 안내정보 필요시 ? 아이콘 토글 상태
+  const [showIntegratedGuide, setShowIntegratedGuide] = useState(false);
+  const [showStatementGuide, setShowStatementGuide] = useState(false);
+  const [showIncomeGuide, setShowIncomeGuide] = useState(false);
 
   const filteredTransactions = useMemo(() => {
     return currentTransactions.filter((tx) => {
+      // 1. 거래 유형 필터 (지출 / 수입 / 자산이동)
+      if (txTypeFilter === 'EXPENSE' && (tx.type !== 'EXPENSE' || tx.isAssetTransfer)) return false;
+      if (txTypeFilter === 'INCOME' && (tx.type !== 'INCOME' || tx.isAssetTransfer)) return false;
+      if (txTypeFilter === 'TRANSFER' && !tx.isAssetTransfer) return false;
+
+      // 2. 자산이동 분리 표시 옵션 (체크 시 전체 보기에서 자산이동 제외)
+      if (excludeAssetTransfer && tx.isAssetTransfer && txTypeFilter === 'ALL') {
+        return false;
+      }
+
+      // 3. 검색어 필터 (제목, 결제자, 메모, 태그)
       if (searchWord.trim()) {
         const query = searchWord.toLowerCase();
         const matchTitle = tx.title.toLowerCase().includes(query);
         const matchPayer = tx.payerName.toLowerCase().includes(query);
         const matchNote = tx.note?.toLowerCase().includes(query);
-        if (!matchTitle && !matchPayer && !matchNote) return false;
+        const matchTag = tx.tagNames.some((t) => t.toLowerCase().includes(query));
+        if (!matchTitle && !matchPayer && !matchNote && !matchTag) return false;
       }
+
+      // 4. 카테고리 필터
       if (categoryFilter !== 'ALL' && tx.category !== categoryFilter) {
         return false;
       }
       return true;
     });
-  }, [currentTransactions, searchWord, categoryFilter]);
+  }, [currentTransactions, txTypeFilter, excludeAssetTransfer, searchWord, categoryFilter]);
+
+  // [요구사항 4] 장부에 등록된 장부의 거래내역에 실제로 존재하는 카테고리만 동적 추출
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    currentTransactions.forEach((tx) => {
+      if (tx.category && tx.category.trim()) {
+        set.add(tx.category.trim());
+      }
+    });
+    return Array.from(set);
+  }, [currentTransactions]);
+
+  // 카테고리 필터가 현재 장부에 없는 카테고리일 경우 ALL로 자동 초기화
+  useEffect(() => {
+    if (categoryFilter !== 'ALL' && !availableCategories.includes(categoryFilter)) {
+      setCategoryFilter('ALL');
+    }
+  }, [activeLedgerId, availableCategories, categoryFilter]);
 
   // 통계 집계
   const stats = useMemo(() => {
@@ -1691,12 +1829,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       setWriteSubTab(tab);
     }
   };
-
-  // 2.2 유동정보 서류철 인덱스 슬라이드 배너 상태
-  const [dynamicBannerIndex, setDynamicBannerIndex] = useState(0);
-  const [isBannerPaused, setIsBannerPaused] = useState(false);
-  const [isBannerHovered, setIsBannerHovered] = useState(false);
-  const [isFolderExpanded, setIsFolderExpanded] = useState(false);
 
   // 3.2.2 분석 보고서 이력 및 재수집 상태
   const [isRecollecting, setIsRecollecting] = useState(false);
@@ -1756,111 +1888,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     },
   ]);
 
-  // 유동정보 서류철 인덱스 아이템 리스트 (자산이동, 대납, 정산 등 있을 경우만 동적 구성)
-  const dynamicBannerItems: DynamicBannerItem[] = useMemo(() => {
-    const items: DynamicBannerItem[] = [];
-
-    // 1. 자산 이동 (TRANSFER)
-    if (stats.assetTransfer > 0) {
-      items.push({
-        id: 'dyn-transfer',
-        tabLabel: '자산이동',
-        title: '자산 이동 (TRANSFER 1:1 페어링)',
-        amount: stats.assetTransfer,
-        badge: '생활비 왜곡 방지',
-        badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
-        description: '가계부 및 본인 계좌 간 이동은 순수 생활비에서 제외되며 1:1 페어링으로 무결성 보장',
-        icon: '↔️',
-        details: [
-          { label: '출금/입금 경로', value: '토스뱅크 생활비 ➔ CMA 비상금 계좌' },
-          { label: '페어링 상태', value: '1:1 양방향 매핑 완료 (ID: rel-20261006)' },
-          { label: '적용 건수', value: `${currentTransactions.filter(t => t.isAssetTransfer || t.type === 'TRANSFER').length}건 집계` },
-        ],
-        note: '모아보고 금전관리 원칙 2: TRANSFER 단일 연결에 따라 지출 집계에서 영구 제외',
-      });
-    }
-
-    // 2. 대납 / 모임 정산
-    if (stats.reimbursement > 0) {
-      items.push({
-        id: 'dyn-reimburse',
-        tabLabel: '대납·정산',
-        title: '개인 카드 대납 및 1/N 정산 태깅',
-        amount: stats.reimbursement,
-        badge: '이중계상 방지 태깅',
-        badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-        description: '개인 카드로 모임비를 우선 결제하거나 정산 요청 중인 메타데이터 태그 내역',
-        icon: '🏷️',
-        details: [
-          { label: '대납 결제자', value: '구본영(나) [신한카드 Mr.Life]' },
-          { label: '정산 수납 현황', value: '김민수(송금완료), 이서연(정산대기)' },
-          { label: '태그 명칭', value: '#대납 #정산요청 #1_N_분담' },
-        ],
-        note: '모아보고 금전관리 원칙 3: 태깅 분리로 개인 가계부와 모임 가계부 이중계상 차단',
-      });
-    }
-
-    // 3. 목적별 가계부 내부 이동 / 저축 분리
-    items.push({
-      id: 'dyn-internal',
-      tabLabel: '내부이동',
-      title: '가계부 간 통장 쪼개기·목돈 저축',
-      amount: 350000,
-      badge: '단일 귀속 준수',
-      badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-      description: '개인 기본 가계부에서 목적별 적금/청약 계좌로 안전하게 분리 저축',
-      icon: '🏦',
-      details: [
-        { label: '이동 목적', value: '청약저축 & 여행 비상금 통장 쪼개기' },
-        { label: '귀속 원칙', value: '단일 귀속성 보장 (목적 가계부로 승계)' },
-        { label: '월 자동이체', value: '매월 10일 자동 적립 완료' },
-      ],
-      note: '모아보고 금전관리 원칙 1: 단일 귀속성 보장에 따라 배타적 계좌에 귀속',
-    });
-
-    // 4. 게스트 임시 분담금
-    items.push({
-      id: 'dyn-guest',
-      tabLabel: '게스트분담',
-      title: '게스트 모임 한정 임시 분담금',
-      amount: 68000,
-      badge: '게스트 소멸성 원칙',
-      badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
-      description: '회원가입 없는 게스트 임시 식별자(guest_id)로 매핑된 일회성 비용',
-      icon: '🎭',
-      details: [
-        { label: '참여 게스트', value: '임시게스트A (gst_9812), 게스트B (gst_4102)' },
-        { label: '승인 절차', value: '당사자 명시적 승인 전 소급 매핑 금지' },
-        { label: '소멸성 규칙', value: '모임 정산 완료 후 자동 파기 보관' },
-      ],
-      note: '모아보고 게스트 소멸성 원칙: 회원가입 전 데이터 소급 결합 금지',
-    });
-
-    return items;
-  }, [stats, currentTransactions]);
-
-  // 1초 간격 서류철 슬라이더 타이머
-  const isBannerEffectivelyPaused = isBannerPaused || isBannerHovered || isFolderExpanded;
-  useEffect(() => {
-    if (dynamicBannerItems.length <= 1 || isBannerEffectivelyPaused) return;
-
-    const timer = setInterval(() => {
-      setDynamicBannerIndex((prev) => (prev + 1) % dynamicBannerItems.length);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [dynamicBannerItems.length, isBannerEffectivelyPaused]);
-
-  // 슬라이더 좌우 탐색 핸들러
-  const handlePrevBanner = () => {
-    setDynamicBannerIndex((prev) =>
-      prev === 0 ? dynamicBannerItems.length - 1 : prev - 1
-    );
-  };
-  const handleNextBanner = () => {
-    setDynamicBannerIndex((prev) => (prev + 1) % dynamicBannerItems.length);
-  };
-
   // 분석 데이터 재수집 & 새 보고서 스냅샷 생성
   const handleRecollectAndCreateReport = () => {
     setIsRecollecting(true);
@@ -1891,8 +1918,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     }, 700);
   };
 
-  const currentDynamicItem = dynamicBannerItems[dynamicBannerIndex] || dynamicBannerItems[0];
-  const hasDynamicInfo = dynamicBannerItems.length > 0;
   const [receiptOcrModalOpen, setReceiptOcrModalOpen] = useState(false);
   const [receiptOcrSimulating, setReceiptOcrSimulating] = useState(false);
   const [reaggregateSuccessMsg, setReaggregateSuccessMsg] = useState<string | null>(null);
@@ -1948,6 +1973,30 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [statementFilterFixed, setStatementFilterFixed] = useState('ALL');
   const [statementSearchKeyword, setStatementSearchKeyword] = useState('');
   const [isSimulatingOcrUpload, setIsSimulatingOcrUpload] = useState(false);
+  const [showCardStatementGuide, setShowCardStatementGuide] = useState(false);
+  const [showOcrUploadGuide, setShowOcrUploadGuide] = useState(false);
+  const [showStatementFilterGuide, setShowStatementFilterGuide] = useState(false);
+  const [showBankImportGuide, setShowBankImportGuide] = useState(false);
+  const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE' | 'TRANSFER'>('ALL');
+  const [bankSearchKeyword, setBankSearchKeyword] = useState('');
+
+  const filteredStatementLines = useMemo(() => {
+    const allLines = statementIntakeReviews.flatMap((rev) =>
+      rev.lines.map((l) => ({ ...l, cardName: rev.cardName }))
+    );
+    return allLines.filter((line) => {
+      if (statementFilterCard !== 'ALL' && !line.cardName.includes(statementFilterCard)) return false;
+      if (statementFilterInstallment === 'LUMP' && line.installment !== '일시불') return false;
+      if (statementFilterInstallment === 'INSTALLMENT' && line.installment === '일시불') return false;
+      if (statementFilterFixed === 'FIXED' && !line.isFixedExpense) return false;
+      if (statementFilterFixed === 'VARIABLE' && line.isFixedExpense) return false;
+      if (statementSearchKeyword) {
+        const q = statementSearchKeyword.toLowerCase();
+        if (!line.merchant.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [statementIntakeReviews, statementFilterCard, statementFilterInstallment, statementFilterFixed, statementSearchKeyword]);
 
   // [시나리오 2.3] 수입 관리 (고정수입 & 통장 거래내역 일괄수집)
   const [fixedIncomeRules, setFixedIncomeRules] = useState<FixedIncomeRule[]>([
@@ -2000,6 +2049,17 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [bankCustomRange, setBankCustomRange] = useState('2026.10.01 ~ 2026.10.31');
   const [detectedAutoAccount, setDetectedAutoAccount] = useState<string | null>('토스뱅크 1000-82-918231 (생활비 통장)');
 
+  const filteredBankItems = useMemo(() => {
+    return bankParsedItems.filter((item) => {
+      if (bankTypeFilter !== 'ALL' && item.inferredType !== bankTypeFilter) return false;
+      if (bankSearchKeyword) {
+        const q = bankSearchKeyword.toLowerCase();
+        if (!item.description.toLowerCase().includes(q) && !item.bankName.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [bankParsedItems, bankTypeFilter, bankSearchKeyword]);
+
   // 신규 고정수입 등록 폼
   const [newFixedName, setNewFixedName] = useState('');
   const [newFixedAmount, setNewFixedAmount] = useState('');
@@ -2042,6 +2102,15 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [newLedgerModalOpen, setNewLedgerModalOpen] = useState(false);
   const [newTxModalOpen, setNewTxModalOpen] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [ruleFormName, setRuleFormName] = useState('');
+  const [ruleFormAmount, setRuleFormAmount] = useState('');
+  const [ruleFormDay, setRuleFormDay] = useState('25');
+  const [ruleFormCategory, setRuleFormCategory] = useState<'급여' | '배당금' | '이자' | '임대료' | '기타'>('급여');
+  const [ruleFormLedger, setRuleFormLedger] = useState('');
+  const [ruleFormAccount, setRuleFormAccount] = useState('');
+  const [ruleFormNotify, setRuleFormNotify] = useState(true);
   const [infoModalOpen, setInfoModalOpen] = useState(false);
   const [viewClosingStatement, setViewClosingStatement] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
@@ -2055,20 +2124,122 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [newLedgerResetCycle, setNewLedgerResetCycle] = useState<'MONTHLY' | 'WEEKLY' | 'NONE'>('MONTHLY');
   const [newLedgerAllowReopen, setNewLedgerAllowReopen] = useState(true);
   const [newLedgerDesignStyle, setNewLedgerDesignStyle] = useState<'LEATHER' | 'HARDCOVER' | 'KRAFT' | 'FABRIC' | 'SLATE' | 'VINTAGE_BURGUNDY'>('KRAFT');
+  const [newLedgerCustomColor, setNewLedgerCustomColor] = useState('#e5a622');
   const [newLedgerInitialBalance, setNewLedgerInitialBalance] = useState('0');
+
+  // 북커버 및 색상 변경 모달 상태 (기존 장부 커버 수정 기능)
+  const [editCoverModalOpen, setEditCoverModalOpen] = useState(false);
+  const [editingLedgerId, setEditingLedgerId] = useState<string | null>(null);
+  const [editCoverTitle, setEditCoverTitle] = useState('');
+  const [editCoverDesignStyle, setEditCoverDesignStyle] = useState<'LEATHER' | 'HARDCOVER' | 'KRAFT' | 'FABRIC' | 'SLATE' | 'VINTAGE_BURGUNDY'>('KRAFT');
+  const [editCoverColor, setEditCoverColor] = useState('#3a7bbd');
 
   // 참여자 추가 폼
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<LedgerRole>('MEMBER');
   const [isNewMemberGuest, setIsNewMemberGuest] = useState(false);
 
-  // 새 거래 등록 폼
+  // 새 거래 등록 폼 (도메인 격리: 지출, 수입, 자산이동 전용 속성 분리)
   const [newTxTitle, setNewTxTitle] = useState('');
   const [newTxAmount, setNewTxAmount] = useState('');
   const [newTxType, setNewTxType] = useState<'EXPENSE' | 'INCOME' | 'TRANSFER'>('EXPENSE');
   const [newTxCategory, setNewTxCategory] = useState('식음료/외식');
   const [newTxIsAssetTransfer, setNewTxIsAssetTransfer] = useState(false);
   const [newTxTags, setNewTxTags] = useState('');
+
+  // 1) 지출 전용 독립 속성 및 상단 영수증 OCR 상태
+  const [expensePayMethod, setExpensePayMethod] = useState<'신용카드' | '체크카드' | '현금' | '계좌이체' | '페이결제'>('신용카드');
+  const [expenseCard, setExpenseCard] = useState('우리카드');
+  const [expenseInstallment, setExpenseInstallment] = useState('일시불');
+  const [expenseCategory, setExpenseCategory] = useState('식음료/외식');
+  const [expenseAttachProof, setExpenseAttachProof] = useState(true);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrScanResult, setOcrScanResult] = useState<typeof SAMPLE_RECEIPTS[0] | null>(null);
+
+  // 2) 수입 전용 독립 속성
+  const [incomeSource, setIncomeSource] = useState('급여/상여');
+  const [incomeAccount, setIncomeAccount] = useState('국민 주거래 급여통장');
+  const [incomeIsFixedRule, setIncomeIsFixedRule] = useState(false);
+
+  // 3) 자산이동 전용 독립 속성 (모아보고 금전관리 원칙: 1:1 페어링 및 생활비 집계 제외)
+  const [transferFrom, setTransferFrom] = useState('개인 가계부 (국민 주거래)');
+  const [transferTo, setTransferTo] = useState('가족 모임 가계부 (신한)');
+  const [transferReason, setTransferReason] = useState('가족 생활비 분담');
+
+  // 북커버 수정 모달 열기 핸들러
+  const handleOpenEditCover = (ledgerToEdit: LedgerBook) => {
+    setEditingLedgerId(ledgerToEdit.id);
+    setEditCoverTitle(ledgerToEdit.title);
+    setEditCoverDesignStyle(ledgerToEdit.designStyle);
+    setEditCoverColor(ledgerToEdit.customCoverColor || '#3a7bbd');
+    setEditCoverModalOpen(true);
+  };
+
+  // 북커버 수정 저장 핸들러
+  const handleSaveEditCover = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLedgerId) return;
+
+    setLedgers((prev) =>
+      prev.map((l) => {
+        if (l.id !== editingLedgerId) return l;
+        return {
+          ...l,
+          title: editCoverTitle.trim() || l.title,
+          designStyle: editCoverDesignStyle,
+          customCoverColor: editCoverColor,
+        };
+      })
+    );
+    setNoticeMessage(`✓ 장부 "${editCoverTitle.trim()}"의 북커버 디자인 및 색상이 변경되었습니다.`);
+    setEditCoverModalOpen(false);
+  };
+
+  // 지출 등록 폼 상단 영수증 OCR 원클릭 샘플 적용 핸들러
+  const handleApplyOcrSample = (sample: typeof SAMPLE_RECEIPTS[0]) => {
+    setOcrScanning(true);
+    setTimeout(() => {
+      setOcrScanning(false);
+      setOcrScanResult(sample);
+      setNewTxTitle(sample.merchant);
+      setNewTxAmount(String(sample.amount));
+      setExpenseCategory(sample.category);
+      setExpenseCard(sample.cardName);
+      setExpensePayMethod('신용카드');
+      setExpenseInstallment('일시불');
+      setExpenseAttachProof(true);
+      setNewTxTags(`영수증인식, ${sample.category}`);
+      setNoticeMessage(`✓ 영수증 OCR 분석 완료: "${sample.merchant}" (${sample.amountStr}) 정보가 자동 매핑되었습니다.`);
+    }, 400);
+  };
+
+  // 지출 등록 폼 영수증 파일 업로드 시뮬레이션
+  const handleSimulateOcrUpload = (fileName: string) => {
+    setOcrScanning(true);
+    setTimeout(() => {
+      setOcrScanning(false);
+      const generatedSample = {
+        id: `rc-custom-${Date.now()}`,
+        icon: '🧾',
+        merchant: '현대백화점 판교점',
+        amount: 38500,
+        amountStr: '38,500원',
+        category: '쇼핑/생활',
+        cardName: '현대카드',
+        itemSummary: '생활잡화 및 베이커리 구매',
+        fileName,
+      };
+      setOcrScanResult(generatedSample);
+      setNewTxTitle(generatedSample.merchant);
+      setNewTxAmount(String(generatedSample.amount));
+      setExpenseCategory(generatedSample.category);
+      setExpenseCard(generatedSample.cardName);
+      setExpensePayMethod('신용카드');
+      setExpenseAttachProof(true);
+      setNewTxTags(`영수증인식, ${generatedSample.category}`);
+      setNoticeMessage(`✓ 영수증 파일 "${fileName}" OCR 분석 완료: 가맹점 및 결제금액이 자동 입력되었습니다.`);
+    }, 450);
+  };
 
   // 권한 체크
   const canManageMembers = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
@@ -2190,18 +2361,91 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
 
     const isTransfer = newTxType === 'TRANSFER' || newTxIsAssetTransfer;
 
+    // 도메인 유형별 전용 속성 조립
+    let finalCategory = newTxCategory;
+    let finalNote = '';
+    let finalProofs: ExpenseProofItem[] | undefined = undefined;
+    let finalCardName: string | undefined = undefined;
+
+    if (newTxType === 'EXPENSE') {
+      finalCategory = expenseCategory;
+      finalCardName = expenseCard;
+      finalNote = `[${expensePayMethod}] ${expenseCard}${expenseInstallment !== '일시불' ? ` (${expenseInstallment})` : ''}`;
+      if (expenseAttachProof) {
+        finalProofs = [
+          {
+            id: `prf-${Date.now()}`,
+            type: ocrScanResult ? 'RECEIPT_OCR' : 'MANUAL',
+            title: ocrScanResult ? `${ocrScanResult.merchant} 전자 영수증 촬영본` : `${newTxTitle.trim()} 영수증/결제증빙`,
+            amount: amt,
+            date: new Date().toISOString().slice(0, 10),
+            source: ocrScanResult ? `EasyOCR 스캐너 (${ocrScanResult.fileName})` : `${expensePayMethod} (${expenseCard})`,
+            details: [
+              `상호명: ${ocrScanResult?.merchant || newTxTitle.trim()}`,
+              `결제수단: ${expensePayMethod}`,
+              `카드사: ${expenseCard}`,
+              `할부: ${expenseInstallment}`,
+              ocrScanResult ? `영수증 파일: ${ocrScanResult.fileName}` : '모바일 영수증 촬영 증빙',
+            ],
+            rawFileName: ocrScanResult?.fileName || 'receipt_capture.jpg',
+            businessNumber: '201-81-21515',
+            ceoName: '강희석',
+            supplyAmount: Math.round(amt / 1.1),
+            taxAmount: Math.round(amt - amt / 1.1),
+          },
+        ];
+      }
+    } else if (newTxType === 'INCOME') {
+      finalCategory = incomeSource;
+      finalNote = `[입금계좌] ${incomeAccount}`;
+
+      // 고정수입 규칙 동시 등록 옵션
+      if (incomeIsFixedRule) {
+        const mappedCategory: '급여' | '배당금' | '이자' | '임대료' | '기타' =
+          incomeSource.includes('급여') ? '급여' : incomeSource.includes('이자') ? '이자' : '기타';
+        setFixedIncomeRules((prev) => [
+          ...prev,
+          {
+            id: `fix-${Date.now()}`,
+            name: newTxTitle.trim(),
+            amount: amt,
+            dayOfMonth: new Date().getDate(),
+            category: mappedCategory,
+            targetLedgerTitle: currentLedger.title,
+            targetLedgerId: currentLedger.id,
+            notifyEnabled: true,
+            account: incomeAccount,
+          },
+        ]);
+      }
+    } else if (newTxType === 'TRANSFER') {
+      finalCategory = '자산이동';
+      finalNote = `[자산이동] ${transferFrom} ➔ ${transferTo} (${transferReason})`;
+    }
+
     const newTx: LedgerTransaction = {
       id: `tx-${Date.now()}`,
       ledgerId: activeLedgerId,
       title: newTxTitle.trim(),
       type: newTxType,
       amount: amt,
-      category: newTxCategory,
+      category: finalCategory,
       date: new Date().toISOString().slice(0, 10),
       payerName: '구본영(나)',
+      note: finalNote,
+      statementCardName: finalCardName,
       isAssetTransfer: isTransfer,
       relatedTransferId: isTransfer ? `rel-${Date.now()}` : undefined,
-      tagNames: parsedTags.length > 0 ? parsedTags : isTransfer ? ['자산이동'] : ['일반지출'],
+      reconciliationStatus: newTxType === 'EXPENSE' ? 'PENDING' : 'CONFIRMED',
+      proofs: finalProofs,
+      tagNames:
+        parsedTags.length > 0
+          ? parsedTags
+          : isTransfer
+          ? ['자산이동', transferReason]
+          : newTxType === 'EXPENSE'
+          ? ['지출', expensePayMethod]
+          : ['수입', incomeSource],
     };
 
     setTransactionsMap((prev) => ({
@@ -2214,7 +2458,226 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     setNewTxTags('');
     setNewTxModalOpen(false);
     setNoticeMessage(
-      `✓ "${currentLedger.title}"에 거래 내역(₩${amt.toLocaleString()})이 기록되었습니다.`
+      `✓ "${currentLedger.title}"에 ${newTxType === 'EXPENSE' ? '지출' : newTxType === 'INCOME' ? '수입' : '자산이동'} 내역(₩${amt.toLocaleString()})이 성공적으로 기록되었습니다.`
+    );
+  };
+
+  // 고정수입 규칙 추가/수정/삭제 핸들러
+  const handleOpenAddRule = () => {
+    setEditingRuleId(null);
+    setRuleFormName('');
+    setRuleFormAmount('');
+    setRuleFormDay('25');
+    setRuleFormCategory('급여');
+    setRuleFormLedger(currentLedger.title);
+    setRuleFormAccount('KB국민 주거래 급여통장');
+    setRuleFormNotify(true);
+    setIsRuleFormOpen(true);
+  };
+
+  const handleOpenEditRule = (rule: FixedIncomeRule) => {
+    setEditingRuleId(rule.id);
+    setRuleFormName(rule.name);
+    setRuleFormAmount(rule.amount.toString());
+    setRuleFormDay(rule.dayOfMonth.toString());
+    setRuleFormCategory(rule.category);
+    setRuleFormLedger(rule.targetLedgerTitle);
+    setRuleFormAccount(rule.account);
+    setRuleFormNotify(rule.notifyEnabled);
+    setIsRuleFormOpen(true);
+  };
+
+  const handleSaveRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ruleFormName.trim() || !ruleFormAmount) return;
+    const amt = parseInt(ruleFormAmount.replace(/[^0-9]/g, '') || '0', 10);
+    const day = parseInt(ruleFormDay.replace(/[^0-9]/g, '') || '25', 10);
+
+    if (editingRuleId) {
+      setFixedIncomeRules((prev) =>
+        prev.map((r) =>
+          r.id === editingRuleId
+            ? {
+                ...r,
+                name: ruleFormName.trim(),
+                amount: amt,
+                dayOfMonth: Math.min(31, Math.max(1, day)),
+                category: ruleFormCategory,
+                targetLedgerTitle: ruleFormLedger.trim() || currentLedger.title,
+                targetLedgerId: r.targetLedgerId || activeLedgerId,
+                account: ruleFormAccount.trim() || '주거래 통장',
+                notifyEnabled: ruleFormNotify,
+              }
+            : r
+        )
+      );
+      setNoticeMessage(`✓ 고정수입 규칙 "${ruleFormName.trim()}"이(가) 수정되었습니다.`);
+    } else {
+      const newRule: FixedIncomeRule = {
+        id: `fix-${Date.now()}`,
+        name: ruleFormName.trim(),
+        amount: amt,
+        dayOfMonth: Math.min(31, Math.max(1, day)),
+        category: ruleFormCategory,
+        targetLedgerTitle: ruleFormLedger.trim() || currentLedger.title,
+        targetLedgerId: activeLedgerId,
+        account: ruleFormAccount.trim() || '주거래 통장',
+        notifyEnabled: ruleFormNotify,
+      };
+      setFixedIncomeRules((prev) => [...prev, newRule]);
+      setNoticeMessage(`✓ 새 고정수입 규칙 "${ruleFormName.trim()}"이(가) 추가되었습니다.`);
+    }
+    setIsRuleFormOpen(false);
+    setEditingRuleId(null);
+  };
+
+  const handleDeleteRule = (ruleId: string, ruleName: string) => {
+    setFixedIncomeRules((prev) => prev.filter((r) => r.id !== ruleId));
+    setNoticeMessage(`✓ 고정수입 규칙 "${ruleName}"이(가) 삭제되었습니다.`);
+  };
+
+  // 카드명세서 등록정보 및 승인라인 보정 핸들러
+  const handleSaveEditedStatement = () => {
+    if (!activeEditingStatement) return;
+    setStatementIntakeReviews((prev) =>
+      prev.map((r) => (r.id === activeEditingStatement.id ? activeEditingStatement : r))
+    );
+    setStatementEditModalOpen(false);
+    setNoticeMessage(
+      `✓ [${activeEditingStatement.cardName}] (${activeEditingStatement.statementMonth}) 명세서 등록정보 및 승인라인 보정이 저장되었습니다.`
+    );
+  };
+
+  const handleAddStatementLine = () => {
+    if (!activeEditingStatement) return;
+    const newLine = {
+      id: `sl-new-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      merchant: '새 가맹점',
+      amount: 15000,
+      installment: '일시불',
+      approvalNo: Math.floor(100000 + Math.random() * 900000).toString(),
+      discount: 0,
+      isFixedExpense: false,
+    };
+    setActiveEditingStatement({
+      ...activeEditingStatement,
+      lines: [newLine, ...activeEditingStatement.lines],
+      txCount: activeEditingStatement.txCount + 1,
+      totalBilled: activeEditingStatement.totalBilled + 15000,
+      lumpSumCount: activeEditingStatement.lumpSumCount + 1,
+    });
+  };
+
+  const handleDeleteStatementLine = (lineId: string) => {
+    if (!activeEditingStatement) return;
+    const targetLine = activeEditingStatement.lines.find((l) => l.id === lineId);
+    const updatedLines = activeEditingStatement.lines.filter((l) => l.id !== lineId);
+    setActiveEditingStatement({
+      ...activeEditingStatement,
+      lines: updatedLines,
+      txCount: Math.max(0, activeEditingStatement.txCount - 1),
+      totalBilled: Math.max(0, activeEditingStatement.totalBilled - (targetLine?.amount || 0)),
+    });
+  };
+
+  // 통장 거래내역 일괄등록 대사 핸들러
+  const handleToggleSelectAllBankItems = (checked: boolean) => {
+    setBankParsedItems((prev) => prev.map((item) => ({ ...item, selected: checked })));
+  };
+
+  const handleToggleBankItemSelect = (id: string) => {
+    setBankParsedItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, selected: !item.selected } : item))
+    );
+  };
+
+  const handleChangeBankItemType = (
+    id: string,
+    newType: 'INCOME' | 'EXPENSE' | 'TRANSFER',
+    defaultCategory?: string
+  ) => {
+    setBankParsedItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              inferredType: newType,
+              targetCategory:
+                defaultCategory ||
+                (newType === 'INCOME' ? '기타수입' : newType === 'TRANSFER' ? '자산이동' : '기타지출'),
+            }
+          : item
+      )
+    );
+  };
+
+  const handleSimulateBankUpload = () => {
+    const newItem: BankStatementImportItem = {
+      id: `bp-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      bankName: '국민은행',
+      accountNoMasked: '928102-01-***921',
+      description: '급여 / 보너스 입금',
+      depositAmount: 3200000,
+      withdrawAmount: 0,
+      inferredType: 'INCOME',
+      targetCategory: '급여',
+      selected: true,
+    };
+    setBankParsedItems((prev) => [newItem, ...prev]);
+    setNoticeMessage('✓ 엑셀 통장 거래내역 1건이 성공적으로 파싱되어 목록에 추가되었습니다.');
+  };
+
+  const handleBatchImportBankTransactions = () => {
+    const selectedItems = bankParsedItems.filter((i) => i.selected);
+    if (selectedItems.length === 0) {
+      setNoticeMessage('⚠️ 일괄 등록할 통장 거래내역을 1건 이상 선택해주세요.');
+      return;
+    }
+
+    const newEntries: LedgerTransaction[] = selectedItems.map((item, idx) => {
+      const isIncome = item.inferredType === 'INCOME';
+      const isTransfer = item.inferredType === 'TRANSFER';
+      const amt = isIncome ? item.depositAmount : item.withdrawAmount;
+      return {
+        id: `tx-bank-${Date.now()}-${idx}`,
+        ledgerId: activeLedgerId,
+        expenseRecordId: `atx-bank-${Date.now().toString().slice(-4)}-${idx}`,
+        title: item.description,
+        type: item.inferredType,
+        amount: amt,
+        category: item.targetCategory || (isIncome ? '기타수입' : isTransfer ? '자산이동' : '기타지출'),
+        date: item.date,
+        payerName: '구본영(나)',
+        note: `통장 일괄등록 (${item.bankName} ${item.accountNoMasked})`,
+        isAssetTransfer: isTransfer,
+        relatedTransferId: isTransfer ? `rel-${Date.now()}-${idx}` : undefined,
+        reconciliationStatus: 'CONFIRMED',
+        proofs: [
+          {
+            id: `prf-b-${Date.now()}-${idx}`,
+            type: 'STATEMENT_LINE',
+            title: `${item.bankName} 통장 거래내역 확정`,
+            amount: amt,
+            date: item.date,
+            source: `${item.bankName} 계좌 거래내역`,
+            paymentAccount: `${item.bankName} (${item.accountNoMasked})`,
+            details: [`거래적요: ${item.description}`, `일괄등록 자동 대사 완료`],
+          },
+        ],
+        tagNames: ['통장일괄등록', item.bankName, isTransfer ? '자산이동' : isIncome ? '수입' : '지출'],
+      };
+    });
+
+    setTransactionsMap((prev) => ({
+      ...prev,
+      [activeLedgerId]: [...newEntries, ...(prev[activeLedgerId] || [])],
+    }));
+
+    setBankImportModalOpen(false);
+    setNoticeMessage(
+      `✓ 통장 거래내역 ${selectedItems.length}건이 "${currentLedger.title}" 원장(SSOT)에 성공적으로 일괄 등록되었습니다.`
     );
   };
 
@@ -2224,17 +2687,97 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
       <div className="relative py-2 sm:py-6 landscape:py-1 px-1 sm:px-4">
-        {/* 상단 장부책장 3단 헤더: 좌측(타이틀), 중앙(장부구분 필터), 우측(건수 + 책장닫기 버튼) */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 mb-2 border-b border-stone-200 dark:border-stone-800">
-          {/* 1단(좌측): 장부책장 타이틀 */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
-              장부책장
-            </span>
+        {/* 상단 장부책장 반응형 헤더 (모바일: 1행 타이틀·새장부·건수·열기·방향 한줄 집약, 2행 필터 배치 / 데스크톱: 3단 헤더) */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pb-3 mb-2 border-b border-stone-200 dark:border-stone-800">
+          {/* 모바일 상단 1행 / 데스크톱 좌측: 타이틀 및 컨트롤러 */}
+          <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
+            {/* 타이틀 */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
+                장부책장
+              </span>
+            </div>
+
+            {/* [요구사항 2] 모바일 전용(sm:hidden) 한 줄 집약 컨트롤러: [+ 새 장부] [건수] [책장열기] [▲▼ 방향] */}
+            <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+              {/* [요구사항 1] 새 장부 등록 복구 버튼 (모바일) */}
+              <button
+                type="button"
+                onClick={() => setNewLedgerModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                title="새 가계부 장부 개설하기"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>새 장부</span>
+              </button>
+
+              {/* 건수 뱃지 (모바일) */}
+              <span
+                className="text-[11px] font-mono px-2 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
+                title="현재 노출된 장부 건수 / 전체 건수"
+              >
+                {(() => {
+                  const totalCount = ledgers.length;
+                  const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
+                  return currentDisplayedCount === totalCount ? `${totalCount}건` : `${currentDisplayedCount}/${totalCount}건`;
+                })()}
+              </span>
+
+              {/* 책장 열기 / 닫기 버튼 (모바일) */}
+              <button
+                type="button"
+                onClick={() => setIsBookshelfOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
+              >
+                {isBookshelfOpen ? (
+                  <>
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[2.2]" />
+                    <span>닫기</span>
+                  </>
+                ) : (
+                  <>
+                    <Book className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 stroke-[2.2]" />
+                    <span>열기</span>
+                  </>
+                )}
+              </button>
+
+              {/* 방향 이동 버튼 (모바일) */}
+              {isBookshelfOpen && visibleLedgers.length > 1 && (
+                <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollBooks('UP')}
+                    className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
+                    title="스택 위로 스크롤"
+                  >
+                    <ChevronUp className="w-3 h-3 stroke-[2.5]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollBooks('DOWN')}
+                    className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
+                    title="스택 아래로 스크롤"
+                  >
+                    <ChevronDown className="w-3 h-3 stroke-[2.5]" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* 2단(가운데): 장부구분(개인, 장기, 단기) 뱃지 활성/비활성 다중 필터 (가운데 정렬) */}
-          <div className="flex-1 flex items-center justify-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]">
+          {/* [요구사항 2] 2단: 장부구분(개인, 장기, 단기) 필터 (모바일: 맨 아래 2행 배치 / 데스크톱: 가운데 정렬, 슬라이드 드래그휠 지원) */}
+          <div
+            onWheel={(e) => {
+              if (e.deltaY !== 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+            className="w-full sm:w-auto sm:flex-1 flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] touch-pan-x"
+          >
             {/* 전체 뱃지 */}
             <button
               type="button"
@@ -2328,9 +2871,20 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </button>
           </div>
 
-          {/* 3단(우측): 건수 뱃지 + 책장 닫기/열기 버튼 (가장 우측) + 퀵 탐색 핸들 */}
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-            {/* 건수: 책장닫기 버튼 앞에 배치 (전체 표시인 경우 X건, 차이가 있는 경우 Y건 / X건) */}
+          {/* 데스크톱 전용(hidden sm:flex) 3단 우측 제어 컨트롤러: [+ 새 장부] [건수] [책장 닫기/열기] [▲▼] */}
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
+            {/* [요구사항 1] 새 장부 등록 복구 버튼 (데스크톱) */}
+            <button
+              type="button"
+              onClick={() => setNewLedgerModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+              title="새 가계부 장부 개설하기"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>새 장부</span>
+            </button>
+
+            {/* 건수 뱃지 (데스크톱) */}
             <span
               className="text-xs font-mono px-2.5 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
               title="현재 노출된 장부 건수 / 전체 건수"
@@ -2338,18 +2892,15 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               {(() => {
                 const totalCount = ledgers.length;
                 const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
-                if (currentDisplayedCount === totalCount) {
-                  return `${totalCount}건`;
-                }
-                return `${currentDisplayedCount}건 / ${totalCount}건`;
+                return currentDisplayedCount === totalCount ? `${totalCount}건` : `${currentDisplayedCount}건 / ${totalCount}건`;
               })()}
             </span>
 
-            {/* 책장 열기 / 닫기 토글 버튼 (가장 우측 배치) */}
+            {/* 책장 열기 / 닫기 토글 버튼 (데스크톱) */}
             <button
               type="button"
               onClick={() => setIsBookshelfOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
               title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
             >
               {isBookshelfOpen ? (
@@ -2365,7 +2916,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               )}
             </button>
 
-            {/* 우측 퀵 탐색 핸들 (장부 2권 이상 탐색 편의) */}
+            {/* 우측 퀵 탐색 핸들 (데스크톱) */}
             {isBookshelfOpen && visibleLedgers.length > 1 && (
               <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
                 <button
@@ -2606,14 +3157,26 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </select>
           </div>
 
-          {/* 참여자 관리 버튼 */}
+          {/* 1. 커버색상 버튼 (모바일 모드시 아이콘만 표시) */}
+          <button
+            type="button"
+            onClick={() => handleOpenEditCover(currentLedger)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+            title="현재 선택된 장부의 북커버 디자인 및 시그니처 색상 변경"
+          >
+            <Palette className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">커버색상</span>
+          </button>
+
+          {/* 2. 사용자 관리 버튼 */}
           <button
             type="button"
             onClick={() => setMemberModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+            title="장부 참여 멤버 및 권한 관리"
           >
             <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>참여자 ({currentMembers.length}명)</span>
+            <span>사용자 관리 ({currentMembers.length}명)</span>
           </button>
         </div>
       </div>
@@ -2791,207 +3354,25 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </div>
           </div>
 
-          {/* 고정 3: 지출 합계 금액 */}
+          {/* 고정 3: 지출 합계 금액 (부드러운 분홍 테마 적용) */}
           <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-1">
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-bold text-rose-700 dark:text-rose-400">
+              <span className="text-xs font-bold text-pink-700 dark:text-pink-400">
                 지출 합계 금액
               </span>
-              <TrendingDown className="w-4 h-4 text-rose-600" />
+              <TrendingDown className="w-4 h-4 text-pink-500" />
             </div>
-            <div className="font-mono text-xl sm:text-2xl font-extrabold text-rose-600">
+            <div className="font-mono text-xl sm:text-2xl font-extrabold text-pink-600 dark:text-pink-400">
               -₩{stats.pureExpense.toLocaleString()}
             </div>
             <div className="text-[10.5px] text-slate-500 font-medium truncate flex items-center justify-between">
               <span>자산이동 제외 순수 소비</span>
-              <span className="text-[10px] font-mono font-bold text-rose-500">
+              <span className="text-[10px] font-mono font-bold text-pink-500">
                 {filteredTransactions.filter((t) => t.type === 'EXPENSE').length}건 집계
               </span>
             </div>
           </div>
         </div>
-
-        {/* 2.2 유동정보: 서류철 인덱스 슬라이드 배너 (자산이동, 대납, 정산 등 서비스 관련 정보가 있을 경우만 표시) */}
-        {hasDynamicInfo && (
-          <div
-            onMouseEnter={() => setIsBannerHovered(true)}
-            onMouseLeave={() => setIsBannerHovered(false)}
-            className="relative rounded-3xl bg-linear-to-br from-stone-100 via-slate-100 to-zinc-100 dark:from-zinc-900 dark:via-stone-900 dark:to-zinc-950 border border-stone-300 dark:border-zinc-700 shadow-md p-3 sm:p-4.5 space-y-3 transition-all"
-          >
-            {/* 서류철 바인더 상단 인덱스 탭 & 슬라이더 컨트롤러 헤더 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-stone-200 dark:border-zinc-800 pb-2.5">
-              {/* 서류철 세로/인덱스 라벨들 (파일 폴더 탭 스타일 - 파일에서 꺼내는 인터랙션) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] py-0.5">
-                <span className="text-[10px] font-black font-mono text-stone-500 dark:text-zinc-400 uppercase tracking-wider px-2 py-1 rounded bg-stone-200/80 dark:bg-zinc-800 shrink-0 flex items-center gap-1">
-                  <FolderOpen className="w-3 h-3 text-indigo-500" />
-                  <span>서류철 인덱스</span>
-                </span>
-                {dynamicBannerItems.map((item, idx) => {
-                  const isActive = dynamicBannerIndex === idx;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setDynamicBannerIndex(idx)}
-                      className={`relative px-3 py-1.5 rounded-t-xl text-xs font-bold transition-all cursor-pointer shrink-0 border-t-2 select-none flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-white dark:bg-zinc-800 text-stone-900 dark:text-white shadow-xs -mb-[11px] pb-3 border-indigo-600 dark:border-indigo-400 font-black z-10 scale-102'
-                          : 'bg-stone-200/70 dark:bg-zinc-800/60 text-stone-600 dark:text-zinc-400 hover:bg-stone-200 dark:hover:bg-zinc-700 border-transparent opacity-75 hover:opacity-100'
-                      }`}
-                      title={`${item.title} 서류 꺼내기`}
-                    >
-                      <span>{item.icon}</span>
-                      <span>{item.tabLabel}</span>
-                      {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 슬라이더 컨트롤러: 1초 슬라이딩 상태, 일시정지/재생, 좌우 탐색, 핸들 */}
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                {/* 1초 자동 슬라이딩 안내 뱃지 */}
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-200/90 dark:bg-zinc-800 text-[10px] font-mono text-stone-700 dark:text-zinc-300">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isBannerEffectivelyPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'
-                    }`}
-                  />
-                  <span>{isBannerEffectivelyPaused ? '일시정지' : '1초 슬라이딩'}</span>
-                </div>
-
-                {/* 일시정지 / 재생 버튼 */}
-                <button
-                  type="button"
-                  onClick={() => setIsBannerPaused((prev) => !prev)}
-                  className="p-1.5 rounded-lg border border-stone-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-stone-700 dark:text-zinc-200 hover:bg-stone-100 dark:hover:bg-zinc-700 cursor-pointer shadow-2xs transition-colors"
-                  title={isBannerPaused ? '자동 슬라이딩 다시 시작' : '자동 슬라이딩 일시정지'}
-                >
-                  {isBannerPaused ? (
-                    <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                  ) : (
-                    <Pause className="w-3.5 h-3.5 text-stone-600 dark:text-zinc-300 fill-stone-600" />
-                  )}
-                </button>
-
-                {/* 좌우 탐색 버튼 */}
-                <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 rounded-lg border border-stone-300 dark:border-zinc-700 p-0.5 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={handlePrevBanner}
-                    className="p-1 rounded hover:bg-stone-100 dark:hover:bg-zinc-700 text-stone-700 dark:text-zinc-300 cursor-pointer"
-                    title="이전 유동 서류"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </button>
-                  <span className="text-[10px] font-mono font-bold px-1.5 text-stone-500">
-                    {dynamicBannerIndex + 1}/{dynamicBannerItems.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleNextBanner}
-                    className="p-1 rounded hover:bg-stone-100 dark:hover:bg-zinc-700 text-stone-700 dark:text-zinc-300 cursor-pointer"
-                    title="다음 유동 서류"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 서류철 본체 (파일에서 스르륵 꺼낸 서류 시트) */}
-            <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 border border-stone-300 dark:border-zinc-800 shadow-sm p-4 transition-all">
-              {/* 현재 슬라이드 서류 시트 내용 */}
-              <div
-                key={currentDynamicItem.id}
-                className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl p-2 rounded-xl bg-stone-100 dark:bg-zinc-800 border border-stone-200 dark:border-zinc-700 shadow-2xs">
-                      {currentDynamicItem.icon}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${currentDynamicItem.badgeColor}`}
-                        >
-                          {currentDynamicItem.badge}
-                        </span>
-                        <h4 className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-white">
-                          {currentDynamicItem.title}
-                        </h4>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-zinc-400 mt-0.5">
-                        {currentDynamicItem.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <span className="text-[10px] text-stone-400 block font-medium">유동 합계액</span>
-                      <span className="font-mono text-lg sm:text-xl font-black text-indigo-600 dark:text-indigo-400">
-                        ₩{currentDynamicItem.amount.toLocaleString()}원
-                      </span>
-                    </div>
-
-                    {/* 핸들 기능: 사용자가 필요한 정보를 펼쳐보는 버튼 */}
-                    <button
-                      type="button"
-                      onClick={() => setIsFolderExpanded((prev) => !prev)}
-                      className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all whitespace-nowrap"
-                      title={isFolderExpanded ? '서류 접어넣기' : '핸들로 서류 펼쳐보기'}
-                    >
-                      {isFolderExpanded ? (
-                        <>
-                          <Minimize2 className="w-3.5 h-3.5 stroke-[2.2]" />
-                          <span>서류 접기</span>
-                        </>
-                      ) : (
-                        <>
-                          <Maximize2 className="w-3.5 h-3.5 stroke-[2.2]" />
-                          <span>핸들로 펼쳐보기</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 핸들로 서류를 펼쳤을 때 나타나는 세부 상세 서류철 */}
-                {isFolderExpanded && (
-                  <div className="pt-3 border-t border-dashed border-stone-200 dark:border-zinc-800 space-y-3 animate-in fade-in duration-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                      {currentDynamicItem.details.map((d, i) => (
-                        <div
-                          key={i}
-                          className="p-2.5 rounded-xl bg-stone-50 dark:bg-zinc-800/70 border border-stone-200 dark:border-zinc-700/60 space-y-1"
-                        >
-                          <span className="text-[10px] text-stone-400 font-bold block">{d.label}</span>
-                          <span className="font-mono text-[11.5px] font-bold text-stone-800 dark:text-zinc-200 block truncate">
-                            {d.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-indigo-900 dark:text-indigo-300 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <span>{currentDynamicItem.note}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-indigo-500 font-bold">
-                        AUDIT: 100% VERIFIED
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ==================================================================== */}
@@ -3007,7 +3388,16 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         <div className="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
           {/* Level 1: 2대 대축 (장부작성 vs 분석) 스위치 */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80">
+            <div
+              onWheel={(e) => {
+                if (e.deltaY !== 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.currentTarget.scrollLeft += e.deltaY;
+                }
+              }}
+              className="flex items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap shrink-0 max-w-full"
+            >
               {/* 축 1: 장부작성 */}
               <button
                 type="button"
@@ -3015,15 +3405,15 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   setMainAxisTab('WRITE');
                   setActiveDeckTab(writeSubTab);
                 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   mainAxisTab === 'WRITE'
                     ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-indigo-100 dark:border-indigo-900/50'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span>장부작성 (수입·지출)</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[10px] font-mono font-bold">
+                <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[10px] font-mono font-bold shrink-0">
                   {currentTransactions.length}건
                 </span>
               </button>
@@ -3035,82 +3425,160 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   setMainAxisTab('ANALYSIS');
                   setActiveDeckTab('ANALYTICS');
                 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   mainAxisTab === 'ANALYSIS'
                     ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-purple-100 dark:border-purple-900/50'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <PieChart className="w-4 h-4 text-purple-500" />
+                <PieChart className="w-4 h-4 text-purple-500 shrink-0" />
                 <span>분석 (현황·보고서)</span>
                 {isDirtyAggregation && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black animate-pulse">
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black animate-pulse shrink-0">
                     재집계 필요
                   </span>
                 )}
               </button>
             </div>
 
-            {/* Level 2 서브 탭 스위치 */}
+            {/* Level 2 툴바 & 특화 도구 (카드명세서 대사 / 고정수입 관리 / 통장내역 일괄등록 / 원장 안내) */}
             {mainAxisTab === 'WRITE' ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWriteSubTab('EXPENSE');
-                      setActiveDeckTab('EXPENSE');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                      writeSubTab === 'EXPENSE'
-                        ? 'bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 shadow-2xs font-black'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5 text-rose-500" />
-                    <span>3.1.2 지출</span>
-                    <span className="text-[10px] font-mono font-bold text-rose-500">
-                      ({filteredTransactions.filter((t) => t.type === 'EXPENSE').length}건)
-                    </span>
-                  </button>
+              <div
+                onWheel={(e) => {
+                  if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="flex flex-wrap items-center gap-2 pb-0.5"
+              >
+                {/* 특화 도구 1: 카드명세서 대사 서브시트 토글 */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveSpecialSheet((prev) => (prev === 'STATEMENT' ? 'NONE' : 'STATEMENT'))
+                  }
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                    activeSpecialSheet === 'STATEMENT'
+                      ? 'bg-indigo-600 text-white shadow-xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>카드명세서 대사</span>
+                  {statementIntakeReviews.some((r) => r.needsReview) && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" title="수집 검토 필요 건 존재" />
+                  )}
+                </button>
 
+                {/* 특화 도구 2: 고정수입 관리 독립 팝업 오픈 (요구사항 3) */}
+                <button
+                  type="button"
+                  onClick={() => setFixedIncomeModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 hover:text-emerald-600 dark:hover:text-emerald-400"
+                >
+                  <Bell className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>고정수입 관리</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono">
+                    {fixedIncomeRules.length}건
+                  </span>
+                </button>
+
+                {/* 특화 도구 3: 통장 엑셀 일괄등록 모달 오픈 */}
+                <button
+                  type="button"
+                  onClick={() => setBankImportModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>통장내역 일괄등록</span>
+                </button>
+
+                {/* 안내정보 도움말 ? 아이콘 버튼 (모바일 화면 밖 사라짐 방지 및 반응형 모달 지원) */}
+                <div className="relative inline-flex items-center">
                   <button
                     type="button"
-                    onClick={() => {
-                      setWriteSubTab('INCOME');
-                      setActiveDeckTab('INCOME');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                      writeSubTab === 'INCOME'
-                        ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs font-black'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    onClick={() => setShowIntegratedGuide((prev) => !prev)}
+                    className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold ${
+                      showIntegratedGuide
+                        ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 shadow-2xs'
+                        : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
                     }`}
+                    title="시계열 통합 원장 및 3대 원칙 안내보기"
                   >
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>3.1.1 수입</span>
-                    <span className="text-[10px] font-mono font-bold text-emerald-600">
-                      ({filteredTransactions.filter((t) => t.type === 'INCOME').length}건)
-                    </span>
+                    <HelpCircle className="w-4 h-4" />
+                    <span className="text-[11px] hidden sm:inline">원장 안내</span>
                   </button>
+                  {showIntegratedGuide && (
+                    <>
+                      {/* 모바일 화면 밖 클릭 시 닫기 백드롭 */}
+                      <div
+                        className="fixed inset-0 z-40 bg-black/20 sm:hidden"
+                        onClick={() => setShowIntegratedGuide(false)}
+                      />
+                      <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
+                          <span className="flex items-center gap-1">
+                            <HelpCircle className="w-4 h-4 text-indigo-500" />
+                            <span>통합 시계열 원장 (Cash Flow) 안내</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowIntegratedGuide(false)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300">
+                          수입과 지출, 자산이동의 모든 입출금 흐름을 하나의 시간 순서대로 파악할 수 있는 단일 진실 공급원(SSOT)입니다.
+                        </p>
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/60 text-[10.5px] space-y-1 font-medium">
+                          <div className="flex items-start gap-1">
+                            <span className="text-pink-600 dark:text-pink-400 font-bold shrink-0">① 지출:</span>
+                            <span>모임/개인 배타적 귀속 원칙 준수</span>
+                          </div>
+                          <div className="flex items-start gap-1">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">② 수입:</span>
+                            <span>확정 입금 및 정기 고정수입 자동 집계</span>
+                          </div>
+                          <div className="flex items-start gap-1">
+                            <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">③ 자산이동:</span>
+                            <span>생활비 왜곡 방지를 위해 순수 지출에서 배타적 제외</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
+              <div
+                onWheel={(e) => {
+                  if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="flex flex-wrap items-center gap-2 pb-0.5"
+              >
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       setAnalysisSubTab('STATUS');
                       setActiveDeckTab('ANALYTICS');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                       analysisSubTab === 'STATUS'
                         ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-black'
                         : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <PieChart className="w-3.5 h-3.5 text-purple-500" />
-                    <span>3.2.1 현황</span>
+                    <span>현황 (타임라인)</span>
                   </button>
 
                   <button
@@ -3119,14 +3587,14 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       setAnalysisSubTab('REPORT');
                       setActiveDeckTab('ANALYTICS');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                       analysisSubTab === 'REPORT'
                         ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-black'
                         : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5 text-purple-500" />
-                    <span>3.2.2 보고서 (이력)</span>
+                    <span>보고서 (이력)</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-mono font-bold">
                       {analysisReports.length}건
                     </span>
@@ -3136,110 +3604,29 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             )}
           </div>
 
-          {/* Level 3: 세부 구분 탭 및 액션 바 */}
-          {mainAxisTab === 'WRITE' && writeSubTab === 'EXPENSE' && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setExpenseSubTab('GENERAL')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    expenseSubTab === 'GENERAL'
-                      ? 'bg-rose-600 text-white shadow-2xs font-black'
-                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  3.1.2.1 지출내역 (원장·영수증)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpenseSubTab('STATEMENT')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    expenseSubTab === 'STATEMENT'
-                      ? 'bg-rose-600 text-white shadow-2xs font-black'
-                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  <span>3.1.2.2 카드지출내역 (카드명세서)</span>
-                  {statementIntakeReviews.some((r) => r.needsReview) && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" title="수집 검토 필요 건 존재" />
-                  )}
-                </button>
-              </div>
-
-              <div className="text-[11px] text-slate-500 dark:text-zinc-400">
-                {expenseSubTab === 'GENERAL'
-                  ? '모든 지출 거래의 단일 진실 공급원 (SSOT 원장)'
-                  : '카드지출내역: 3.1.2.1 지출내역에 포함되는 부분정보이며 카드명세서 일괄관리'}
-              </div>
-            </div>
-          )}
-
-          {mainAxisTab === 'WRITE' && writeSubTab === 'INCOME' && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIncomeSubTab('LIST')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    incomeSubTab === 'LIST'
-                      ? 'bg-emerald-600 text-white shadow-2xs font-black'
-                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  3.1.1.1 수입내역 (전체 입금·통장)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIncomeSubTab('FIXED')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    incomeSubTab === 'FIXED'
-                      ? 'bg-emerald-600 text-white shadow-2xs font-black'
-                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>3.1.1.2 고정수입내역 (자동등록·알림)</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-mono">
-                    {fixedIncomeRules.length}건
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setManualIncomeModalOpen(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>일반수입 등록</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBankImportModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>통장내역 일괄등록</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           {mainAxisTab === 'ANALYSIS' && analysisSubTab === 'STATUS' && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                  3.2.1 현황 집계 기간:
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+              <div
+                onWheel={(e) => {
+                  if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.scrollLeft += e.deltaY;
+                    return;
+                  }
+                }}
+                className="flex flex-wrap items-center gap-2 pb-0.5"
+              >
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-300 shrink-0 whitespace-nowrap">
+                  현황 집계 기간:
                 </span>
-                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs shrink-0">
                   {(['MONTH', 'QUARTER', 'YEAR'] as const).map((period) => (
                     <button
                       key={period}
                       type="button"
                       onClick={() => setAnalyticsPeriod(period)}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                         analyticsPeriod === period
                           ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
@@ -3263,7 +3650,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     }, 600);
                   }}
                   disabled={recalculating}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-xs disabled:opacity-50 shrink-0 whitespace-nowrap"
                   title="과거 데이터 변동에 따른 온디맨드 경량 재집계"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} />
@@ -3276,13 +3663,13 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
           {mainAxisTab === 'ANALYSIS' && analysisSubTab === 'REPORT' && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
               <div className="text-xs text-slate-600 dark:text-zinc-400">
-                <strong>3.2.2 보고서 관리:</strong> 분석 처리 결과의 스냅샷 이력을 관리하고 최신 원장 데이터로 재수집을 수행합니다.
+                <strong>보고서 관리:</strong> 분석 처리 결과의 스냅샷 이력을 관리하고 최신 원장 데이터로 재수집을 수행합니다.
               </div>
               <button
                 type="button"
                 onClick={handleRecollectAndCreateReport}
                 disabled={isRecollecting}
-                className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 shrink-0 whitespace-nowrap"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRecollecting ? 'animate-spin' : ''}`} />
                 <span>{isRecollecting ? '데이터 재수집 중...' : '🔄 최신 데이터 재수집 & 새 보고서 생성'}</span>
@@ -3292,283 +3679,114 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         </div>
 
         {/* ==================================================================== */}
-        {/* 1. [지출 탭 (EXPENSE)] */}
+        {/* 1. [장부작성 (통합 시계열 원장 - Cash Flow Timeline)] */}
         {/* ==================================================================== */}
-        {activeDeckTab === 'EXPENSE' && (
-          <div className="space-y-5 animate-in fade-in-50">
-            {/* 서브탭 1-1: 일반지출 (원장 거래 목록 & 영수증 등록) */}
-            {expenseSubTab === 'GENERAL' && (
-              <div className="space-y-4">
-                {/* 상단 검색 및 액션 바 */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <div className="w-full sm:w-72">
-                    <ElmInp04
-                      value={searchWord}
-                      onChange={setSearchWord}
-                      placeholder="가맹점, 입출금자, 태그 검색..."
-                    />
-                  </div>
-
+        {mainAxisTab === 'WRITE' && (
+          <div className="space-y-6 animate-in fade-in-50">
+            {/* 특화 서브시트 1: 카드명세서 일괄 대사 및 수집 관리 패널 (토글 시 슬라이드 노출) */}
+            {activeSpecialSheet === 'STATEMENT' && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-zinc-900 border-2 border-indigo-300 dark:border-indigo-800 shadow-md space-y-5 animate-in slide-in-from-top-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100 dark:border-zinc-800">
                   <div className="flex items-center gap-2">
-                    {/* [시나리오 2.2.1] 영수증 촬영/OCR 등록 버튼 */}
-                    <button
-                      type="button"
-                      onClick={() => setReceiptOcrModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap"
-                      title="영수증 사진 촬영/첨부 및 OCR 파싱 보정"
-                    >
-                      <Receipt className="w-4 h-4" />
-                      <span>영수증 촬영/OCR 등록</span>
-                    </button>
-
-                    {/* [시나리오 2.2.1] 수기 지출 등록 버튼 */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isLedgerClosed) {
-                          setNoticeMessage('[마감 제한] 정산 및 회계가 마감된 장부에는 신규 거래를 등록할 수 없습니다.');
-                          return;
-                        }
-                        if (!canAddTransaction) {
-                          setNoticeMessage('[권한 제한] 조회 전용(VIEWER) 권한은 거래를 추가할 수 없습니다.');
-                          return;
-                        }
-                        setNewTxModalOpen(true);
-                      }}
-                      disabled={!canAddTransaction}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${
-                        canAddTransaction
-                          ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 cursor-pointer'
-                          : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
-                      }`}
-                    >
-                      {isLedgerClosed ? (
-                        <>
-                          <Lock className="w-4 h-4" />
-                          <span>마감됨 (입력 잠금)</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-4 h-4" />
-                          <span>새 지출 등록</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 카테고리 필터 & 자산이동 분리 옵션 바 */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 dark:border-zinc-800/80 py-3">
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-                    <ElmFlt01
-                      label="전체"
-                      selected={categoryFilter === 'ALL'}
-                      onClick={() => setCategoryFilter('ALL')}
-                    />
-                    <ElmFlt01
-                      label="식료품/마트"
-                      selected={categoryFilter === '식료품/마트'}
-                      onClick={() => setCategoryFilter('식료품/마트')}
-                    />
-                    <ElmFlt01
-                      label="외식/식음료"
-                      selected={categoryFilter === '외식/식음료'}
-                      onClick={() => setCategoryFilter('외식/식음료')}
-                    />
-                    <ElmFlt01
-                      label="주거/통신"
-                      selected={categoryFilter === '주거/통신'}
-                      onClick={() => setCategoryFilter('주거/통신')}
-                    />
-                    <ElmFlt01
-                      label="자산이동"
-                      selected={categoryFilter === '가족 내부 이동' || categoryFilter === '자산 내부 이동'}
-                      onClick={() =>
-                        setCategoryFilter(
-                          currentLedger.type === 'GROUP' ? '가족 내부 이동' : '자산 내부 이동'
-                        )
-                      }
-                    />
-                  </div>
-
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={excludeAssetTransfer}
-                      onChange={(e) => setExcludeAssetTransfer(e.target.checked)}
-                      className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
-                    />
-                    <span>자산이동 분리 표시 (생활비 왜곡 차단)</span>
-                  </label>
-                </div>
-
-                {/* 지출내역 목록 테이블 (클릭 시 단일 지출 3단 상세조회 모달 연결) */}
-                <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
-                  {filteredTransactions.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 text-xs font-medium">
-                      조건에 해당하는 지출 내역이 없습니다.
+                    <div className="p-1.5 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                      <CreditCard className="w-4 h-4" />
                     </div>
-                  ) : (
-                    filteredTransactions.map((tx) => (
-                      <div
-                        key={tx.id}
-                        onClick={() => setSelectedTxForProofs(tx)}
-                        className="p-4 flex items-center justify-between gap-4 hover:bg-indigo-50/40 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
-                              tx.isAssetTransfer
-                                ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
-                                : tx.type === 'EXPENSE'
-                                ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300'
-                                : tx.type === 'INCOME'
-                                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
-                                : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300'
-                            }`}
-                          >
-                            {tx.isAssetTransfer ? (
-                              <ArrowRightLeft className="w-5 h-5" />
-                            ) : tx.type === 'EXPENSE' ? (
-                              <TrendingDown className="w-5 h-5" />
-                            ) : tx.type === 'INCOME' ? (
-                              <TrendingUp className="w-5 h-5" />
-                            ) : (
-                              <ArrowRightLeft className="w-5 h-5" />
-                            )}
-                          </div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                        카드 이용대금 명세서 첨부 등록
+                      </h4>
 
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                {tx.title}
-                              </span>
-
-                              {tx.isAssetTransfer && (
-                                <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
-                                  <ArrowRightLeft className="w-2.5 h-2.5" />
-                                  <span>자산이동 (생활비제외)</span>
+                      {/* [요구사항 2.1] 업무설명 레이어 팝업 (?) 아이콘 */}
+                      <div className="relative inline-flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setShowCardStatementGuide((prev) => !prev)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
+                          title="카드지출내역 및 명세서 대사 안내"
+                        >
+                          <HelpCircle className="w-4 h-4" />
+                        </button>
+                        {showCardStatementGuide && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40 bg-black/20 sm:hidden"
+                              onClick={() => setShowCardStatementGuide(false)}
+                            />
+                            <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
+                                <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                                  <CreditCard className="w-4 h-4" />
+                                  <span>카드지출내역 관리 안내</span>
                                 </span>
-                              )}
-
-                              {tx.tagNames.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                    tag.includes('대납') || tag.includes('정산')
-                                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
-                                  }`}
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCardStatementGuide(false)}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
                                 >
-                                  #{tag}
-                                </span>
-                              ))}
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <p className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300">
+                                카드지출내역은 <strong>통합 시계열 원장(SSOT)</strong>의 한 구분정보를 카드사 명세서를 통해 일괄 등록하면서, 6대 카드사 청구서 대사 및 분할납부 관리를 지원하는 <strong>지출내역의 부분정보</strong>입니다.
+                              </p>
                             </div>
-
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                              <span>{tx.date}</span>
-                              <span>•</span>
-                              <span>결제: {tx.payerName}</span>
-                              {tx.note && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-slate-500 dark:text-zinc-400 truncate max-w-xs">
-                                    {tx.note}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-
-                            {/* 대사 상태 뱃지 & 수집 증빙 체인 안내 */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                              {tx.reconciliationStatus === 'CONFIRMED' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  <span>명세서 대사 확정</span>
-                                  {tx.statementDiscount && tx.statementDiscount > 0 && (
-                                    <span className="text-emerald-700 dark:text-emerald-300 font-extrabold font-mono ml-0.5">
-                                      -₩{tx.statementDiscount.toLocaleString()} 할인
-                                    </span>
-                                  )}
-                                </span>
-                              )}
-
-                              {tx.reconciliationStatus === 'PENDING' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold">
-                                  <Clock className="w-3 h-3 text-amber-600" />
-                                  <span>영수증 선등록 (명세서 대사 대기)</span>
-                                </span>
-                              )}
-
-                              {tx.proofs && tx.proofs.length > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold">
-                                  <Layers className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                                  <span>수집방법 {tx.proofs.length}건 연결</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div
-                            className={`font-mono font-extrabold text-sm sm:text-base ${
-                              tx.isAssetTransfer
-                                ? 'text-purple-600 dark:text-purple-400'
-                                : tx.type === 'EXPENSE'
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : tx.type === 'INCOME'
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : 'text-indigo-600 dark:text-indigo-400'
-                            }`}
-                          >
-                            {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'} ₩
-                            {tx.amount.toLocaleString()}
-                          </div>
-                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline block mt-0.5">
-                            지출상세 조회 ➔
-                          </span>
-                        </div>
+                          </>
+                        )}
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+                    </div>
+                  </div>
 
-            {/* 서브탭 1-2: 3.1.2.2 카드지출내역 (지출내역의 한 구분정보를 일괄 등록하면서 카드명세서라는 별도 관리 구성 - 3.1.2.1 지출내역에 포함되는 부분정보) */}
-            {expenseSubTab === 'STATEMENT' && (
-              <div className="space-y-6">
-                {/* 3.1.2.2 카드지출내역 도메인 위상 안내 배너 */}
-                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
-                  <div className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shrink-0 mt-0.5">
-                    💡
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-extrabold text-[12px] text-amber-900 dark:text-amber-100">
-                      3.1.2.2 카드지출내역 관리 안내
-                    </span>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                      카드지출내역은 <strong>3.1.2.1 지출내역(전역 원장 SSOT)</strong>의 한 구분정보를 카드사 명세서를 통해 일괄 등록하면서, 6대 카드사 청구서 대사 및 분할납부 관리를 지원하는 <strong>지출내역의 부분정보</strong>입니다.
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSpecialSheet('NONE')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap self-end sm:self-auto"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>패널 닫기</span>
+                  </button>
                 </div>
 
-                {/* [시나리오 2.1.1] 명세서 등록 및 파일 첨부 영역 */}
+                {/* 명세서 파일 선택 및 OCR 분석 버튼 영역 */}
                 <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px]">
-                          3.1.2.2 일괄등록
-                        </span>
-                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                          카드 이용대금 명세서 첨부 등록 및 카드지출내역 일괄 생성
-                        </h4>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px] shrink-0">
+                        카드명세서 일괄등록
+                      </span>
+                      <h5 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                        청구 명세서 파일 첨부 및 OCR 분석
+                      </h5>
+
+                      {/* 안내설명 레이어 팝업 (?) 아이콘 */}
+                      <div className="relative inline-flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setShowOcrUploadGuide((prev) => !prev)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
+                          title="명세서 첨부 및 OCR 파싱 안내"
+                        >
+                          <HelpCircle className="w-3.5 h-3.5" />
+                        </button>
+                        {showOcrUploadGuide && (
+                          <>
+                            <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowOcrUploadGuide(false)} />
+                            <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-80 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
+                                <span className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>명세서 첨부 및 OCR 파싱 안내</span>
+                                </span>
+                                <button type="button" onClick={() => setShowOcrUploadGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                              <p className="text-[11px] leading-relaxed">
+                                카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 파싱 엔진이 자동으로 승인 일자, 가맹점, 금액, 할부 정보를 추출합니다.
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                        카드사별 규격에 구애받지 않고 청구 명세서 파일(이미지, PDF, HTML)을 첨부하면 OCR과 AI 파싱 엔진이 자동으로 승인 라인을 추출하여 지출내역에 대사 반영합니다.
-                      </p>
                     </div>
 
                     <button
@@ -3588,7 +3806,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </button>
                   </div>
 
-                  {/* 수집 리뷰 요약 목록 (Intake Review Summary) */}
+                  {/* 수집 리뷰 요약 목록 */}
                   <div className="space-y-2">
                     <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 block">
                       수집 리뷰 요약 목록 (OCR 보정 및 원장 반영 대기 현황)
@@ -3621,38 +3839,45 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                             )}
                           </div>
 
-                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60">
-                              <span className="text-[10px] text-slate-400 block">월 결제금액</span>
-                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">
+                          {/* [요구사항 2.3] 월 결제금액, 건수, 할부 등 요소 기준 flex-wrap 줄바꿈 지원 */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-700/60 shrink-0">
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">청구월</span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 whitespace-nowrap">
+                                {rev.statementMonth}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-700/60 shrink-0">
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">결제금액</span>
+                              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                                 ₩{rev.totalBilled.toLocaleString()}
                               </span>
                             </div>
-                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60">
-                              <span className="text-[10px] text-slate-400 block">결제 건수</span>
-                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">
+                            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-700/60 shrink-0">
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">결제건수</span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 whitespace-nowrap">
                                 {rev.txCount}건
                               </span>
                             </div>
-                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60">
-                              <span className="text-[10px] text-slate-400 block">일시불 / 할부</span>
-                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">
+                            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-700/60 shrink-0">
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">일시불/할부</span>
+                              <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 whitespace-nowrap">
                                 {rev.lumpSumCount} / {rev.installmentCount}
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[10.5px] text-slate-400 font-mono truncate max-w-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-zinc-800">
+                            <span className="text-[10.5px] text-slate-400 font-mono truncate max-w-full sm:max-w-xs shrink-0">
                               첨부: {rev.rawFileName}
                             </span>
                             <button
                               type="button"
                               onClick={() => {
-                                setActiveEditingStatement(rev);
+                                setActiveEditingStatement(JSON.parse(JSON.stringify(rev)));
                                 setStatementEditModalOpen(true);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 whitespace-nowrap shrink-0"
                             >
                               등록정보 편집 및 보정 ➔
                             </button>
@@ -3663,21 +3888,46 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   </div>
                 </div>
 
-                {/* [시나리오 2.1.2] 명세서 등록정보 조건별 다차원 검색 및 조회 */}
+                {/* [요구사항 2.4 & 2.5] 명세서 등록정보 간소화 및 검색결과 타이틀 */}
                 <div className="space-y-3.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileSearch className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                      <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                        명세서 등록정보 다차원 조회
-                      </h4>
+                  <div className="flex items-center gap-2">
+                    <FileSearch className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <h5 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                      명세서 등록정보
+                    </h5>
+
+                    {/* 안내설명 레이어 팝업 (?) 아이콘 */}
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowStatementFilterGuide((prev) => !prev)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
+                        title="명세서 등록정보 필터 안내"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </button>
+                      {showStatementFilterGuide && (
+                        <>
+                          <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowStatementFilterGuide(false)} />
+                          <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-80 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
+                              <span className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                <FileSearch className="w-3.5 h-3.5" />
+                                <span>명세서 등록정보 안내</span>
+                              </span>
+                              <button type="button" onClick={() => setShowStatementFilterGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <p className="text-[11px] leading-relaxed">
+                              수집된 각 카드사의 청구 승인 라인을 카드사, 할부 구분, 고정비 유형, 가맹점별로 다차원 검색하고 대사 현황을 조회할 수 있습니다.
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <span className="text-[11px] text-slate-400">
-                      카드사, 할부 여부, 고정비 구분 및 결제일 조건별 검색
-                    </span>
                   </div>
 
-                  {/* 다차원 필터 바 */}
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                     <div>
                       <span className="text-[10px] text-slate-400 block font-semibold mb-1">카드사 선택</span>
@@ -3698,30 +3948,30 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       <span className="text-[10px] text-slate-400 block font-semibold mb-1">할부 여부</span>
                       <select
                         value={statementFilterInstallment}
-                        onChange={(e) => setStatementFilterInstallment(e.target.value)}
+                        onChange={(e) => setStatementFilterInstallment(e.target.value as any)}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium focus:outline-hidden"
                       >
-                        <option value="ALL">전체 (일시불/할부)</option>
-                        <option value="LUMP_SUM">일시불만</option>
+                        <option value="ALL">전체 구분</option>
+                        <option value="LUMP">일시불만</option>
                         <option value="INSTALLMENT">할부만</option>
                       </select>
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-slate-400 block font-semibold mb-1">고정비 여부</span>
+                      <span className="text-[10px] text-slate-400 block font-semibold mb-1">비용 유형</span>
                       <select
                         value={statementFilterFixed}
-                        onChange={(e) => setStatementFilterFixed(e.target.value)}
+                        onChange={(e) => setStatementFilterFixed(e.target.value as any)}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium focus:outline-hidden"
                       >
-                        <option value="ALL">전체 지출</option>
-                        <option value="FIXED_ONLY">고정비만 (통신/렌탈/구독)</option>
-                        <option value="VARIABLE_ONLY">변동비만</option>
+                        <option value="ALL">전체 비용</option>
+                        <option value="FIXED">고정비만</option>
+                        <option value="VARIABLE">변동비만</option>
                       </select>
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-slate-400 block font-semibold mb-1">가맹점 / 승인번호</span>
+                      <span className="text-[10px] text-slate-400 block font-semibold mb-1">가맹점 / 이용자</span>
                       <input
                         type="text"
                         value={statementSearchKeyword}
@@ -3732,502 +3982,618 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </div>
                   </div>
 
-                  {/* 명세서 지출 라인 테이블 */}
-                  <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800">
-                    <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
-                      <div className="col-span-2">결제일 / 카드사</div>
-                      <div className="col-span-4">가맹점명 및 승인정보</div>
-                      <div className="col-span-2 text-center">할부회차</div>
-                      <div className="col-span-2 text-center">고정비 분류</div>
-                      <div className="col-span-2 text-right">청구금액</div>
-                    </div>
-
-                    {statementIntakeReviews.flatMap((rev) =>
-                      rev.lines.map((line) => (
-                        <div
-                          key={line.id}
-                          onClick={() => {
-                            const matchingTx = currentTransactions.find((t) => t.title.includes(line.merchant)) || {
-                              id: `tx-stmt-${line.id}`,
-                              ledgerId: currentLedger.id,
-                              title: line.merchant,
-                              type: 'EXPENSE',
-                              amount: line.amount,
-                              category: line.isFixedExpense ? (line.fixedExpenseType || '고정비') : '쇼핑/생활',
-                              date: line.date,
-                              payerName: '구본영',
-                              isAssetTransfer: false,
-                              tagNames: line.isFixedExpense ? ['고정비', rev.cardName] : [rev.cardName],
-                              reconciliationStatus: 'CONFIRMED',
-                              statementDiscount: line.discount,
-                              statementCardName: rev.cardName,
-                              expenseRecordId: `atx-${line.approvalNo}`,
-                              proofs: [
-                                {
-                                  id: `proof-${line.id}`,
-                                  type: 'STATEMENT_LINE',
-                                  title: `${rev.cardName} 10월 승인 명세`,
-                                  amount: line.amount,
-                                  date: line.date,
-                                  source: rev.rawFileName,
-                                  cardName: rev.cardName,
-                                  approvalNo: line.approvalNo,
-                                  installmentMonths: line.installment,
-                                  statementDiscount: line.discount,
-                                  paymentDueDate: '2026-10-23',
-                                  details: [`청구할인 -₩${line.discount.toLocaleString()}원 상계 반영`, '단일진실원천(SSOT) 대사 완료'],
-                                },
-                              ],
-                            };
-                            setSelectedTxForProofs(matchingTx as LedgerTransaction);
-                          }}
-                          className="p-3 grid grid-cols-12 gap-2 items-center hover:bg-indigo-50/50 dark:hover:bg-zinc-800/40 text-xs transition-colors cursor-pointer"
-                        >
-                          <div className="col-span-2 space-y-0.5">
-                            <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 block">
-                              {line.date}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block truncate">
-                              {rev.cardName}
-                            </span>
-                          </div>
-
-                          <div className="col-span-4 min-w-0">
-                            <span className="font-bold text-slate-900 dark:text-white block truncate">
-                              {line.merchant}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              승인번호: {line.approvalNo}
-                            </span>
-                          </div>
-
-                          <div className="col-span-2 text-center">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-semibold text-[10.5px]">
-                              {line.installment}
-                            </span>
-                          </div>
-
-                          <div className="col-span-2 text-center">
-                            {line.isFixedExpense ? (
-                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
-                                📌 {line.fixedExpenseType || '고정비'}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[10.5px]">변동 생활비</span>
-                            )}
-                          </div>
-
-                          <div className="col-span-2 text-right">
-                            <span className="font-mono font-black text-rose-600 block">
-                              ₩{line.amount.toLocaleString()}원
-                            </span>
-                            {line.discount > 0 && (
-                              <span className="text-[10px] text-emerald-600 font-bold block">
-                                -₩{line.discount.toLocaleString()} 할인
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ==================================================================== */}
-        {/* 2. [3.1.1 수입 탭 (INCOME)] */}
-        {/* ==================================================================== */}
-        {activeDeckTab === 'INCOME' && (
-          <div className="space-y-6 animate-in fade-in-50">
-            {/* 3.1.1.1 수입내역 (전체 입금·통장 거래내역 통합 원장) */}
-            {incomeSubTab === 'LIST' && (
-              <div className="space-y-6">
-                {/* 3.1.1.1 안내 배너 */}
-                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-950 dark:text-emerald-200 flex items-start gap-2.5">
-                  <div className="p-1 rounded-lg bg-emerald-600 text-white font-bold text-xs shrink-0 mt-0.5">
-                    💰
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-extrabold text-[12px] text-emerald-900 dark:text-emerald-100">
-                      3.1.1.1 수입내역 (통합 원장)
-                    </span>
-                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                      현재 가계부로 입금된 모든 수입(일반 수기등록, 통장 엑셀 일괄반영, 고정수입 자동귀속)의 전역 원장입니다.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 실시간 수입 거래내역 리스트 */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
-                    <div className="space-y-0.5">
+                  {/* 검색결과 타이틀 및 명세서 승인라인 테이블 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-1">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px]">
-                          수입 원장
+                        <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-200">
+                          명세서 세부 내역
                         </span>
-                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                          등록된 수입 거래 목록 ({currentTransactions.filter((t) => t.type === 'INCOME').length}건)
-                        </h4>
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-mono font-bold">
+                          {filteredStatementLines.length}건
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                        단일 귀속 계좌로 확정 입금된 수입 총액: <strong className="text-emerald-600 font-mono">+₩{stats.income.toLocaleString()}원</strong>
-                      </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setManualIncomeModalOpen(true)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>수입 건별 등록</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 수입 거래 리스트 */}
-                  <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
-                    {currentTransactions.filter((t) => t.type === 'INCOME').length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 text-xs">
-                        등록된 수입 내역이 없습니다. [일반수입 등록] 또는 [통장내역 일괄등록]을 실행하세요.
-                      </div>
-                    ) : (
-                      currentTransactions
-                        .filter((t) => t.type === 'INCOME')
-                        .map((tx) => (
+                    <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden text-xs">
+                      {filteredStatementLines.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                          조건에 해당하는 명세서 승인 내역이 없습니다.
+                        </div>
+                      ) : (
+                        filteredStatementLines.map((line) => (
                           <div
-                            key={tx.id}
-                            className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-zinc-800/40 text-xs transition-colors"
+                            key={line.id}
+                            className="p-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors flex flex-wrap items-center justify-between gap-2.5"
                           >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-sm text-slate-900 dark:text-white">
-                                  {tx.title}
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                              <span className="font-mono text-slate-400 text-[11px] whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
+                                {line.date}
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] whitespace-nowrap border border-indigo-100 dark:border-indigo-900">
+                                {line.cardName}
+                              </span>
+                              <strong className="text-slate-800 dark:text-zinc-200 whitespace-nowrap text-xs">
+                                {line.merchant}
+                              </strong>
+                              {line.installment && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                                  {line.installment}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800">
-                                  {tx.category}
+                              )}
+                              {line.isFixedExpense && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold whitespace-nowrap">
+                                  고정비
                                 </span>
-                                {tx.tagNames.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400"
-                                  >
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-                                <span>{tx.date}</span>
-                                <span>•</span>
-                                <span>입금자/출처: {tx.payerName}</span>
-                              </div>
+                              )}
                             </div>
 
-                            <div className="text-right">
-                              <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">
-                                +₩{tx.amount.toLocaleString()}원
+                            <div className="flex items-center gap-2 shrink-0 text-right">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                                ₩{line.amount.toLocaleString()}
                               </span>
-                              <span className="text-[10px] text-slate-400 block">원장 반영 완료</span>
+                              {line.discount > 0 && (
+                                <span className="text-[10px] text-emerald-600 font-bold whitespace-nowrap">
+                                  (-₩{line.discount.toLocaleString()} 할인)
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 2.3.2 통장 거래내역 첨부 및 수입/지출 일괄정리 (미등록 계좌 감지) */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px]">
-                          통장 일괄정리
-                        </span>
-                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                          통장 거래내역 첨부 및 수입·지출 일괄 정리
-                        </h4>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                        여러 은행 통장 엑셀/CSV를 동시에 첨부하고, 수집 기간(당월 또는 기간지정 10.01~10.31) 내 거래를 자동 분류합니다.
-                      </p>
-                    </div>
-
-                    {/* 수집 기간 설정 컨트롤 */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setBankSelectedPeriod('MONTH')}
-                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                            bankSelectedPeriod === 'MONTH'
-                              ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          당월 (10월)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBankSelectedPeriod('CUSTOM')}
-                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                            bankSelectedPeriod === 'CUSTOM'
-                              ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-2xs'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          기간 지정
-                        </button>
-                      </div>
-                      {bankSelectedPeriod === 'CUSTOM' && (
-                        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700">
-                          {bankCustomRange}
-                        </span>
                       )}
                     </div>
                   </div>
-
-                  {/* 미등록 계좌 자동 수집 안내 배너 */}
-                  {detectedAutoAccount && (
-                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>
-                          <strong>신규 미등록 계좌 자동 감지:</strong> {detectedAutoAccount} — 통장 첨부 중 발견되어 사용자설정 계좌관리 시스템에 임시 등록되었습니다.
-                        </span>
-                      </div>
-                      <span className="text-[10.5px] font-bold text-amber-800 dark:text-amber-300 underline cursor-pointer shrink-0">
-                        계좌 별칭 수정 ➔
-                      </span>
-                    </div>
-                  )}
-
-                  {/* 파싱된 통장 거래내역 테이블 */}
-                  <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800">
-                    <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
-                      <div className="col-span-1 text-center">선택</div>
-                      <div className="col-span-2">거래일자 / 은행</div>
-                      <div className="col-span-3">거래 적요 및 내역</div>
-                      <div className="col-span-2 text-right">입금 (+)</div>
-                      <div className="col-span-2 text-right">출금 (-)</div>
-                      <div className="col-span-2 text-center">유추 유형</div>
-                    </div>
-
-                    {bankParsedItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-zinc-800/40 text-xs"
-                      >
-                        <div className="col-span-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={item.selected}
-                            onChange={(e) => {
-                              setBankParsedItems((prev) =>
-                                prev.map((b) => (b.id === item.id ? { ...b, selected: e.target.checked } : b))
-                              );
-                            }}
-                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
-                          />
-                        </div>
-
-                        <div className="col-span-2 space-y-0.5">
-                          <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 block">
-                            {item.date}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block truncate">
-                            {item.bankName}
-                          </span>
-                        </div>
-
-                        <div className="col-span-3 font-medium text-slate-900 dark:text-white truncate">
-                          {item.description}
-                        </div>
-
-                        <div className="col-span-2 text-right font-mono font-bold text-emerald-600">
-                          {item.depositAmount > 0 ? `+₩${item.depositAmount.toLocaleString()}` : '-'}
-                        </div>
-
-                        <div className="col-span-2 text-right font-mono font-bold text-rose-600">
-                          {item.withdrawAmount > 0 ? `-₩${item.withdrawAmount.toLocaleString()}` : '-'}
-                        </div>
-
-                        <div className="col-span-2 text-center">
-                          <select
-                            value={item.inferredType}
-                            onChange={(e) => {
-                              const newType = e.target.value as 'INCOME' | 'EXPENSE' | 'TRANSFER';
-                              setBankParsedItems((prev) =>
-                                prev.map((b) => (b.id === item.id ? { ...b, inferredType: newType } : b))
-                              );
-                            }}
-                            className={`text-[10.5px] font-bold rounded-lg border px-2 py-1 focus:outline-hidden ${
-                              item.inferredType === 'INCOME'
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                                : item.inferredType === 'TRANSFER'
-                                ? 'bg-purple-50 border-purple-300 text-purple-800'
-                                : 'bg-rose-50 border-rose-300 text-rose-800'
-                            }`}
-                          >
-                            <option value="INCOME">💰 수입</option>
-                            <option value="EXPENSE">💳 지출</option>
-                            <option value="TRANSFER">↔️ 자산이동</option>
-                          </select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 일괄 등록 실행 바 */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                    <span className="text-xs text-slate-500">
-                      선택된 {bankParsedItems.filter((b) => b.selected).length}건을 현재 가계부(
-                      <strong className="text-indigo-600">{currentLedger.title}</strong>)의 원장에 일괄 기록합니다.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selected = bankParsedItems.filter((b) => b.selected);
-                        if (selected.length === 0) return;
-                        setNoticeMessage(`✓ 통장 거래내역 ${selected.length}건이 가계부 원장에 일괄 성공적으로 반영되었습니다.`);
-                        setIsDirtyAggregation(true);
-                      }}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>선택 항목 가계부 일괄 반영</span>
-                    </button>
-                  </div>
                 </div>
               </div>
             )}
 
-            {/* 3.1.1.2 고정수입내역 (수입내역의 한 구분정보를 자동등록하면서 알림 공유 및 확인 유도) */}
-            {incomeSubTab === 'FIXED' && (
-              <div className="space-y-6">
-                {/* 3.1.1.2 고정수입내역 안내 배너 */}
-                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
-                  <div className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shrink-0 mt-0.5">
-                    💡
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-extrabold text-[12px] text-amber-900 dark:text-amber-100">
-                      3.1.1.2 고정수입내역 관리 안내
-                    </span>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                      고정수입내역은 <strong>3.1.1.1 수입내역에 포함되는 부분정보</strong>로서, 매월 반복되는 급여·이자·배당금 등의 구분정보를 자동등록하면서 등록내용을 알림으로 공유하고 확인하도록 유도하는 체계입니다.
-                    </p>
-                  </div>
+            {/* 통합 장부작성 툴바: 검색 + [카드보기 | 목록보기] + [+ 새 거래 등록] */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="w-full sm:w-72">
+                <ElmInp04
+                  value={searchWord}
+                  onChange={setSearchWord}
+                  placeholder="가맹점, 입출금자, 태그 검색..."
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* [요구사항 3] 카드보기 / 목록보기 뷰 모드 전환 토글 (가로너비 초과 뭉개짐 방지) */}
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setTxViewMode('CARD')}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      txViewMode === 'CARD'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-2xs font-black'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+                    }`}
+                    title="카드형 그리드 보기 (너비 초과 시 자연스러운 줄바꿈)"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>카드보기</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTxViewMode('LIST')}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      txViewMode === 'LIST'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-2xs font-black'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+                    }`}
+                    title="테이블 목록보기"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>목록보기</span>
+                  </button>
                 </div>
 
-                {/* 고정수입 규칙 관리 카드 영역 */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px]">
-                          3.1.1.2 고정수입
-                        </span>
-                        <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                          고정수입 자동등록 규칙 및 알림 상황 공유 ({fixedIncomeRules.length}건)
-                        </h4>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                        입금 예정일 도래 시 알림으로 상황을 공유하며, 승인 확인 시 3.1.1.1 수입내역 원장으로 즉시 자동 반영됩니다.
-                      </p>
-                    </div>
+                {/* [요구사항 6 & 7] 새 거래 등록 메인 액션 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isLedgerClosed) {
+                      setNoticeMessage('[마감 제한] 정산 및 회계가 마감된 장부에는 신규 거래를 등록할 수 없습니다.');
+                      return;
+                    }
+                    if (!canAddTransaction) {
+                      setNoticeMessage('[권한 제한] 조회 전용(VIEWER) 권한은 거래를 추가할 수 없습니다.');
+                      return;
+                    }
+                    if (txTypeFilter === 'INCOME') {
+                      setNewTxType('INCOME');
+                      setNewTxIsAssetTransfer(false);
+                    } else if (txTypeFilter === 'TRANSFER') {
+                      setNewTxType('TRANSFER');
+                      setNewTxIsAssetTransfer(true);
+                    } else {
+                      setNewTxType('EXPENSE');
+                      setNewTxIsAssetTransfer(false);
+                    }
+                    setOcrScanResult(null);
+                    setNewTxModalOpen(true);
+                  }}
+                  disabled={!canAddTransaction}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${
+                    canAddTransaction
+                      ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 cursor-pointer shadow-indigo-600/20'
+                      : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  {isLedgerClosed ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>마감됨 (입력 잠금)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                      <span>새 거래 등록</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setFixedIncomeModalOpen(true)}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>새 고정수입 규칙 추가</span>
-                    </button>
-                  </div>
+            {/* 통합 필터 바: 거래 유형 퀵 필터 세그먼트 + 동적 카테고리 필터 + 자산이동 분리 옵션 */}
+            <div className="space-y-2.5 border-y border-slate-100 dark:border-zinc-800/80 py-3">
+              {/* 1행: 거래 유형 퀵 필터 세그먼트 칩 */}
+              <div
+                onWheel={(e) => {
+                  if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="flex flex-wrap items-center gap-1.5 sm:gap-2 pb-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => setTxTypeFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                    txTypeFilter === 'ALL'
+                      ? 'bg-indigo-600 text-white shadow-xs font-black'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <span>전체</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    txTypeFilter === 'ALL' ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                  }`}>
+                    {currentTransactions.length}
+                  </span>
+                </button>
 
-                  {/* 등록된 고정수입 규칙 카드 그리드 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {fixedIncomeRules.map((rule) => (
-                      <div
-                        key={rule.id}
-                        className="p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-2.5 shadow-2xs"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                              {rule.name}
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                              {rule.category}
-                            </span>
+                <button
+                  type="button"
+                  onClick={() => setTxTypeFilter('EXPENSE')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                    txTypeFilter === 'EXPENSE'
+                      ? 'bg-pink-600 text-white shadow-xs font-black'
+                      : 'bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 hover:bg-pink-100 dark:hover:bg-pink-950/70 border border-pink-200 dark:border-pink-900/60'
+                  }`}
+                >
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>지출</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    txTypeFilter === 'EXPENSE' ? 'bg-pink-700 text-pink-100' : 'bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300'
+                  }`}>
+                    {currentTransactions.filter((t) => t.type === 'EXPENSE' && !t.isAssetTransfer).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTxTypeFilter('INCOME')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                    txTypeFilter === 'INCOME'
+                      ? 'bg-emerald-600 text-white shadow-xs font-black'
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-900/60'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>수입</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    txTypeFilter === 'INCOME' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300'
+                  }`}>
+                    {currentTransactions.filter((t) => t.type === 'INCOME' && !t.isAssetTransfer).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTxTypeFilter('TRANSFER')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                    txTypeFilter === 'TRANSFER'
+                      ? 'bg-purple-600 text-white shadow-xs font-black'
+                      : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-950/70 border border-purple-200 dark:border-purple-900/60'
+                  }`}
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                  <span>자산이동</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    txTypeFilter === 'TRANSFER' ? 'bg-purple-700 text-purple-100' : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                  }`}>
+                    {currentTransactions.filter((t) => t.isAssetTransfer || t.type === 'TRANSFER').length}
+                  </span>
+                </button>
+              </div>
+
+              {/* 2행: 동적 카테고리 필터 + 자산이동 분리 체크박스 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100/80 dark:border-zinc-800/60">
+                <div
+                  onWheel={(e) => {
+                    if (e.deltaY !== 0) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                  }}
+                  className="flex flex-wrap items-center gap-1.5 py-0.5 max-w-full"
+                >
+                  <ElmFlt01
+                    label="전체 카테고리"
+                    selected={categoryFilter === 'ALL'}
+                    onClick={() => setCategoryFilter('ALL')}
+                  />
+                  {availableCategories.map((cat) => (
+                    <ElmFlt01
+                      key={cat}
+                      label={cat}
+                      selected={categoryFilter === cat}
+                      onClick={() => setCategoryFilter(cat)}
+                    />
+                  ))}
+                </div>
+
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={excludeAssetTransfer}
+                    onChange={(e) => setExcludeAssetTransfer(e.target.checked)}
+                    className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                  />
+                  <span>자산이동 분리 표시 (생활비 왜곡 차단)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* [요구사항 3] 가로너비 초과 뭉개짐 방지: 카드형 그리드 뷰 (CARD) vs 테이블 목록 뷰 (LIST) 분기 */}
+            {txViewMode === 'CARD' ? (
+              filteredTransactions.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs font-medium border border-slate-200 dark:border-zinc-800 rounded-2xl">
+                  조건에 해당하는 거래 내역이 없습니다.
+                </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {filteredTransactions.map((tx) => (
+                        <div
+                          key={tx.id}
+                          onClick={() => setSelectedTxForProofs(tx)}
+                          className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-pink-300 dark:hover:border-pink-700/60 shadow-2xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between gap-3 relative"
+                        >
+                          {/* 카드 상단: 아이콘 + 일자 + 카테고리 뱃지 */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                                  tx.isAssetTransfer
+                                    ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
+                                    : tx.type === 'EXPENSE'
+                                    ? 'bg-pink-100 text-pink-600 dark:bg-pink-950/80 dark:text-pink-300'
+                                    : tx.type === 'INCOME'
+                                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                    : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300'
+                                }`}
+                              >
+                                {tx.isAssetTransfer ? (
+                                  <ArrowRightLeft className="w-4 h-4" />
+                                ) : tx.type === 'EXPENSE' ? (
+                                  <TrendingDown className="w-4 h-4" />
+                                ) : tx.type === 'INCOME' ? (
+                                  <TrendingUp className="w-4 h-4" />
+                                ) : (
+                                  <ArrowRightLeft className="w-4 h-4" />
+                                )}
+                              </div>
+                              <span className="font-mono text-xs text-slate-400">{tx.date}</span>
+                            </div>
+
+                            {tx.category && (
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-[11px] text-slate-700 dark:text-zinc-300 font-bold shrink-0">
+                                {tx.category}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                            매월 {rule.dayOfMonth}일
-                          </span>
-                        </div>
 
-                        <div className="space-y-1">
-                          <span className="text-[10px] text-slate-400 block">정기 입금 예정액</span>
-                          <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 block">
-                            +₩{rule.amount.toLocaleString()}원
-                          </span>
-                        </div>
-
-                        <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-zinc-800/80 text-[11px]">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400">지정 장부:</span>
-                            <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[140px]">
-                              {rule.targetLedgerTitle}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400">입금 계좌:</span>
-                            <span className="font-mono text-slate-700 dark:text-zinc-300 truncate max-w-[140px]">
-                              {rule.account}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-slate-400">자동등록 알림:</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFixedIncomeRules((prev) =>
-                                  prev.map((r) =>
-                                    r.id === rule.id ? { ...r, notifyEnabled: !r.notifyEnabled } : r
-                                  )
-                                );
-                                setNoticeMessage(
-                                  `✓ "${rule.name}" 알림이 ${!rule.notifyEnabled ? '활성화' : '해제'}되었습니다.`
-                                );
-                              }}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                rule.notifyEnabled
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : 'bg-slate-100 text-slate-500 dark:bg-zinc-800'
+                          {/* 카드 중단: 제목 & 금액 */}
+                          <div className="space-y-1">
+                            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white line-clamp-2 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
+                              {tx.title}
+                            </h4>
+                            <div
+                              className={`font-mono font-black text-lg ${
+                                tx.isAssetTransfer
+                                  ? 'text-purple-600 dark:text-purple-400'
+                                  : tx.type === 'EXPENSE'
+                                  ? 'text-pink-600 dark:text-pink-400'
+                                  : tx.type === 'INCOME'
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-indigo-600 dark:text-indigo-400'
                               }`}
                             >
-                              {rule.notifyEnabled ? '🔔 알림 켜짐' : '🔕 알림 꺼짐'}
-                            </button>
+                              {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'}₩{tx.amount.toLocaleString()}
+                            </div>
+                          </div>
+
+                          {/* 결제자 및 명세서 카드 정보 */}
+                          <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-zinc-800/80 pt-2">
+                            <span>결제: <strong className="text-slate-700 dark:text-zinc-200">{tx.payerName}</strong></span>
+                            {tx.statementCardName && (
+                              <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-medium truncate">
+                                {tx.statementCardName}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 뱃지 및 상태 (자산이동, 명세서 대사, 증빙) - 자연스러운 줄바꿈 flex-wrap */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {tx.isAssetTransfer && (
+                              <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                                <ArrowRightLeft className="w-2.5 h-2.5" />
+                                <span>자산이동</span>
+                              </span>
+                            )}
+
+                            {tx.reconciliationStatus === 'CONFIRMED' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <span>대사 확정</span>
+                              </span>
+                            )}
+
+                            {tx.reconciliationStatus === 'PENDING' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>대사 대기</span>
+                              </span>
+                            )}
+
+                            {tx.proofs && tx.proofs.length > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold">
+                                <Layers className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                <span>증빙 {tx.proofs.length}건</span>
+                              </span>
+                            )}
+
+                            {tx.tagNames.map((tag) => (
+                              <span
+                                key={tag}
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                  tag.includes('대납') || tag.includes('정산')
+                                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                    : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                                }`}
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* 카드 하단 링크 */}
+                          <div className="pt-2 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                            <span>상세 및 영수증 확인</span>
+                            <span className="text-pink-600 dark:text-pink-400 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                              <span>거래상세</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
                           </div>
                         </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  /* 지출내역 목록 테이블 (클릭 시 단일 지출 3단 상세조회 모달 연결) */
+                  <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                  {filteredTransactions.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                      조건에 해당하는 지출 내역이 없습니다.
+                    </div>
+                  ) : (
+                    filteredTransactions.map((tx) => (
+                      <div
+                        key={tx.id}
+                        onClick={() => setSelectedTxForProofs(tx)}
+                        className="p-3.5 sm:p-4 hover:bg-indigo-50/40 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4"
+                      >
+                        {/* 상단/좌측: 아이콘 + 제목 + 메타데이터 + 뱃지 (모바일 가로깨짐 방지 및 줄바꿈 지원) */}
+                        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                          {/* 거래 유형 아이콘 */}
+                          <div
+                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0 ${
+                              tx.isAssetTransfer
+                                ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
+                                : tx.type === 'EXPENSE'
+                                ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300'
+                                : tx.type === 'INCOME'
+                                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300'
+                            }`}
+                          >
+                            {tx.isAssetTransfer ? (
+                              <ArrowRightLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                            ) : tx.type === 'EXPENSE' ? (
+                              <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />
+                            ) : tx.type === 'INCOME' ? (
+                              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                            ) : (
+                              <ArrowRightLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                            )}
+                          </div>
+
+                          {/* 텍스트 및 속성 정보 영역 */}
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            {/* [요구사항 4] 1행: 항목명 + 모바일 전용 금액 (모바일에서 넘침 없이 우측 끝 정렬) */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                {tx.title}
+                              </span>
+
+                              {/* 모바일 전용 금액 표시 (sm:hidden) */}
+                              <div className="sm:hidden text-right shrink-0">
+                                <span
+                                  className={`font-mono font-black text-sm block ${
+                                    tx.isAssetTransfer
+                                      ? 'text-purple-600 dark:text-purple-400'
+                                      : tx.type === 'EXPENSE'
+                                      ? 'text-pink-600 dark:text-pink-400'
+                                      : tx.type === 'INCOME'
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-indigo-600 dark:text-indigo-400'
+                                  }`}
+                                >
+                                  {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'}₩
+                                  {tx.amount.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* [요구사항 4] 2행: 속성별 줄바꿈 1 (일자, 결제자, 카테고리/결제수단, 메모) */}
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                              <span className="font-mono text-slate-400">{tx.date}</span>
+                              <span>•</span>
+                              <span>
+                                결제: <strong className="text-slate-700 dark:text-zinc-300 font-semibold">{tx.payerName}</strong>
+                              </span>
+                              {tx.category && (
+                                <>
+                                  <span>•</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-[10px] text-slate-600 dark:text-zinc-300 font-medium">
+                                    {tx.category}
+                                  </span>
+                                </>
+                              )}
+                              {tx.statementCardName && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-600 dark:text-zinc-300 text-[10px]">
+                                    {tx.statementCardName}
+                                  </span>
+                                </>
+                              )}
+                              {tx.note && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-400 dark:text-zinc-400 truncate max-w-[180px] sm:max-w-xs">
+                                    {tx.note}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* [요구사항 4] 3행: 속성별 줄바꿈 2 (대사 상태 뱃지, 증빙 연결, 자산이동, 태그) */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              {tx.isAssetTransfer && (
+                                <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                                  <ArrowRightLeft className="w-2.5 h-2.5" />
+                                  <span>자산이동 (생활비제외)</span>
+                                  {tx.relatedTransferId && (
+                                    <span className="text-[9px] font-mono text-purple-500 dark:text-purple-400">
+                                      · 1:1 페어링
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+
+                              {tx.reconciliationStatus === 'CONFIRMED' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>명세서 대사 확정</span>
+                                  {tx.statementDiscount && tx.statementDiscount > 0 && (
+                                    <span className="text-emerald-700 dark:text-emerald-300 font-extrabold font-mono ml-0.5">
+                                      -₩{tx.statementDiscount.toLocaleString()} 할인
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+
+                              {tx.reconciliationStatus === 'PENDING' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>영수증 선등록 (명세서 대사 대기)</span>
+                                </span>
+                              )}
+
+                              {tx.proofs && tx.proofs.length > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold">
+                                  <Layers className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                  <span>수집방법 {tx.proofs.length}건 연결</span>
+                                </span>
+                              )}
+
+                              {/* 태그 목록 */}
+                              {tx.tagNames.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                    tag.includes('대납') || tag.includes('정산')
+                                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                                  }`}
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* [요구사항 4] 데스크톱 금액 표시 영역: 속성별 줄바꿈 (금액, 카테고리, 상세링크) */}
+                        <div className="hidden sm:flex flex-col items-end justify-center shrink-0 text-right space-y-0.5">
+                          <div
+                            className={`font-mono font-black text-base lg:text-lg ${
+                              tx.isAssetTransfer
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : tx.type === 'EXPENSE'
+                                ? 'text-pink-600 dark:text-pink-400'
+                                : tx.type === 'INCOME'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-indigo-600 dark:text-indigo-400'
+                            }`}
+                          >
+                            {tx.type === 'EXPENSE' ? '-' : tx.type === 'INCOME' ? '+' : '↔'} ₩
+                            {tx.amount.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
+                            <span className="font-semibold text-slate-600 dark:text-zinc-400">{tx.category}</span>
+                            <span>•</span>
+                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline">
+                              지출상세 조회 ➔
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 모바일 전용 상세조회 링크 줄바꿈 */}
+                        <div className="sm:hidden flex items-center justify-between pt-1 border-t border-slate-100 dark:border-zinc-800/60 text-[10px] text-slate-400">
+                          <span>클릭하여 멀티 증빙·카드 대사 확인</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-0.5">
+                            <span>거래상세</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
         {/* ==================================================================== */}
-        {/* 3. [3.2 분석 탭 (ANALYTICS: 3.2.1 현황 & 3.2.2 보고서)] */}
+        {/* 2. [분석 탭 (ANALYTICS: 3.2.1 현황 & 3.2.2 보고서)] */}
         {/* ==================================================================== */}
-        {activeDeckTab === 'ANALYTICS' && (
+        {mainAxisTab === 'ANALYSIS' && (
           <div className="space-y-6 animate-in fade-in-50">
             {/* 3.2.1 현황 분석 (수입/지출 기준 일간집계 & 6대 카드사 골든소스 SSOT 대사) */}
             {analysisSubTab === 'STATUS' && (
@@ -4776,7 +5142,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded-md bg-purple-600 text-white font-bold text-[10px]">
-                        3.2.2 보고서
+                        분석 보고서
                       </span>
                       <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
                         가계부 분석 결과 이력관리 및 온디맨드 재수집 엔진
@@ -4978,7 +5344,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         const proofs = selectedTxForProofs.proofs || [];
         const filteredProofs = proofs.filter((p) => {
           if (detailProofFilter === 'STATEMENT') return p.type === 'STATEMENT_LINE' || p.type === 'SMS_NOTIFICATION';
-          if (detailProofFilter === 'RECEIPT') return p.type === 'RECEIPT_OCR';
+          if (detailProofFilter === 'RECEIPT') return p.type === 'RECEIPT_OCR' || p.type === 'MANUAL' || !p.type;
           return true;
         });
         const activeProof = proofs.find((p) => p.id === selectedProofItemId) || filteredProofs[0] || proofs[0];
@@ -4989,13 +5355,17 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               {/* 모달 윈도우 헤더 */}
               <div className="flex items-start justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
                 <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-200 dark:border-indigo-800">
-                      지출항목 상세정보 조회 · 지출내역
+                  <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[11px] font-black border border-indigo-200 dark:border-indigo-800 whitespace-nowrap shrink-0">
+                      지출항목 상세정보
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      원장 SSOT: {selectedTxForProofs.expenseRecordId || `atx-${selectedTxForProofs.id}`}
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-[11px] font-bold border border-slate-200 dark:border-zinc-700 whitespace-nowrap shrink-0">
+                      {selectedTxForProofs.type === 'INCOME' ? '수입내역' : selectedTxForProofs.type === 'TRANSFER' ? '자산이동내역' : '지출내역'}
                     </span>
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 dark:bg-zinc-800/80 text-[11px] font-mono border border-slate-200 dark:border-zinc-700 whitespace-nowrap shrink-0">
+                      <span className="text-slate-400">원장 SSOT:</span>
+                      <strong className="text-slate-700 dark:text-zinc-200">{selectedTxForProofs.expenseRecordId || `atx-${selectedTxForProofs.id}`}</strong>
+                    </div>
                   </div>
                   <h3 className="font-black text-lg sm:text-xl text-slate-900 dark:text-white">
                     {selectedTxForProofs.title}
@@ -5121,12 +5491,9 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                      수집방법 목록 ({proofs.length}건 접수됨)
+                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white whitespace-nowrap">
+                      수집방법 목록 (접수:{proofs.length}건)
                     </h4>
-                    <span className="text-[11px] text-slate-400">
-                      · 아래 행을 클릭하면 하단에 수집별 세부정보가 표시됩니다
-                    </span>
                   </div>
 
                   {/* 3대 뷰 모드 토글 (전체보기 / 명세보기 / 영수보기) */}
@@ -5209,29 +5576,45 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                               )}
                             </div>
 
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                                  {prf.title}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 shrink-0">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <ElmTip01
+                                  text={prf.title}
+                                  onCopyNotice={setNoticeMessage}
+                                  className="max-w-full"
+                                >
+                                  <span
+                                    className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate max-w-[170px] sm:max-w-[280px] block cursor-pointer hover:text-indigo-600 transition-colors"
+                                    title="길게 누르면 전체보기 및 복사"
+                                  >
+                                    {prf.title}
+                                  </span>
+                                </ElmTip01>
+                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 shrink-0 whitespace-nowrap">
                                   {prf.type === 'STATEMENT_LINE'
                                     ? '명세서수집'
                                     : prf.type === 'RECEIPT_OCR'
-                                    ? '영수증촬영'
+                                    ? '영수보기'
                                     : prf.type === 'SMS_NOTIFICATION'
                                     ? '승인문자'
-                                    : '수기등록'}
+                                    : '영수보기'}
                                 </span>
                                 {isSelected && (
-                                  <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9px] font-black">
+                                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-black shrink-0 whitespace-nowrap">
                                     선택됨
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[11px] text-slate-400 block truncate">
-                                {prf.date} • 출처: {prf.source}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 font-mono text-[10.5px] shrink-0 whitespace-nowrap">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  <span>{prf.date}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10.5px] font-medium shrink-0 whitespace-nowrap">
+                                  <Tag className="w-2.5 h-2.5 text-indigo-500" />
+                                  <span>출처: {prf.source}</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
 
@@ -5255,16 +5638,32 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               {/* ────────────────────────────────────────────────────────── */}
               {activeProof && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-zinc-800/80 border border-indigo-200 dark:border-indigo-900/60 space-y-4 animate-in fade-in-50">
-                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-700/60 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-xs sm:text-sm text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                        <CheckSquare className="w-4 h-4 text-indigo-600" />
-                        <span>선택된 수집 상세 정보: {activeProof.title}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 dark:border-zinc-700/60 pb-3">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-600 text-white text-xs font-black shadow-2xs shrink-0 whitespace-nowrap">
+                        <CheckSquare className="w-3.5 h-3.5" />
+                        <span>선택 수집 상세</span>
+                      </span>
+                      <ElmTip01
+                        text={activeProof.title}
+                        onCopyNotice={setNoticeMessage}
+                        className="max-w-full"
+                      >
+                        <span
+                          className="font-extrabold text-xs sm:text-sm text-indigo-950 dark:text-indigo-100 truncate max-w-[200px] sm:max-w-[320px] block cursor-pointer hover:underline"
+                          title="길게 누르면 전체보기 및 복사"
+                        >
+                          {activeProof.title}
+                        </span>
+                      </ElmTip01>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-mono font-bold whitespace-nowrap">
+                        <Tag className="w-3 h-3 text-slate-400" />
+                        <span>수집출처: {activeProof.source}</span>
                       </span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-slate-500">
-                      수집출처: {activeProof.source}
-                    </span>
                   </div>
 
                   {/* 1) 명세서 수집 항목인 경우 세부 속성 */}
@@ -5303,9 +5702,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                         </div>
                         <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 space-y-1">
                           <span className="text-[10.5px] text-slate-400 block">결제 출금계좌</span>
-                          <span className="font-mono text-slate-700 dark:text-zinc-300">
-                            {activeProof.paymentAccount || '우리은행 (1002-***-918231)'}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <span className="font-bold text-slate-800 dark:text-zinc-200 whitespace-nowrap">우리은행</span>
+                            <span className="font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] whitespace-nowrap">(1002-***-918231)</span>
+                          </div>
                         </div>
                       </div>
 
@@ -5856,61 +6256,450 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       {newTxModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-5 sm:p-6 space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            {/* 모달 헤더: 타이틀 & 가계부 귀속 정보 */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-indigo-600" />
-                <span>새 거래 내역 등록</span>
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">
-                귀속: {currentLedger.title}
-              </span>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    newTxType === 'EXPENSE'
+                      ? 'bg-pink-100 text-pink-600 dark:bg-pink-950/80 dark:text-pink-300'
+                      : newTxType === 'INCOME'
+                      ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300'
+                      : 'bg-purple-100 text-purple-600 dark:bg-purple-950/80 dark:text-purple-300'
+                  }`}
+                >
+                  {newTxType === 'EXPENSE' ? (
+                    <TrendingDown className="w-4 h-4" />
+                  ) : newTxType === 'INCOME' ? (
+                    <TrendingUp className="w-4 h-4" />
+                  ) : (
+                    <ArrowRightLeft className="w-4 h-4" />
+                  )}
+                </div>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>거래 등록</span>
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                      newTxType === 'TRANSFER' || newTxIsAssetTransfer
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                        : newTxType === 'INCOME'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : 'bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300'
+                    }`}
+                  >
+                    {newTxType === 'TRANSFER' || newTxIsAssetTransfer
+                      ? '자산이동'
+                      : newTxType === 'INCOME'
+                      ? '수입'
+                      : '지출'}
+                  </span>
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold">
+                  {currentLedger.title}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewTxModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleCreateTransaction} className="space-y-3.5">
-              <ElmInp01
-                label="거래 항목명"
-                value={newTxTitle}
-                onChange={setNewTxTitle}
-                placeholder="예: 주말 이마트 장보기"
-              />
+            {/* [요구사항 4] 3단 탭 (지출, 수입, 이동) - 기본값 및 필터 연동, 자유로운 재선택 완벽 지원 */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-zinc-800 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTxType('EXPENSE');
+                  setNewTxIsAssetTransfer(false);
+                }}
+                className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  newTxType === 'EXPENSE' && !newTxIsAssetTransfer
+                    ? 'bg-white dark:bg-zinc-900 text-pink-600 dark:text-pink-400 shadow-2xs font-black'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <TrendingDown className="w-3.5 h-3.5" />
+                <span>지출 (-)</span>
+              </button>
 
-              <div className="grid grid-cols-2 gap-3">
-                <ElmInp01
-                  label="금액 (원)"
-                  value={newTxAmount}
-                  onChange={setNewTxAmount}
-                  placeholder="예: 50000"
-                />
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTxType('INCOME');
+                  setNewTxIsAssetTransfer(false);
+                }}
+                className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  newTxType === 'INCOME' && !newTxIsAssetTransfer
+                    ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs font-black'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>수입 (+)</span>
+              </button>
 
-                <ElmSel01
-                  label="거래 유형"
-                  value={newTxType}
-                  onChange={(v) => {
-                    setNewTxType(v as any);
-                    if (v === 'TRANSFER') {
-                      setNewTxIsAssetTransfer(true);
-                    }
-                  }}
-                  options={[
-                    { value: 'EXPENSE', label: '지출 (-)' },
-                    { value: 'INCOME', label: '수입 (+)' },
-                    { value: 'TRANSFER', label: '자산이동 (↔)' },
-                  ]}
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTxType('TRANSFER');
+                  setNewTxIsAssetTransfer(true);
+                }}
+                className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  newTxType === 'TRANSFER' || newTxIsAssetTransfer
+                    ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-black'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>자산이동 (↔)</span>
+              </button>
+            </div>
 
-              <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-1">
-                <ElmChk01
-                  checked={newTxIsAssetTransfer}
-                  onChange={setNewTxIsAssetTransfer}
-                  label="자산이동으로 분류 (생활비 통계 집계 제외)"
-                />
-                <p className="text-[10px] text-purple-700 dark:text-purple-300 pl-6">
-                  계좌 간 자금 이동이나 자녀 용돈 이체는 순수 생활비 지출 통계에서 자동으로 분리됩니다.
-                </p>
-              </div>
+            <form onSubmit={handleCreateTransaction} className="space-y-3.5 pt-1">
+              {/* ========================================================== */}
+              {/* [도메인 폼 1]: 지출 전용 입력 양식 (상단 영수증 OCR 자동인식 및 매핑) */}
+              {/* ========================================================== */}
+              {newTxType === 'EXPENSE' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  {/* [요구사항 7] 영수증 촬영/OCR 첨부 영역 (상단 배치 & 자동 매핑) */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/60 to-slate-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-zinc-900 border border-emerald-200 dark:border-emerald-800/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                          <Receipt className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-extrabold text-xs text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5">
+                            <span>영수증 사진 촬영 / OCR 파일 첨부</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-bold">
+                              자동 입력
+                            </span>
+                          </span>
+                          <p className="text-[10.5px] text-emerald-800/80 dark:text-emerald-300">
+                            영수증을 첨부하면 상호명, 결제금액, 카테고리가 입력란에 자동으로 매핑됩니다.
+                          </p>
+                        </div>
+                      </div>
+                      {expenseAttachProof && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpenseAttachProof(false);
+                            setOcrScanResult(null);
+                          }}
+                          className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          첨부 취소
+                        </button>
+                      )}
+                    </div>
 
+                    {/* OCR 스캔 상태 또는 업로드 컨트롤 */}
+                    {ocrScanning ? (
+                      <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-emerald-300 dark:border-emerald-700 flex items-center gap-3">
+                        <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
+                        <div className="text-xs">
+                          <span className="font-bold text-emerald-900 dark:text-emerald-100 block">
+                            EasyOCR 영수증 광학 인식 및 항목 파싱 중...
+                          </span>
+                          <span className="text-[10.5px] text-slate-500 dark:text-zinc-400">
+                            가맹점 상호, 결제금액, 세액을 추출하여 아래 입력 양식에 매핑하고 있습니다.
+                          </span>
+                        </div>
+                      </div>
+                    ) : ocrScanResult ? (
+                      <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-emerald-300 dark:border-emerald-700 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                            <span>✓ {ocrScanResult.merchant}</span>
+                            <span className="font-mono text-slate-900 dark:text-white font-extrabold">
+                              ({ocrScanResult.amountStr})
+                            </span>
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold">
+                            자동 매핑 완료
+                          </span>
+                        </div>
+                        <div className="text-[10.5px] text-slate-500 dark:text-zinc-400 flex items-center justify-between">
+                          <span>{ocrScanResult.fileName} ({ocrScanResult.category})</span>
+                          <span>{ocrScanResult.cardName} 결제</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* 파일 선택 버튼 & 샘플 버튼 */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold cursor-pointer shadow-2xs transition-all">
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>영수증 촬영 / 파일 첨부</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                handleSimulateOcrUpload(file?.name || 'receipt_camera_photo.jpg');
+                              }}
+                            />
+                          </label>
+                          <span className="text-[11px] text-slate-400">또는 샘플 원클릭 인식:</span>
+                        </div>
+
+                        {/* 샘플 영수증 원클릭 프리셋 버튼들 (슬라이드 드래그 휠 적용) */}
+                        <div
+                          onWheel={(e) => {
+                            if (e.deltaY !== 0) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.currentTarget.scrollLeft += e.deltaY;
+                            }
+                          }}
+                          className="flex flex-wrap items-center gap-1.5 pb-0.5"
+                        >
+                          {SAMPLE_RECEIPTS.map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => handleApplyOcrSample(s)}
+                              className="shrink-0 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-slate-700 dark:text-zinc-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title={`${s.merchant} 영수증 자동 인식 시뮬레이션`}
+                            >
+                              <span>{s.icon}</span>
+                              <span>{s.merchant}</span>
+                              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold">
+                                {s.amountStr}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <ElmInp01
+                    label="지출 항목명"
+                    value={newTxTitle}
+                    onChange={setNewTxTitle}
+                    placeholder="예: 주말 이마트 식료품 장보기"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <ElmInp01
+                      label="결제 금액 (원)"
+                      value={newTxAmount}
+                      onChange={setNewTxAmount}
+                      placeholder="예: 58000"
+                    />
+
+                    <ElmSel01
+                      label="결제 수단"
+                      value={expensePayMethod}
+                      onChange={(v) => setExpensePayMethod(v as any)}
+                      options={[
+                        { value: '신용카드', label: '💳 신용카드' },
+                        { value: '체크카드', label: '💳 체크카드' },
+                        { value: '계좌이체', label: '🏦 계좌이체' },
+                        { value: '현금', label: '💵 현금' },
+                        { value: '페이결제', label: '📱 간편결제(네이버/카카오)' },
+                      ]}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <ElmSel01
+                      label="카드사 / 금융기관"
+                      value={expenseCard}
+                      onChange={setExpenseCard}
+                      options={[
+                        { value: '우리카드', label: '우리카드' },
+                        { value: '현대카드', label: '현대카드' },
+                        { value: 'KB국민카드', label: 'KB국민카드' },
+                        { value: '신한카드', label: '신한카드' },
+                        { value: '삼성카드', label: '삼성카드' },
+                        { value: 'NH농협카드', label: 'NH농협카드' },
+                        { value: '기타/직접입력', label: '기타' },
+                      ]}
+                    />
+
+                    <ElmSel01
+                      label="할부 구분"
+                      value={expenseInstallment}
+                      onChange={setExpenseInstallment}
+                      options={[
+                        { value: '일시불', label: '일시불' },
+                        { value: '2개월', label: '2개월 무이자' },
+                        { value: '3개월', label: '3개월 분납' },
+                        { value: '6개월', label: '6개월' },
+                        { value: '12개월', label: '12개월' },
+                      ]}
+                    />
+                  </div>
+
+                  <ElmSel01
+                    label="지출 카테고리"
+                    value={expenseCategory}
+                    onChange={setExpenseCategory}
+                    options={[
+                      { value: '식음료/외식', label: '☕ 외식/식음료' },
+                      { value: '식료품/마트', label: '🛒 식료품/마트' },
+                      { value: '주거/통신', label: '🏠 주거/관리비/통신' },
+                      { value: '교통/차량', label: '🚗 교통/유류비' },
+                      { value: '의료/건강', label: '💊 의료/약국' },
+                      { value: '쇼핑/생활', label: '🛍️ 쇼핑/생활용품' },
+                      { value: '문화/취미', label: '🎬 문화/취미' },
+                    ]}
+                  />
+
+                  {/* 영수증/증빙 첨부 시뮬레이션 */}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/80 space-y-1.5">
+                    <ElmChk01
+                      checked={expenseAttachProof}
+                      onChange={setExpenseAttachProof}
+                      label="영수증 결제 증빙 첨부 (멀티 증빙 체인 자동 생성)"
+                    />
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 pl-6">
+                      체크 시 단일 지출 3단 뷰어에 수기/영수증 증빙이 체이닝되어 명세서 대사를 지원합니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================== */}
+              {/* [도메인 폼 2]: 수입 전용 입력 양식 (출처/입금계좌/고정수입) */}
+              {/* ========================================================== */}
+              {newTxType === 'INCOME' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <ElmInp01
+                    label="수입 항목명"
+                    value={newTxTitle}
+                    onChange={setNewTxTitle}
+                    placeholder="예: 10월 정기 급여 입금"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <ElmInp01
+                      label="입금 금액 (원)"
+                      value={newTxAmount}
+                      onChange={setNewTxAmount}
+                      placeholder="예: 4200000"
+                    />
+
+                    <ElmSel01
+                      label="수입 분류"
+                      value={incomeSource}
+                      onChange={setIncomeSource}
+                      options={[
+                        { value: '급여/상여', label: '💼 급여 / 상여금' },
+                        { value: '용돈/지원금', label: '🎁 용돈 / 회비입금' },
+                        { value: '사업/부업', label: '📈 사업 / 프리랜서' },
+                        { value: '금융이자', label: '🏦 이자 / 배당 소득' },
+                        { value: '중고거래/기타', label: '📦 당근 / 중고판매' },
+                      ]}
+                    />
+                  </div>
+
+                  <ElmSel01
+                    label="입금 계좌 / 자산"
+                    value={incomeAccount}
+                    onChange={setIncomeAccount}
+                    options={[
+                      { value: '국민 주거래 급여통장', label: 'KB국민 주거래 급여통장' },
+                      { value: '신한 생활비통장', label: '신한 생활비 전용통장' },
+                      { value: '카카오 비상금통장', label: '카카오뱅크 세이프박스' },
+                      { value: '현금 보유', label: '현금 보유' },
+                    ]}
+                  />
+
+                  {/* 정기 고정수입 동시 연동 옵션 */}
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-1.5">
+                    <ElmChk01
+                      checked={incomeIsFixedRule}
+                      onChange={setIncomeIsFixedRule}
+                      label="매월 정기 고정수입으로 규칙 동시 등록"
+                    />
+                    <p className="text-[10px] text-emerald-800 dark:text-emerald-300 pl-6">
+                      체크 시 고정수입내역에 자동 등록되어 매월 입금 예정 알림과 자동 귀속이 활성화됩니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================== */}
+              {/* [도메인 폼 3]: 자산이동 전용 입력 양식 (From/To/사유/1:1페어링) */}
+              {/* ========================================================== */}
+              {newTxType === 'TRANSFER' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <ElmInp01
+                    label="이동 적요 / 제목"
+                    value={newTxTitle}
+                    onChange={setNewTxTitle}
+                    placeholder="예: 가족 모임 통장으로 10월 생활비 이체"
+                  />
+
+                  <ElmInp01
+                    label="이체 금액 (원)"
+                    value={newTxAmount}
+                    onChange={setNewTxAmount}
+                    placeholder="예: 500000"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <ElmSel01
+                      label="출금처 (From)"
+                      value={transferFrom}
+                      onChange={setTransferFrom}
+                      options={[
+                        { value: '개인 가계부 (국민 주거래)', label: '개인 가계부 (국민)' },
+                        { value: '신한 생활비통장', label: '신한 생활비통장' },
+                        { value: '모아머니 잔액', label: '모아머니 잔액' },
+                      ]}
+                    />
+
+                    <ElmSel01
+                      label="입금처 (To)"
+                      value={transferTo}
+                      onChange={setTransferTo}
+                      options={[
+                        { value: '가족 모임 가계부 (신한)', label: '가족 모임 가계부' },
+                        { value: '자녀 용돈 통장', label: '자녀 용돈 통장' },
+                        { value: '청약 저축 계좌', label: '주택청약 저축' },
+                        { value: '모아머니 잔액', label: '모아머니 충전' },
+                      ]}
+                    />
+                  </div>
+
+                  <ElmSel01
+                    label="이동 사유 / 목적"
+                    value={transferReason}
+                    onChange={setTransferReason}
+                    options={[
+                      { value: '가족 생활비 분담', label: '가족 생활비 분담' },
+                      { value: '모임 정산 대납 상계', label: '모임 정산 대납 상계' },
+                      { value: '목돈 저축/투자', label: '목돈 저축 / 투자금 이동' },
+                      { value: '자녀 용돈 지급', label: '자녀 용돈 지급' },
+                    ]}
+                  />
+
+                  {/* 모아보고 금전관리 원칙 안내 배너 */}
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-[11px] text-purple-900 dark:text-purple-300 space-y-1">
+                    <div className="font-extrabold flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-purple-600" />
+                      <span>모아보고 금전관리 3대 원칙 자동 적용</span>
+                    </div>
+                    <p className="text-[10px] text-purple-700 dark:text-purple-300 leading-relaxed">
+                      자산이동(TRANSFER)은 순수 생활비 지출/수입 집계에서 제외되며, 1:1 자기참조 페어링(`related_transfer_id`)으로 등록되어 양쪽 장부 간 이중계상을 원천 차단합니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 공통 태그 입력 */}
               <ElmInp01
                 label="태그 입력 (쉼표로 구분)"
                 value={newTxTags}
@@ -5918,19 +6707,30 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 placeholder="예: 대납, 정산요청, 가족외식"
               />
 
-              <div className="pt-2 flex justify-end gap-2">
+              {/* 하단 액션 버튼 */}
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setNewTxModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl cursor-pointer"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer"
+                  className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all ${
+                    newTxType === 'EXPENSE'
+                      ? 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20'
+                      : newTxType === 'INCOME'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
                 >
-                  거래 기록하기
+                  {newTxType === 'EXPENSE'
+                    ? '지출 기록하기'
+                    : newTxType === 'INCOME'
+                    ? '수입 기록하기'
+                    : '자산이동 기록하기'}
                 </button>
               </div>
             </form>
@@ -5938,6 +6738,846 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         </div>
       )}
 
+      {/* ==================================================================== */}
+      {/* 8-2. 고정수입 관리 & 자동 입금 규칙 전용 독립 팝업 모달 */}
+      {/* ==================================================================== */}
+      {fixedIncomeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-5 sm:p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            {/* 모달 헤더 */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="whitespace-nowrap">고정수입 및 정기 입금 규칙</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-mono font-bold shrink-0">
+                      {fixedIncomeRules.length}건
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                    매월 지정된 일자에 자동으로 수입을 등록하거나 정기 입금 알림을 생성합니다.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                {!isRuleFormOpen && (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddRule}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs cursor-pointer transition-all whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>새 규칙 추가</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFixedIncomeModalOpen(false);
+                    setIsRuleFormOpen(false);
+                    setEditingRuleId(null);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 규칙 추가/수정 폼 (열렸을 때 상단에 표시) */}
+            {isRuleFormOpen && (
+              <form
+                onSubmit={handleSaveRule}
+                className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-3.5 animate-in fade-in"
+              >
+                <div className="flex items-center justify-between border-b border-emerald-200/80 dark:border-emerald-800/80 pb-2">
+                  <span className="font-extrabold text-xs text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5">
+                    <span>{editingRuleId ? '✏️ 고정수입 규칙 수정' : '➕ 새 고정수입 규칙 등록'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRuleFormOpen(false);
+                      setEditingRuleId(null);
+                    }}
+                    className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 cursor-pointer"
+                  >
+                    닫기
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ElmInp01
+                    label="규칙 명칭 / 항목명"
+                    value={ruleFormName}
+                    onChange={setRuleFormName}
+                    placeholder="예: 회사 월급, 부동산 월세, 부모님 용돈"
+                  />
+
+                  <ElmInp01
+                    label="정기 입금액 (원)"
+                    value={ruleFormAmount}
+                    onChange={setRuleFormAmount}
+                    placeholder="예: 3500000"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-1">
+                      매월 입금일 (1~31일)
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-slate-500 font-bold">매월</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={ruleFormDay}
+                        onChange={(e) => setRuleFormDay(e.target.value)}
+                        className="w-20 p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono font-bold text-center"
+                      />
+                      <span className="text-xs text-slate-500 font-bold">일</span>
+                    </div>
+                  </div>
+
+                  <ElmSel01
+                    label="수입 분류"
+                    value={ruleFormCategory}
+                    onChange={(val) => setRuleFormCategory(val as any)}
+                    options={[
+                      { value: '급여', label: '💼 급여' },
+                      { value: '배당금', label: '📈 배당금' },
+                      { value: '이자', label: '🏦 이자' },
+                      { value: '임대료', label: '🏠 임대료' },
+                      { value: '기타', label: '🎁 기타 정기수입' },
+                    ]}
+                  />
+
+                  <ElmInp01
+                    label="입금 계좌 / 자산"
+                    value={ruleFormAccount}
+                    onChange={setRuleFormAccount}
+                    placeholder="예: 국민 주거래 통장"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-zinc-300 cursor-pointer shrink-0 select-none">
+                    <input
+                      type="checkbox"
+                      checked={ruleFormNotify}
+                      onChange={(e) => setRuleFormNotify(e.target.checked)}
+                      className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span className="whitespace-nowrap">정기 입금 당일 자동 알림 생성</span>
+                  </label>
+
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRuleFormOpen(false);
+                        setEditingRuleId(null);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200/60 dark:hover:bg-zinc-800 cursor-pointer transition-colors whitespace-nowrap"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold cursor-pointer shadow-xs transition-all whitespace-nowrap"
+                    >
+                      {editingRuleId ? '수정 완료' : '규칙 저장하기'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* 등록된 규칙 목록 카드 그리드 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-700 dark:text-zinc-300">
+                  등록된 정기 고정수입 목록
+                </span>
+              </div>
+
+              {fixedIncomeRules.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 space-y-3">
+                  <p className="text-xs text-slate-400 font-medium">등록된 고정수입 규칙이 없습니다.</p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddRule}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>첫 고정수입 규칙 등록하기</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {fixedIncomeRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/80 space-y-3 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-zinc-700 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                            {rule.name}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                            {rule.category}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                          매월 {rule.dayOfMonth}일
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] text-slate-400 block">정기 입금 예정액</span>
+                        <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+                          +₩{rule.amount.toLocaleString()}원
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200/80 dark:border-zinc-700 text-[11px]">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <span className="text-slate-400 shrink-0 font-medium">지정 장부:</span>
+                          <ElmTip01
+                            text={rule.targetLedgerTitle}
+                            onCopyNotice={setNoticeMessage}
+                            className="max-w-full"
+                          >
+                            <span
+                              className="font-bold text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-100 dark:border-indigo-900/60 break-all select-all hover:ring-1 hover:ring-indigo-300 transition-all cursor-pointer text-[11px]"
+                              title="길게 누르면 전체보기 및 복사"
+                            >
+                              {rule.targetLedgerTitle}
+                            </span>
+                          </ElmTip01>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <span className="text-slate-400 shrink-0 font-medium">입금 계좌:</span>
+                          <ElmTip01
+                            text={rule.account}
+                            onCopyNotice={setNoticeMessage}
+                            className="max-w-full"
+                          >
+                            <span
+                              className="font-mono text-slate-800 dark:text-zinc-100 font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 break-all select-all hover:ring-1 hover:ring-slate-400 transition-all cursor-pointer text-[11px]"
+                              title="길게 누르면 전체보기 및 복사"
+                            >
+                              {rule.account}
+                            </span>
+                          </ElmTip01>
+                        </div>
+                      </div>
+
+                      {/* 하단 제어 액션: 알림 토글 + 수정 + 삭제 */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 dark:border-zinc-700 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFixedIncomeRules((prev) =>
+                              prev.map((r) =>
+                                r.id === rule.id ? { ...r, notifyEnabled: !r.notifyEnabled } : r
+                              )
+                            );
+                            setNoticeMessage(
+                              `✓ "${rule.name}" 알림이 ${!rule.notifyEnabled ? '활성화' : '해제'}되었습니다.`
+                            );
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-colors ${
+                            rule.notifyEnabled
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-slate-200 text-slate-500 dark:bg-zinc-700'
+                          }`}
+                        >
+                          {rule.notifyEnabled ? '🔔 알림 켜짐' : '🔕 알림 꺼짐'}
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditRule(rule)}
+                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 text-[11px] font-bold cursor-pointer transition-colors"
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRule(rule.id, rule.name)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-300 hover:bg-rose-100 text-[11px] font-bold cursor-pointer transition-colors"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 하단 닫기 */}
+            <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setFixedIncomeModalOpen(false);
+                  setIsRuleFormOpen(false);
+                  setEditingRuleId(null);
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ==================================================================== */}
+      {/* 8-3. 카드 이용대금 명세서 등록정보 편집 및 보정 모달 */}
+      {/* ==================================================================== */}
+      {statementEditModalOpen && activeEditingStatement && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-5 sm:p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>카드 이용대금 명세서 등록정보 편집 및 보정</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    OCR 파싱 결과와 청구 메타데이터를 직접 수정하고 승인 라인을 보정합니다.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatementEditModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 메타데이터 기본 입력 폼 */}
+            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/60 space-y-3.5">
+              <span className="font-extrabold text-xs text-indigo-950 dark:text-indigo-100 block">
+                📋 명세서 청구 기본 정보
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-300 mb-1">
+                    카드사 및 카드명
+                  </label>
+                  <input
+                    type="text"
+                    value={activeEditingStatement.cardName}
+                    onChange={(e) =>
+                      setActiveEditingStatement({ ...activeEditingStatement, cardName: e.target.value })
+                    }
+                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold focus:outline-hidden text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-300 mb-1">
+                    청구 기준월 (YYYY-MM)
+                  </label>
+                  <input
+                    type="text"
+                    value={activeEditingStatement.statementMonth}
+                    onChange={(e) =>
+                      setActiveEditingStatement({ ...activeEditingStatement, statementMonth: e.target.value })
+                    }
+                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono focus:outline-hidden text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-300 mb-1">
+                    월 총 결제금액 (원)
+                  </label>
+                  <input
+                    type="number"
+                    value={activeEditingStatement.totalBilled}
+                    onChange={(e) =>
+                      setActiveEditingStatement({
+                        ...activeEditingStatement,
+                        totalBilled: parseInt(e.target.value || '0', 10),
+                      })
+                    }
+                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono font-bold text-indigo-600 focus:outline-hidden text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-indigo-100 dark:border-indigo-900/60 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-slate-500">
+                    건수 요약: 총 <strong>{activeEditingStatement.txCount}건</strong> (일시불 {activeEditingStatement.lumpSumCount} / 할부 {activeEditingStatement.installmentCount})
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono truncate max-w-[200px]">
+                    파일: {activeEditingStatement.rawFileName}
+                  </span>
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-xs text-slate-700 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={!activeEditingStatement.needsReview}
+                    onChange={(e) =>
+                      setActiveEditingStatement({ ...activeEditingStatement, needsReview: !e.target.checked })
+                    }
+                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                  />
+                  <span>OCR 검토 완료 처리</span>
+                </label>
+              </div>
+            </div>
+
+            {/* 승인 라인 목록 편집 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-200">
+                    명세서 승인 라인 목록 ({activeEditingStatement.lines.length}건)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddStatementLine}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold hover:bg-indigo-100 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>새 승인 라인 추가</span>
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl p-2 bg-slate-50/50 dark:bg-zinc-800/30">
+                {activeEditingStatement.lines.map((line, idx) => (
+                  <div key={line.id} className="pt-2 pb-1 space-y-1.5 first:pt-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[200px]">
+                        <input
+                          type="text"
+                          value={line.date}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const newLines = [...activeEditingStatement.lines];
+                            newLines[idx] = { ...line, date: val };
+                            setActiveEditingStatement({ ...activeEditingStatement, lines: newLines });
+                          }}
+                          className="w-24 p-1 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[11px] font-mono"
+                          placeholder="YYYY-MM-DD"
+                        />
+                        <input
+                          type="text"
+                          value={line.merchant}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const newLines = [...activeEditingStatement.lines];
+                            newLines[idx] = { ...line, merchant: val };
+                            setActiveEditingStatement({ ...activeEditingStatement, lines: newLines });
+                          }}
+                          className="flex-1 min-w-[100px] p-1 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-bold"
+                          placeholder="가맹점명"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="number"
+                          value={line.amount}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value || '0', 10);
+                            const newLines = [...activeEditingStatement.lines];
+                            newLines[idx] = { ...line, amount: val };
+                            const diff = val - line.amount;
+                            setActiveEditingStatement({
+                              ...activeEditingStatement,
+                              lines: newLines,
+                              totalBilled: activeEditingStatement.totalBilled + diff,
+                            });
+                          }}
+                          className="w-24 p-1 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono font-bold text-right"
+                          placeholder="금액"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStatementLine(line.id)}
+                          className="p-1 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer"
+                          title="라인 삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="text-slate-400">구분:</span>
+                      <input
+                        type="text"
+                        value={line.installment}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newLines = [...activeEditingStatement.lines];
+                          newLines[idx] = { ...line, installment: val };
+                          setActiveEditingStatement({ ...activeEditingStatement, lines: newLines });
+                        }}
+                        className="w-28 p-0.5 px-1.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[10.5px]"
+                        placeholder="일시불 / 할부회차"
+                      />
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-600 dark:text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={line.isFixedExpense || false}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const newLines = [...activeEditingStatement.lines];
+                            newLines[idx] = { ...line, isFixedExpense: checked };
+                            setActiveEditingStatement({ ...activeEditingStatement, lines: newLines });
+                          }}
+                          className="rounded text-indigo-600 w-3.5 h-3.5"
+                        />
+                        <span>고정비 지정</span>
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setStatementEditModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedStatement}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold cursor-pointer shadow-xs transition-all"
+              >
+                보정 완료 저장하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 8-4. 통장 거래내역 일괄등록 및 대사 관리 팝업 모달 */}
+      {/* ==================================================================== */}
+      {bankImportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-3xl rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-5 sm:p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>통장 거래내역 일괄등록 및 대사 관리</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    엑셀/CSV 파일 첨부 또는 은행 연동 내역을 검토하고 가계부 원장(SSOT)에 일괄 등록합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 안내설명 레이어 팝업 (?) 아이콘 */}
+              <div className="flex items-center gap-2">
+                <div className="relative inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowBankImportGuide((prev) => !prev)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
+                    title="통장 거래내역 일괄등록 안내"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
+                  {showBankImportGuide && (
+                    <>
+                      <div className="fixed inset-0 z-40 bg-black/20 sm:hidden" onClick={() => setShowBankImportGuide(false)} />
+                      <div className="fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-1.5 z-50 w-auto sm:w-84 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-2xl text-xs text-slate-600 dark:text-zinc-300 space-y-2 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800 font-extrabold text-slate-900 dark:text-white">
+                          <span className="text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>통장내역 일괄등록 안내</span>
+                          </span>
+                          <button type="button" onClick={() => setShowBankImportGuide(false)} className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] leading-relaxed">
+                          은행별 엑셀 다운로드 파일 또는 오픈뱅킹 계좌 내역을 분석하여, 입금(수입), 출금(지출), 계좌간 송금(자산이동)을 자동으로 추론합니다. 체크박스로 원하는 내역만 골라 한 번에 장부에 등록할 수 있습니다.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBankImportModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 상단 툴바 및 필터 */}
+            <div className="p-3.5 rounded-2xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/60 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSimulateBankUpload}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold shadow-xs cursor-pointer transition-all whitespace-nowrap"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>📁 엑셀 파일 첨부 시뮬레이션</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNoticeMessage('✓ 최신 계좌 거래내역을 성공적으로 동기화하였습니다.');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>내역 새로고침</span>
+                  </button>
+                </div>
+
+                {detectedAutoAccount && (
+                  <div className="flex items-center gap-1.5 text-xs text-sky-800 dark:text-sky-300 font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-200/70 dark:bg-sky-900 font-bold">감지</span>
+                    <span>{detectedAutoAccount}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap font-semibold">구분 필터:</span>
+                  <div className="flex items-center bg-white dark:bg-zinc-900 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setBankTypeFilter('ALL')}
+                      className={`flex-1 py-1 rounded-lg font-bold text-center transition-colors cursor-pointer ${
+                        bankTypeFilter === 'ALL'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                      }`}
+                    >
+                      전체
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankTypeFilter('INCOME')}
+                      className={`flex-1 py-1 rounded-lg font-bold text-center transition-colors cursor-pointer ${
+                        bankTypeFilter === 'INCOME'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                      }`}
+                    >
+                      수입(입금)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankTypeFilter('EXPENSE')}
+                      className={`flex-1 py-1 rounded-lg font-bold text-center transition-colors cursor-pointer ${
+                        bankTypeFilter === 'EXPENSE'
+                          ? 'bg-pink-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                      }`}
+                    >
+                      지출(출금)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankTypeFilter('TRANSFER')}
+                      className={`flex-1 py-1 rounded-lg font-bold text-center transition-colors cursor-pointer ${
+                        bankTypeFilter === 'TRANSFER'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                      }`}
+                    >
+                      자산이동
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={bankSearchKeyword}
+                    onChange={(e) => setBankSearchKeyword(e.target.value)}
+                    placeholder="적요, 은행명 검색..."
+                    className="w-full p-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs focus:outline-hidden"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 통계 요약 뱃지 바 */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-slate-800 dark:text-zinc-200">
+                  파싱된 통장 거래내역
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-mono font-bold text-[10px]">
+                  선택 {bankParsedItems.filter((i) => i.selected).length} / {bankParsedItems.length}건
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                <span className="text-emerald-600 font-bold">
+                  +₩{bankParsedItems
+                    .filter((i) => i.selected && i.inferredType === 'INCOME')
+                    .reduce((s, i) => s + i.depositAmount, 0)
+                    .toLocaleString()}원
+                </span>
+                <span className="text-pink-600 font-bold">
+                  -₩{bankParsedItems
+                    .filter((i) => i.selected && i.inferredType === 'EXPENSE')
+                    .reduce((s, i) => s + i.withdrawAmount, 0)
+                    .toLocaleString()}원
+                </span>
+              </div>
+            </div>
+
+            {/* 거래내역 목록 테이블 */}
+            <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800 text-xs max-h-72 overflow-y-auto">
+              <div className="p-2.5 bg-slate-100 dark:bg-zinc-800/80 flex items-center justify-between font-bold text-slate-600 dark:text-zinc-300 text-[11px]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bankParsedItems.length > 0 && bankParsedItems.every((i) => i.selected)}
+                    onChange={(e) => handleToggleSelectAllBankItems(e.target.checked)}
+                    className="rounded text-sky-600 w-4 h-4 cursor-pointer"
+                  />
+                  <span>전체 선택</span>
+                </label>
+                <span>거래적요 / 금액 / 분류</span>
+              </div>
+
+              {filteredBankItems.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                  조건에 맞는 통장 거래내역이 없습니다.
+                </div>
+              ) : (
+                filteredBankItems.map((item) => {
+                  const isIncome = item.inferredType === 'INCOME';
+                  const isTransfer = item.inferredType === 'TRANSFER';
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 flex flex-wrap items-center justify-between gap-2.5 transition-colors ${
+                        item.selected ? 'bg-sky-50/40 dark:bg-sky-950/20' : 'hover:bg-slate-50 dark:hover:bg-zinc-800/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 flex-1 min-w-[220px]">
+                        <input
+                          type="checkbox"
+                          checked={item.selected}
+                          onChange={() => handleToggleBankItemSelect(item.id)}
+                          className="rounded text-sky-600 w-4 h-4 cursor-pointer shrink-0"
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-slate-400 text-[11px] whitespace-nowrap">{item.date}</span>
+                            <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 font-bold text-[10px] whitespace-nowrap">
+                              {item.bankName}
+                            </span>
+                            <strong className="text-slate-800 dark:text-zinc-200 text-xs truncate">
+                              {item.description}
+                            </strong>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            계좌: {item.accountNoMasked}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {/* 금액 표시 */}
+                        <div className="text-right min-w-[90px]">
+                          {isIncome ? (
+                            <span className="font-mono font-bold text-emerald-600 text-xs whitespace-nowrap">
+                              +₩{item.depositAmount.toLocaleString()}원
+                            </span>
+                          ) : isTransfer ? (
+                            <span className="font-mono font-bold text-purple-600 text-xs whitespace-nowrap">
+                              ↔₩{item.withdrawAmount.toLocaleString()}원
+                            </span>
+                          ) : (
+                            <span className="font-mono font-bold text-pink-600 text-xs whitespace-nowrap">
+                              -₩{item.withdrawAmount.toLocaleString()}원
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 유형 전환 토글 */}
+                        <select
+                          value={item.inferredType}
+                          onChange={(e) =>
+                            handleChangeBankItemType(item.id, e.target.value as any)
+                          }
+                          className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[11px] font-bold focus:outline-hidden"
+                        >
+                          <option value="EXPENSE">지출 (출금)</option>
+                          <option value="INCOME">수입 (입금)</option>
+                          <option value="TRANSFER">자산이동</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-zinc-800">
+              <span className="text-[11px] text-slate-400">
+                선택된 거래내역은 가계부 원장(SSOT)에 대사 확정 건으로 기록됩니다.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBankImportModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl cursor-pointer"
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchImportBankTransactions}
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold cursor-pointer shadow-xs transition-all flex items-center gap-1.5"
+                >
+                  <span>선택 내역 원장에 일괄 등록 ({bankParsedItems.filter((i) => i.selected).length}건)</span>
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ==================================================================== */}
       {/* 9. 새 장부 개설 모달 (회계 프로세스 & 디자인 설정) */}
       {/* ==================================================================== */}
@@ -6046,6 +7686,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   balance: newLedgerSubType === 'POCKET_MONEY' ? cap : initBal,
                   currency: 'KRW',
                   designStyle: newLedgerDesignStyle,
+                  customCoverColor: newLedgerCustomColor,
                   colorTheme: themeMap[newLedgerDesignStyle],
                   membersCount: 1,
                   createdAt: new Date().toISOString().slice(0, 10),
@@ -6139,6 +7780,64 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 />
               </div>
 
+              {/* [요구사항 1] 북커버 시그니처 색상 지정 및 실시간 미리보기 */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-zinc-800/60 border border-stone-200 dark:border-zinc-700/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-stone-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Palette className="w-4 h-4 text-indigo-500" />
+                    <span>북커버 색상 지정 (커버 스타일과 연동)</span>
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-4 h-4 rounded-full border border-black/20 shadow-2xs"
+                      style={{ backgroundColor: newLedgerCustomColor }}
+                    />
+                    <span className="font-mono text-[11px] font-bold text-stone-600 dark:text-zinc-400">
+                      {newLedgerCustomColor.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 색상 프리셋 칩 */}
+                <div className="flex flex-wrap gap-1.5">
+                  {COVER_COLOR_PRESETS.map((p) => {
+                    const isSelected = newLedgerCustomColor === p.color;
+                    return (
+                      <button
+                        key={p.color}
+                        type="button"
+                        onClick={() => setNewLedgerCustomColor(p.color)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition-all ${
+                          isSelected
+                            ? 'ring-2 ring-indigo-500 border-indigo-500 bg-white dark:bg-zinc-900 shadow-2xs font-black'
+                            : 'border-stone-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-stone-700 dark:text-zinc-300 hover:bg-stone-100'
+                        }`}
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full border border-black/10 shrink-0"
+                          style={{ backgroundColor: p.color }}
+                        />
+                        <span>{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 직접 색상 선택기 */}
+                <div className="flex items-center gap-2 pt-1 border-t border-stone-200/60 dark:border-zinc-700/60">
+                  <input
+                    type="color"
+                    value={newLedgerCustomColor}
+                    onChange={(e) => setNewLedgerCustomColor(e.target.value)}
+                    className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent"
+                    title="색상 직접 선택"
+                  />
+                  <span className="text-[10.5px] text-stone-500 dark:text-zinc-400">
+                    직접 색상을 클릭하여 사용자 지정 Hex 코드를 선택할 수 있습니다.
+                  </span>
+                </div>
+              </div>
+
               {/* 용돈기입장 전용 설정 */}
               {newLedgerSubType === 'POCKET_MONEY' && (
                 <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-3">
@@ -6194,9 +7893,146 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer"
+                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all"
                 >
                   새 장부 책꽂이에 꽂기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 10. [요구사항 1] 북커버 및 색상 변경 모달 (기존 장부 커버 수정 기능) */}
+      {/* ==================================================================== */}
+      {editCoverModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                  북커버 디자인 및 색상 변경
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditCoverModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 실시간 북커버 미니 프리뷰 */}
+            <div className="p-4 rounded-2xl bg-stone-100 dark:bg-zinc-800/80 border border-stone-200 dark:border-zinc-700 flex flex-col items-center justify-center gap-2">
+              <span className="text-[11px] font-bold text-stone-500 dark:text-zinc-400">
+                실시간 북커버 미리보기
+              </span>
+              <div
+                className="w-52 h-14 rounded-xl shadow-md border-2 flex items-center justify-between px-3 text-white font-extrabold text-xs transition-all"
+                style={{
+                  backgroundColor: editCoverColor,
+                  borderColor: adjustBrightness(editCoverColor, -25),
+                  boxShadow: `0 4px 14px ${editCoverColor}40`,
+                }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Book className="w-4 h-4 shrink-0 text-white" />
+                  <span className="truncate">{editCoverTitle || '장부 타이틀'}</span>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 shrink-0">
+                  {editCoverDesignStyle}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveEditCover} className="space-y-4 text-xs">
+              <ElmInp01
+                label="장부 타이틀"
+                value={editCoverTitle}
+                onChange={setEditCoverTitle}
+                placeholder="장부 이름을 입력하세요"
+              />
+
+              <ElmSel01
+                label="북커버 질감 및 디자인 스타일"
+                value={editCoverDesignStyle}
+                onChange={(v) => setEditCoverDesignStyle(v as any)}
+                options={[
+                  { value: 'LEATHER', label: '🌿 에메랄드 가죽 질감' },
+                  { value: 'HARDCOVER', label: '📘 클래식 하드커버 양장' },
+                  { value: 'KRAFT', label: '📙 따뜻한 크라프트지' },
+                  { value: 'FABRIC', label: '🔮 바이올렛 패브릭' },
+                  { value: 'SLATE', label: '⚙️ 슬레이트 차콜 바인더' },
+                  { value: 'VINTAGE_BURGUNDY', label: '🍷 빈티지 버건디 양장' },
+                ]}
+              />
+
+              {/* 색상 선택 영역: 프리셋 칩 + 컬러 피커 */}
+              <div className="space-y-2">
+                <label className="font-bold text-stone-700 dark:text-zinc-300 block">
+                  북커버 시그니처 색상 지정
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {COVER_COLOR_PRESETS.map((p) => {
+                    const isSelected = editCoverColor === p.color;
+                    return (
+                      <button
+                        key={p.color}
+                        type="button"
+                        onClick={() => setEditCoverColor(p.color)}
+                        className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-bold cursor-pointer transition-all ${
+                          isSelected
+                            ? 'ring-2 ring-indigo-500 border-indigo-500 bg-white dark:bg-zinc-800 shadow-xs font-black scale-102'
+                            : 'border-stone-200 dark:border-zinc-700 bg-stone-50 dark:bg-zinc-800/60 text-stone-700 dark:text-zinc-300 hover:bg-stone-100'
+                        }`}
+                        title={p.name}
+                      >
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0"
+                          style={{ backgroundColor: p.color }}
+                        />
+                        <span>{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 직접 색상 선택 (Color Picker) */}
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex items-center gap-2 p-1.5 rounded-xl border border-stone-200 dark:border-zinc-700 bg-stone-50 dark:bg-zinc-800">
+                    <input
+                      type="color"
+                      value={editCoverColor}
+                      onChange={(e) => setEditCoverColor(e.target.value)}
+                      className="w-7 h-7 rounded-lg border-0 cursor-pointer p-0 bg-transparent"
+                      title="원하는 색상 직접 선택"
+                    />
+                    <span className="font-mono text-xs font-bold text-stone-600 dark:text-zinc-300">
+                      {editCoverColor.toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-stone-400">
+                    * 팔레트 또는 컬러 피커로 원하는 색상을 지정할 수 있습니다.
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setEditCoverModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  북커버 저장하기
                 </button>
               </div>
             </form>
