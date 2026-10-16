@@ -9,6 +9,7 @@ import {
   ElmBsh01,
   ElmChk01,
   ElmTip01,
+  ElmSld03,
 } from '../elements/Tokens';
 import {
   Wallet,
@@ -143,6 +144,8 @@ export interface ExpenseProofItem {
   date: string;
   source: string;
   thumbnailUrl?: string;
+  receiptImageUrl?: string;
+  merchant?: string;
   details?: string[];
   isArchived?: boolean; // 30일 경과 tarball 압축 아카이브 여부 (운영비 0원)
   // [태스크 0009 신규] 수집 방법별 확장 상세 속성
@@ -933,7 +936,52 @@ export const OCTOBER_CARD_STATEMENTS: CardStatementSummary[] = [
   },
 ];
 
+/**
+ * [태스크 0011-01 / 이벤트 전파 차단] 브라우저 기본 스크롤 전파 차단 및 수평 휠 변환 훅
+ * 브라우저의 기본 Passive Event Listener 메커니즘을 해결하기 위해 DOM 레벨에서 직접
+ * { passive: false } 로 리스너를 바인딩하여 e.preventDefault()와 e.stopPropagation()을
+ * 100% 무조건 보장하고, 윈도우/배경이 덜컹거리며 수직 스크롤되는 현상을 원천 방어합니다.
+ */
+function useNonPassiveHorizontalScroll<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // 휠 이벤트가 수직(deltaY) 또는 수평(deltaX)으로 발생했을 때
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (delta !== 0) {
+        // 배경(Window / Document / Main Container)으로의 스크롤 전파 및 브라우저 기본 수직 스크롤 100% 차단
+        e.preventDefault();
+        e.stopPropagation();
+        el.scrollLeft += delta;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.stopPropagation();
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, []);
+
+  return ref;
+}
+
 export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> = ({ onBack }) => {
+  // [슬라이드드래그휠 전파 차단 3대 Ref]
+  const bookshelfFilterBarRef = useNonPassiveHorizontalScroll<HTMLDivElement>(); // CSS Selector 1
+  const mainAxisSwitchBarRef = useNonPassiveHorizontalScroll<HTMLDivElement>();  // CSS Selector 2
+  const secondaryToolsBarRef = useNonPassiveHorizontalScroll<HTMLDivElement>();  // CSS Selector 3
+
   // --------------------------------------------------------------------------
   // 1. 가로 형태의 쌓여있는 가계부 책꽂이 데이터셋 (각 책마다 고유 디자인 적용)
   // --------------------------------------------------------------------------
@@ -1926,10 +1974,66 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [selectedTxForProofs, setSelectedTxForProofs] = useState<LedgerTransaction | null>(null);
   const [detailProofFilter, setDetailProofFilter] = useState<'ALL' | 'STATEMENT' | 'RECEIPT'>('ALL');
   const [selectedProofItemId, setSelectedProofItemId] = useState<string | null>(null);
-  const [decompressSimulating, setDecompressSimulating] = useState(false);
-  const [decompressSuccessMsg, setDecompressSuccessMsg] = useState<string | null>(null);
-  const [streamPurgePolicy, setStreamPurgePolicy] = useState<'INSTANT' | '1_DAY' | '30_DAYS'>('INSTANT');
+  const [selectedProofImageModal, setSelectedProofImageModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    imageUrl: string;
+    merchant?: string;
+    amount?: number;
+  } | null>(null);
+  const [downloadingOriginal, setDownloadingOriginal] = useState(false);
   const [expandedCardCode, setExpandedCardCode] = useState<string | null>('WOORI');
+
+  // [설계정책 반영] 원본 이미지 온디맨드 해제 및 브라우저 다운로드 핸들러
+  const handleDownloadOriginalProof = (title: string, merchant?: string) => {
+    setDownloadingOriginal(true);
+    setNoticeMessage(`"${title}" 원본 이미지를 압축 아카이브에서 안전하게 해제하여 다운로드합니다...`);
+    setTimeout(() => {
+      setDownloadingOriginal(false);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1000;
+        canvas.height = 1400;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(0, 0, 1000, 1400);
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(20, 20, 960, 1360);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 32px sans-serif';
+          ctx.fillText('모아보고 전자증빙 공증 원본', 50, 100);
+          ctx.font = '18px sans-serif';
+          ctx.fillStyle = '#475569';
+          ctx.fillText(`증빙 항목: ${title}`, 50, 150);
+          ctx.fillText(`가맹점: ${merchant || '스타벅스 강남점'}`, 50, 185);
+          ctx.fillText(`추출 일시: ${new Date().toLocaleString()}`, 50, 220);
+          ctx.fillText('보안 규약: SSOT 타임스탬프 단일 진실원천 검증 완료', 50, 255);
+
+          // 영수증 데코레이션 선
+          ctx.beginPath();
+          ctx.setLineDash([8, 6]);
+          ctx.moveTo(50, 290);
+          ctx.lineTo(950, 290);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.stroke();
+
+          ctx.font = '22px monospace';
+          ctx.fillStyle = '#0284c7';
+          ctx.fillText('[ORIGINAL RECEIPT PROOF ARCHIVE]', 50, 340);
+        }
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = `moabogo_proof_${title.replace(/[\s\/]/g, '_')}.png`;
+        a.click();
+      } catch (err) {
+        console.error('Download error:', err);
+      }
+      setNoticeMessage(`✓ "${title}" 고해상도 원본 이미지가 성공적으로 다운로드되었습니다.`);
+    }, 600);
+  };
 
   // [시나리오 2.1.1 & 2.1.2] 카드명세서 등록/OCR검토/인라인보정/조건조회 상태
   const [statementIntakeReviews, setStatementIntakeReviews] = useState<CardStatementIntakeReview[]>([
@@ -2037,6 +2141,15 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   const [fixedIncomeModalOpen, setFixedIncomeModalOpen] = useState(false);
   const [bankImportModalOpen, setBankImportModalOpen] = useState(false);
   const [manualIncomeModalOpen, setManualIncomeModalOpen] = useState(false);
+
+  // 등록 계좌 풀 및 미등록 계좌 감지 상태
+  const [registeredBankAccounts, setRegisteredBankAccounts] = useState<string[]>([
+    '토스뱅크 1000-82-918231 (생활비 통장)',
+    '우리은행 1002-***-918231 (주거래 계좌)',
+  ]);
+  const [unregisteredAccounts, setUnregisteredAccounts] = useState<
+    Array<{ bankName: string; accountNo: string; count: number }>
+  >([]);
 
   // 통장 거래내역 파싱 샘플 (미등록 계좌 감지 지원)
   const [bankParsedItems, setBankParsedItems] = useState<BankStatementImportItem[]>([
@@ -2612,21 +2725,170 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     );
   };
 
+  // [태스크 0011-01] 엑셀 통장 거래내역 파싱 시뮬레이션 (중복 제거 & 미등록 계좌 감지)
   const handleSimulateBankUpload = () => {
-    const newItem: BankStatementImportItem = {
-      id: `bp-${Date.now()}`,
-      date: new Date().toISOString().slice(0, 10),
-      bankName: '국민은행',
-      accountNoMasked: '928102-01-***921',
-      description: '급여 / 보너스 입금',
-      depositAmount: 3200000,
-      withdrawAmount: 0,
-      inferredType: 'INCOME',
-      targetCategory: '급여',
-      selected: true,
-    };
-    setBankParsedItems((prev) => [newItem, ...prev]);
-    setNoticeMessage('✓ 엑셀 통장 거래내역 1건이 성공적으로 파싱되어 목록에 추가되었습니다.');
+    // 엑셀에서 추출된 샘플 내역 (신한은행, 국민은행, 카카오뱅크 및 중복 후보 포함)
+    const rawBatch: BankStatementImportItem[] = [
+      {
+        id: `bp-sim-1`,
+        date: '2026-10-15',
+        bankName: '국민은행',
+        accountNoMasked: '928102-01-***921',
+        description: '외주 프로젝트 1차 정산금 입금',
+        depositAmount: 1800000,
+        withdrawAmount: 0,
+        inferredType: 'INCOME',
+        targetCategory: '부수입',
+        selected: true,
+      },
+      {
+        id: `bp-sim-2`,
+        date: '2026-10-16',
+        bankName: '국민은행',
+        accountNoMasked: '928102-01-***921',
+        description: '서버 호스팅 클라우드 비용 출금',
+        depositAmount: 0,
+        withdrawAmount: 55000,
+        inferredType: 'EXPENSE',
+        targetCategory: '통신/IT',
+        selected: true,
+      },
+      {
+        id: `bp-sim-3`,
+        date: '2026-10-16',
+        bankName: '카카오뱅크',
+        accountNoMasked: '3333-01-***821',
+        description: 'CMA 비상금 적립 (계좌이체)',
+        depositAmount: 0,
+        withdrawAmount: 300000,
+        inferredType: 'TRANSFER',
+        targetCategory: '자산이동',
+        selected: true,
+      },
+      {
+        id: `bp-sim-4`,
+        date: '2026-10-10',
+        bankName: '토스뱅크',
+        accountNoMasked: '1000-82-918231',
+        description: '중고거래 당근 정산 입금', // 기존 bp-4와 동일한 중복 데이터 테스트용
+        depositAmount: 35000,
+        withdrawAmount: 0,
+        inferredType: 'INCOME',
+        targetCategory: '부수입',
+        selected: true,
+      },
+    ];
+
+    setBankParsedItems((prev) => {
+      // 1. 중복 데이터 단일화 (Deduplication): 일자 + 적요 + 금액 + 계좌번호 기준 1건으로 통합
+      const existingKeySet = new Set(
+        prev.map(
+          (item) =>
+            `${item.date}_${item.description.trim()}_${item.depositAmount}_${item.withdrawAmount}_${item.accountNoMasked}`
+        )
+      );
+
+      const uniqueNewItems: BankStatementImportItem[] = [];
+      let duplicateCount = 0;
+
+      rawBatch.forEach((candidate, idx) => {
+        const key = `${candidate.date}_${candidate.description.trim()}_${candidate.depositAmount}_${candidate.withdrawAmount}_${candidate.accountNoMasked}`;
+        if (!existingKeySet.has(key)) {
+          existingKeySet.add(key);
+          uniqueNewItems.push({
+            ...candidate,
+            id: `bp-sim-${Date.now()}-${idx}`,
+          });
+        } else {
+          duplicateCount += 1;
+        }
+      });
+
+      // 2. 미등록 계좌 자동 감지 (Auto-Discovery)
+      const allActiveAccounts = [
+        ...prev.map((i) => ({ bankName: i.bankName, accountNo: i.accountNoMasked })),
+        ...uniqueNewItems.map((i) => ({ bankName: i.bankName, accountNo: i.accountNoMasked })),
+      ];
+
+      const unregisteredMap = new Map<string, { bankName: string; accountNo: string; count: number }>();
+      allActiveAccounts.forEach((acc) => {
+        const isRegistered = registeredBankAccounts.some(
+          (reg) => reg.includes(acc.accountNo) || (reg.includes(acc.bankName) && reg.includes(acc.accountNo.slice(0, 4)))
+        );
+        if (!isRegistered) {
+          const key = `${acc.bankName}_${acc.accountNo}`;
+          const current = unregisteredMap.get(key) || { bankName: acc.bankName, accountNo: acc.accountNo, count: 0 };
+          current.count += 1;
+          unregisteredMap.set(key, current);
+        }
+      });
+
+      setUnregisteredAccounts(Array.from(unregisteredMap.values()));
+
+      if (duplicateCount > 0) {
+        setNoticeMessage(
+          `✓ 엑셀 파싱 완료: 중복 내역 ${duplicateCount}건은 단일 통합되었으며, 신규 ${uniqueNewItems.length}건이 반영되었습니다.`
+        );
+      } else {
+        setNoticeMessage(
+          `✓ 엑셀 통장 거래내역 ${uniqueNewItems.length}건이 성공적으로 파싱되어 목록에 추가되었습니다.`
+        );
+      }
+
+      return [...uniqueNewItems, ...prev];
+    });
+  };
+
+  // [태스크 0011-01] 미등록 계좌를 가계부 신규 보조 계좌로 즉시 등록
+  const handleRegisterNewAccount = (bankName: string, accountNo: string) => {
+    const newAccountLabel = `${bankName} ${accountNo} (등록 보조계좌)`;
+    setRegisteredBankAccounts((prev) => [...prev, newAccountLabel]);
+    setUnregisteredAccounts((prev) => prev.filter((a) => a.accountNo !== accountNo));
+    setNoticeMessage(`✓ [${newAccountLabel}]가 현재 가계부의 신규 보조 계좌로 정식 등록되었습니다.`);
+  };
+
+  // [태스크 0011-01] 미등록 계좌 내역을 대표 계좌로 귀속 매핑
+  const handleMapToPrimaryAccount = (oldAccountNo: string) => {
+    const primaryAccount = registeredBankAccounts[0] || '토스뱅크 1000-82-918231 (생활비 통장)';
+    setBankParsedItems((prev) =>
+      prev.map((item) =>
+        item.accountNoMasked === oldAccountNo
+          ? {
+              ...item,
+              accountNoMasked: '1000-82-918231',
+              bankName: '토스뱅크',
+              description: `[대리귀속] ${item.description}`,
+            }
+          : item
+      )
+    );
+    setUnregisteredAccounts((prev) => prev.filter((a) => a.accountNo !== oldAccountNo));
+    setNoticeMessage(`✓ 해당 계좌의 거래내역이 가계부 대표 계좌 [${primaryAccount}]로 귀속 매핑되었습니다.`);
+  };
+
+  // [태스크 0011-01] 파싱 항목 인라인/OCR 보정 핸들러
+  const handleUpdateBankItem = (
+    id: string,
+    field: 'description' | 'targetCategory' | 'inferredType',
+    value: string
+  ) => {
+    setBankParsedItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (field === 'description') return { ...item, description: value };
+        if (field === 'targetCategory') return { ...item, targetCategory: value };
+        if (field === 'inferredType') {
+          const newType = value as 'INCOME' | 'EXPENSE' | 'TRANSFER';
+          return {
+            ...item,
+            inferredType: newType,
+            targetCategory:
+              newType === 'INCOME' ? '기타수입' : newType === 'TRANSFER' ? '자산이동' : '기타지출',
+          };
+        }
+        return item;
+      })
+    );
   };
 
   const handleBatchImportBankTransactions = () => {
@@ -2682,13 +2944,13 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-3 sm:p-6 lg:p-8 landscape:p-3 space-y-5 sm:space-y-6 landscape:space-y-4 bg-slate-50 dark:bg-zinc-950 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 landscape:p-3 space-y-4 sm:space-y-5 landscape:space-y-3 bg-slate-50 dark:bg-zinc-950 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* ==================================================================== */}
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
-      <div className="relative py-2 sm:py-6 landscape:py-1 px-1 sm:px-4">
+      <div className="relative pt-1 pb-2 sm:pt-1 sm:pb-3 landscape:py-1 px-1 sm:px-4">
         {/* 상단 장부책장 반응형 헤더 (모바일: 1행 타이틀·새장부·건수·열기·방향 한줄 집약, 2행 필터 배치 / 데스크톱: 3단 헤더) */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pb-3 mb-2 border-b border-stone-200 dark:border-stone-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-2.5 pb-2 mb-1.5 border-b border-stone-200 dark:border-stone-800">
           {/* 모바일 상단 1행 / 데스크톱 좌측: 타이틀 및 컨트롤러 */}
           <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
             {/* 타이틀 */}
@@ -2767,108 +3029,105 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </div>
           </div>
 
-          {/* [요구사항 2] 2단: 장부구분(개인, 장기, 단기) 필터 (모바일: 맨 아래 2행 배치 / 데스크톱: 가운데 정렬, 슬라이드 드래그휠 지원) */}
-          <div
-            onWheel={(e) => {
-              if (e.deltaY !== 0) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.scrollLeft += e.deltaY;
-              }
-            }}
-            className="w-full sm:w-auto sm:flex-1 flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] touch-pan-x"
-          >
-            {/* 전체 뱃지 */}
-            <button
-              type="button"
-              onClick={handleToggleAll}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                isAllSelected
-                  ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 ring-2 ring-stone-900/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700'
-              }`}
-              title="모든 장부 유형 선택/해제"
+          {/* [요구사항 2] 2단: 장부구분(개인, 장기, 단기) 필터 (ElmSld03 공통 슬라이드드래그휠 전파차단 토큰 적용) */}
+          <div className="w-full sm:w-auto sm:flex-1 flex items-center justify-start sm:justify-center">
+            <ElmSld03
+              showNavButtons={false}
+              className="w-full"
+              innerClassName="items-center justify-start sm:justify-center gap-1.5 py-0.5"
             >
-              <span>전체</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+              {/* 전체 뱃지 */}
+              <button
+                type="button"
+                onClick={handleToggleAll}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
                   isAllSelected
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400'
+                    ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 ring-2 ring-stone-900/30 shadow-xs font-black'
+                    : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700'
                 }`}
+                title="모든 장부 유형 선택/해제"
               >
-                {countByType.ALL}
-              </span>
-            </button>
+                <span>전체</span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    isAllSelected
+                      ? 'bg-white/20 text-white'
+                      : 'bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400'
+                  }`}
+                >
+                  {countByType.ALL}
+                </span>
+              </button>
 
-            {/* 개인 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('PERSONAL')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.PERSONAL
-                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="개인 가계부 노출/숨김 토글"
-            >
-              <span>개인</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+              {/* 개인 뱃지 */}
+              <button
+                type="button"
+                onClick={() => handleToggleType('PERSONAL')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
                   selectedTypes.PERSONAL
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                    ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/30 shadow-xs font-black'
+                    : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
+                title="개인 가계부 노출/숨김 토글"
               >
-                {countByType.PERSONAL}
-              </span>
-            </button>
+                <span>개인</span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedTypes.PERSONAL
+                      ? 'bg-white/20 text-white'
+                      : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                  }`}
+                >
+                  {countByType.PERSONAL}
+                </span>
+              </button>
 
-            {/* 장기 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('GROUP')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.GROUP
-                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="장기 모임 가계부 노출/숨김 토글"
-            >
-              <span>장기</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+              {/* 장기 뱃지 */}
+              <button
+                type="button"
+                onClick={() => handleToggleType('GROUP')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
                   selectedTypes.GROUP
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-600/30 shadow-xs font-black'
+                    : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
+                title="장기 모임 가계부 노출/숨김 토글"
               >
-                {countByType.GROUP}
-              </span>
-            </button>
+                <span>장기</span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedTypes.GROUP
+                      ? 'bg-white/20 text-white'
+                      : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                  }`}
+                >
+                  {countByType.GROUP}
+                </span>
+              </button>
 
-            {/* 단기 뱃지 */}
-            <button
-              type="button"
-              onClick={() => handleToggleType('INSTANCE')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
-                selectedTypes.INSTANCE
-                  ? 'bg-amber-600 text-white ring-2 ring-amber-600/30 shadow-xs font-black'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
-              }`}
-              title="단기 모임 가계부 노출/숨김 토글"
-            >
-              <span>단기</span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+              {/* 단기 뱃지 */}
+              <button
+                type="button"
+                onClick={() => handleToggleType('INSTANCE')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border select-none ${
                   selectedTypes.INSTANCE
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                    ? 'bg-amber-600 text-white ring-2 ring-amber-600/30 shadow-xs font-black'
+                    : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
+                title="단기 모임 가계부 노출/숨김 토글"
               >
-                {countByType.INSTANCE}
-              </span>
-            </button>
+                <span>단기</span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedTypes.INSTANCE
+                      ? 'bg-white/20 text-white'
+                      : 'bg-stone-200/80 dark:bg-stone-700/80 text-stone-400 dark:text-stone-500'
+                  }`}
+                >
+                  {countByType.INSTANCE}
+                </span>
+              </button>
+            </ElmSld03>
           </div>
 
           {/* 데스크톱 전용(hidden sm:flex) 3단 우측 제어 컨트롤러: [+ 새 장부] [건수] [책장 닫기/열기] [▲▼] */}
@@ -3051,7 +3310,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       {/* 3. 선택된 가계부의 회계 속성 바 (단장기, 성격, 마감 상태 & 권한) */}
       {/* ==================================================================== */}
-      <div className="p-4 sm:p-4.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+      <div className="p-4 sm:p-4.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 shadow-2xs">
         {/* 좌측: 현재 선택된 장부 명칭 & 결산 주기 & 회계 분류 뱃지 */}
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -3109,8 +3368,8 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
           </p>
         </div>
 
-        {/* 우측: 내 권한 시뮬레이터 & 마감 재오픈 토글 & 참여자 관리 버튼 */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+        {/* 우측: 내 권한 시뮬레이터 & 마감 재오픈 토글 & 참여자 관리 버튼 & 커버색상 (태블릿/모바일 줄바꿈 허용) */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
           {/* 마감 재오픈 토글 버튼 (방장 권한) */}
           {currentLedger.allowReopen && canManageMembers && (
             <button
@@ -3137,46 +3396,49 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </button>
           )}
 
-          {/* 내 권한 시뮬레이터 */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs text-xs">
-            <span className="text-slate-400 font-medium text-[11px]">내 권한:</span>
-            <select
-              value={currentUserRole}
-              onChange={(e) => {
-                setCurrentUserRole(e.target.value as LedgerRole);
-                setNoticeMessage(`내 권한이 [${e.target.value}] 역할로 전환되었습니다.`);
-              }}
-              className="bg-transparent font-extrabold text-indigo-600 dark:text-indigo-400 text-xs focus:outline-hidden cursor-pointer"
-              title="현재 가계부의 권한 전환 시뮬레이션"
+          {/* [우선순위 그룹] 내 권한(소유자) & 사용자관리 묶음 (줄바꿈 시 소유자·사용자관리 동일선 유지 우선) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* 내 권한 시뮬레이터 */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs text-xs">
+              <span className="text-slate-400 font-medium text-[11px]">내 권한:</span>
+              <select
+                value={currentUserRole}
+                onChange={(e) => {
+                  setCurrentUserRole(e.target.value as LedgerRole);
+                  setNoticeMessage(`내 권한이 [${e.target.value}] 역할로 전환되었습니다.`);
+                }}
+                className="bg-transparent font-extrabold text-indigo-600 dark:text-indigo-400 text-xs focus:outline-hidden cursor-pointer"
+                title="현재 가계부의 권한 전환 시뮬레이션"
+              >
+                <option value="OWNER">👑 소유자 (OWNER)</option>
+                <option value="ADMIN">🛡️ 관리자 (ADMIN)</option>
+                <option value="MEMBER">👤 멤버 (MEMBER)</option>
+                <option value="VIEWER">👁️ 조회전용 (VIEWER)</option>
+                <option value="GUEST">🎭 게스트 (GUEST)</option>
+              </select>
+            </div>
+
+            {/* 1. 사용자 관리 버튼 */}
+            <button
+              type="button"
+              onClick={() => setMemberModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+              title="장부 참여 멤버 및 권한 관리"
             >
-              <option value="OWNER">👑 소유자 (OWNER)</option>
-              <option value="ADMIN">🛡️ 관리자 (ADMIN)</option>
-              <option value="MEMBER">👤 멤버 (MEMBER)</option>
-              <option value="VIEWER">👁️ 조회전용 (VIEWER)</option>
-              <option value="GUEST">🎭 게스트 (GUEST)</option>
-            </select>
+              <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>사용자 관리 ({currentMembers.length}명)</span>
+            </button>
           </div>
 
-          {/* 1. 커버색상 버튼 (모바일 모드시 아이콘만 표시) */}
+          {/* 2. 커버색상 버튼 (사용자관리 뒤에 배치하여 줄바꿈 시 소유자·사용자관리 동일선 유지 우선) */}
           <button
             type="button"
             onClick={() => handleOpenEditCover(currentLedger)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap shrink-0"
             title="현재 선택된 장부의 북커버 디자인 및 시그니처 색상 변경"
           >
             <Palette className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">커버색상</span>
-          </button>
-
-          {/* 2. 사용자 관리 버튼 */}
-          <button
-            type="button"
-            onClick={() => setMemberModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
-            title="장부 참여 멤버 및 권한 관리"
-          >
-            <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>사용자 관리 ({currentMembers.length}명)</span>
+            <span>커버색상</span>
           </button>
         </div>
       </div>
@@ -3386,17 +3648,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         {/* 2대 대메뉴 대축: [1. ✍️ 장부작성 (수입·지출)] · [2. 📊 분석 (현황·보고서)] */}
         {/* ==================================================================== */}
         <div className="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
-          {/* Level 1: 2대 대축 (장부작성 vs 분석) 스위치 */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Level 1: 2대 대축 (장부작성 vs 분석) 스위치 & Level 2 툴바 */}
+          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-2.5 sm:gap-3">
             <div
-              onWheel={(e) => {
-                if (e.deltaY !== 0) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.currentTarget.scrollLeft += e.deltaY;
-                }
-              }}
-              className="flex items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap shrink-0 max-w-full"
+              className="flex items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap shrink-0 max-w-full overscroll-contain overscroll-x-contain touch-pan-x"
             >
               {/* 축 1: 장부작성 */}
               <button
@@ -3441,17 +3696,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               </button>
             </div>
 
-            {/* Level 2 툴바 & 특화 도구 (카드명세서 대사 / 고정수입 관리 / 통장내역 일괄등록 / 원장 안내) */}
+            {/* Level 2 툴바 & 특화 도구 (가로넓이 초과 시 앞의 장부작성, 분석 버튼 다음줄로 [카드명세서대사, 고정수입관리, 통장내역일괄등록, ?] 한줄 버튼 표시 배치) */}
             {mainAxisTab === 'WRITE' ? (
-              <div
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-                className="flex flex-wrap items-center gap-2 pb-0.5"
+              <ElmSld03
+                showNavButtons={false}
+                className="w-full 2xl:w-auto"
+                innerClassName="justify-start 2xl:justify-end py-1 flex-nowrap"
               >
                 {/* 특화 도구 1: 카드명세서 대사 서브시트 토글 */}
                 <button
@@ -3552,17 +3802,12 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </>
                   )}
                 </div>
-              </div>
+              </ElmSld03>
             ) : (
-              <div
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-                className="flex flex-wrap items-center gap-2 pb-0.5"
+              <ElmSld03
+                showNavButtons={false}
+                className="w-full 2xl:w-auto"
+                innerClassName="justify-start 2xl:justify-end py-1 flex-nowrap"
               >
                 <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs shrink-0">
                   <button
@@ -3600,22 +3845,16 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </span>
                   </button>
                 </div>
-              </div>
+              </ElmSld03>
             )}
           </div>
 
           {mainAxisTab === 'ANALYSIS' && analysisSubTab === 'STATUS' && (
             <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800/80">
-              <div
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.scrollLeft += e.deltaY;
-                    return;
-                  }
-                }}
-                className="flex flex-wrap items-center gap-2 pb-0.5"
+              <ElmSld03
+                showNavButtons={false}
+                className="w-full sm:w-auto"
+                innerClassName="items-center gap-2 py-0.5 flex-nowrap"
               >
                 <span className="text-xs font-bold text-purple-700 dark:text-purple-300 shrink-0 whitespace-nowrap">
                   현황 집계 기간:
@@ -3636,7 +3875,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </button>
                   ))}
                 </div>
-              </div>
+              </ElmSld03>
 
               {isDirtyAggregation && (
                 <button
@@ -4138,15 +4377,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             {/* 통합 필터 바: 거래 유형 퀵 필터 세그먼트 + 동적 카테고리 필터 + 자산이동 분리 옵션 */}
             <div className="space-y-2.5 border-y border-slate-100 dark:border-zinc-800/80 py-3">
               {/* 1행: 거래 유형 퀵 필터 세그먼트 칩 */}
-              <div
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-                className="flex flex-wrap items-center gap-1.5 sm:gap-2 pb-0.5"
+              <ElmSld03
+                showNavButtons={false}
+                className="w-full"
+                innerClassName="items-center gap-1.5 sm:gap-2 pb-0.5 flex-nowrap"
               >
                 <button
                   type="button"
@@ -4218,19 +4452,14 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     {currentTransactions.filter((t) => t.isAssetTransfer || t.type === 'TRANSFER').length}
                   </span>
                 </button>
-              </div>
+              </ElmSld03>
 
               {/* 2행: 동적 카테고리 필터 + 자산이동 분리 체크박스 */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100/80 dark:border-zinc-800/60">
-                <div
-                  onWheel={(e) => {
-                    if (e.deltaY !== 0) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.scrollLeft += e.deltaY;
-                    }
-                  }}
-                  className="flex flex-wrap items-center gap-1.5 py-0.5 max-w-full"
+                <ElmSld03
+                  showNavButtons={false}
+                  className="flex-1 min-w-0"
+                  innerClassName="items-center gap-1.5 py-0.5 flex-nowrap"
                 >
                   <ElmFlt01
                     label="전체 카테고리"
@@ -4245,16 +4474,19 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                       onClick={() => setCategoryFilter(cat)}
                     />
                   ))}
-                </div>
+                </ElmSld03>
 
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none shrink-0">
+                <label
+                  className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none shrink-0"
+                  title="생활비 지출 집계에서 자산이동 내역을 분리합니다"
+                >
                   <input
                     type="checkbox"
                     checked={excludeAssetTransfer}
                     onChange={(e) => setExcludeAssetTransfer(e.target.checked)}
                     className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
                   />
-                  <span>자산이동 분리 표시 (생활비 왜곡 차단)</span>
+                  <span>자산이동</span>
                 </label>
               </div>
             </div>
@@ -5377,7 +5609,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   onClick={() => {
                     setSelectedTxForProofs(null);
                     setSelectedProofItemId(null);
-                    setDecompressSuccessMsg(null);
                   }}
                   className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
@@ -5812,51 +6043,73 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </div>
                   )}
 
-                  {/* 운영비 0원 온디맨드 스토리지 아카이브 해제 시뮬레이터 */}
-                  <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5">
+                  {/* [설계정책 반영] 증빙 원본 썸네일 뷰어 & 온디맨드 원본 다운로드 */}
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-950 dark:text-indigo-200">
-                          <Archive className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>운영비 0원 온디맨드 스토리지 (30일 초과 tarball 압축 아카이빙)</span>
-                        </div>
-                        <p className="text-[10.5px] text-slate-600 dark:text-zinc-400 mt-0.5">
-                          30일 초과 원본 이미지는 <code className="font-mono text-indigo-700 dark:text-indigo-300">proofs_2026_09.tar.gz</code> 압축 보관되며, 요청 시에만 임시 메모리에 단건 해제됩니다.
-                        </p>
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-white">
+                        <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>증빙 이미지 미리보기</span>
+                        <span className="text-[10.5px] text-slate-400 font-normal">
+                          (썸네일 클릭 시 확대 조회)
+                        </span>
                       </div>
-
                       <button
                         type="button"
-                        onClick={() => {
-                          setDecompressSimulating(true);
-                          setTimeout(() => {
-                            setDecompressSimulating(false);
-                            setDecompressSuccessMsg('✓ tarball 스트림 단건 임시 해제 완료 (고해상도 원본 렌더링됨 • 0초 즉시 파기 정책 적용)');
-                          }, 500);
-                        }}
-                        disabled={decompressSimulating}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs disabled:opacity-50"
+                        onClick={() =>
+                          handleDownloadOriginalProof(
+                            activeProof.title,
+                            activeProof.merchant || activeProof.cardName
+                          )
+                        }
+                        disabled={downloadingOriginal}
+                        className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        title="고해상도 원본 이미지 압축 해제 및 다운로드"
                       >
-                        {decompressSimulating ? (
-                          <span className="flex items-center gap-1">
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                            <span>해제 중...</span>
-                          </span>
+                        {downloadingOriginal ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>다운로드 중...</span>
+                          </>
                         ) : (
-                          <span className="flex items-center gap-1">
-                            <DownloadCloud className="w-3 h-3" />
-                            <span>원본 압축 해제 체험</span>
-                          </span>
+                          <>
+                            <DownloadCloud className="w-3.5 h-3.5" />
+                            <span>원본 다운로드</span>
+                          </>
                         )}
                       </button>
                     </div>
 
-                    {decompressSuccessMsg && (
-                      <div className="p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800 text-[10.5px] text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>{decompressSuccessMsg}</span>
+                    {/* 썸네일 카드 */}
+                    <div
+                      onClick={() =>
+                        setSelectedProofImageModal({
+                          isOpen: true,
+                          title: activeProof.title,
+                          imageUrl:
+                            activeProof.receiptImageUrl ||
+                            'https://images.unsplash.com/photo-1554415707-9e4466bfe0dc?auto=format&fit=crop&w=1200&q=80',
+                          merchant: activeProof.merchant || activeProof.cardName,
+                          amount: activeProof.amount,
+                        })
+                      }
+                      className="group relative w-full sm:w-64 h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-700 cursor-pointer bg-slate-100 dark:bg-zinc-800 flex items-center justify-center transition-all hover:ring-2 hover:ring-indigo-500/50"
+                    >
+                      <img
+                        src={
+                          activeProof.receiptImageUrl ||
+                          'https://images.unsplash.com/photo-1554415707-9e4466bfe0dc?auto=format&fit=crop&w=400&q=75'
+                        }
+                        alt={activeProof.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1">
+                        <Maximize2 className="w-5 h-5" />
+                        <span className="text-[11px] font-bold">전체화면으로 조회</span>
                       </div>
-                    )}
+                      <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/70 text-white font-mono text-[9px] font-bold">
+                        썸네일 캐시
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -5868,7 +6121,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   onClick={() => {
                     setSelectedTxForProofs(null);
                     setSelectedProofItemId(null);
-                    setDecompressSuccessMsg(null);
                   }}
                   className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 text-xs font-bold transition-colors cursor-pointer"
                 >
@@ -5879,6 +6131,78 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
           </div>
         );
       })()}
+
+      {/* ==================================================================== */}
+      {/* [설계정책 반영] 증빙 고해상도 전체화면 라이트박스 모달 */}
+      {/* ==================================================================== */}
+      {selectedProofImageModal && selectedProofImageModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in"
+          onClick={() => setSelectedProofImageModal(null)}
+        >
+          {/* 상단 툴바 */}
+          <div
+            className="w-full max-w-3xl flex items-center justify-between pb-3 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-0.5">
+              <span className="font-extrabold text-sm sm:text-base flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-emerald-400" />
+                <span>{selectedProofImageModal.title}</span>
+              </span>
+              <p className="text-xs text-slate-300">
+                {selectedProofImageModal.merchant && `가맹점: ${selectedProofImageModal.merchant} · `}
+                {selectedProofImageModal.amount && `금액: ₩${selectedProofImageModal.amount.toLocaleString()}원`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownloadOriginalProof(
+                    selectedProofImageModal.title,
+                    selectedProofImageModal.merchant
+                  )
+                }
+                disabled={downloadingOriginal}
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50"
+              >
+                {downloadingOriginal ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>다운로드 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <DownloadCloud className="w-3.5 h-3.5" />
+                    <span>원본 다운로드</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedProofImageModal(null)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                title="닫기 (ESC)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* 메인 이미지 영역 */}
+          <div
+            className="relative max-w-3xl max-h-[80vh] overflow-auto rounded-2xl border border-white/20 bg-zinc-950 flex items-center justify-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedProofImageModal.imageUrl}
+              alt={selectedProofImageModal.title}
+              className="max-w-full max-h-[75vh] object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* 5-1. [3.2.2 보고서] 분석 스냅샷 상세 열람 모달 (상세 열람 클릭 시) */}
@@ -6452,15 +6776,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                         </div>
 
                         {/* 샘플 영수증 원클릭 프리셋 버튼들 (슬라이드 드래그 휠 적용) */}
-                        <div
-                          onWheel={(e) => {
-                            if (e.deltaY !== 0) {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              e.currentTarget.scrollLeft += e.deltaY;
-                            }
-                          }}
-                          className="flex flex-wrap items-center gap-1.5 pb-0.5"
+                        <ElmSld03
+                          showNavButtons={false}
+                          className="w-full"
+                          innerClassName="items-center gap-1.5 pb-0.5 flex-nowrap"
                         >
                           {SAMPLE_RECEIPTS.map((s) => (
                             <button
@@ -6477,7 +6796,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                               </span>
                             </button>
                           ))}
-                        </div>
+                        </ElmSld03>
                       </div>
                     )}
                   </div>
@@ -7365,13 +7684,72 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   </button>
                 </div>
 
-                {detectedAutoAccount && (
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5 text-xs text-sky-800 dark:text-sky-300 font-medium">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-200/70 dark:bg-sky-900 font-bold">감지</span>
-                    <span>{detectedAutoAccount}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-200/70 dark:bg-sky-900 font-bold">대표연동</span>
+                    <span>{registeredBankAccounts[0] || detectedAutoAccount}</span>
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* 가계부 연동 계좌 풀 및 중복제거 안내 */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="font-bold text-slate-700 dark:text-zinc-300">연동 계좌 풀:</span>
+                  {registeredBankAccounts.map((acc, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-mono text-[10.5px] border border-slate-200 dark:border-zinc-700"
+                    >
+                      {acc}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-100/70 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 text-[10.5px] font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  <span>중복 방지 원칙: 엑셀 내역 중 일자·적요·금액 동일 건은 단 1건으로 자동 통합됩니다.</span>
+                </div>
+              </div>
+
+              {/* [태스크 0011-01] 미등록 계좌 감지 배너 (Auto-Discovery Banner) */}
+              {unregisteredAccounts.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  {unregisteredAccounts.map((uAcc) => (
+                    <div
+                      key={`${uAcc.bankName}-${uAcc.accountNo}`}
+                      className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in"
+                    >
+                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div>
+                          <strong className="font-extrabold text-[12px]">
+                            ⚠️ 미등록 계좌 감지: [{uAcc.bankName}] {uAcc.accountNo} ({uAcc.count}건)
+                          </strong>
+                          <p className="text-[10.5px] text-amber-700 dark:text-amber-300">
+                            가계부에 등록되지 않은 계좌입니다. 새 보조 계좌로 추가하거나 대표 계좌로 귀속 매핑하세요.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRegisterNewAccount(uAcc.bankName, uAcc.accountNo)}
+                          className="px-2.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-2xs cursor-pointer transition-all active:scale-95 whitespace-nowrap"
+                        >
+                          + 새 보조계좌로 등록
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMapToPrimaryAccount(uAcc.accountNo)}
+                          className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 font-bold text-[11px] hover:bg-amber-100 dark:hover:bg-zinc-700 cursor-pointer transition-all whitespace-nowrap"
+                        >
+                          대표계좌 귀속 매핑
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
                 <div className="flex items-center gap-2">
@@ -7474,7 +7852,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   />
                   <span>전체 선택</span>
                 </label>
-                <span>거래적요 / 금액 / 분류</span>
+                <span>거래적요 / 금액 / 보정</span>
               </div>
 
               {filteredBankItems.length === 0 ? (
@@ -7499,19 +7877,38 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                           onChange={() => handleToggleBankItemSelect(item.id)}
                           className="rounded text-sky-600 w-4 h-4 cursor-pointer shrink-0"
                         />
-                        <div className="space-y-0.5 min-w-0">
+                        <div className="space-y-1 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-slate-400 text-[11px] whitespace-nowrap">{item.date}</span>
                             <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 font-bold text-[10px] whitespace-nowrap">
                               {item.bankName}
                             </span>
-                            <strong className="text-slate-800 dark:text-zinc-200 text-xs truncate">
-                              {item.description}
-                            </strong>
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => handleUpdateBankItem(item.id, 'description', e.target.value)}
+                              className="text-slate-800 dark:text-zinc-200 text-xs font-bold bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-zinc-700 focus:border-sky-500 focus:outline-hidden px-1 py-0.5 rounded transition-all flex-1 min-w-[120px]"
+                              title="적요 직접 수정 (OCR 보정)"
+                            />
                           </div>
-                          <span className="text-[10px] text-slate-400 font-mono block">
-                            계좌: {item.accountNoMasked}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 font-mono">
+                            <span>계좌: {item.accountNoMasked}</span>
+                            <span>·</span>
+                            <select
+                              value={item.targetCategory || '기타'}
+                              onChange={(e) => handleUpdateBankItem(item.id, 'targetCategory', e.target.value)}
+                              className="bg-transparent border border-slate-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-zinc-300 focus:outline-hidden"
+                            >
+                              <option value="급여">급여</option>
+                              <option value="부수입">부수입</option>
+                              <option value="식음료/장보기">식음료/장보기</option>
+                              <option value="통신/IT">통신/IT</option>
+                              <option value="교통/주유">교통/주유</option>
+                              <option value="자산이동">자산이동</option>
+                              <option value="기타수입">기타수입</option>
+                              <option value="기타지출">기타지출</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
 
@@ -7537,7 +7934,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                         <select
                           value={item.inferredType}
                           onChange={(e) =>
-                            handleChangeBankItemType(item.id, e.target.value as any)
+                            handleUpdateBankItem(item.id, 'inferredType', e.target.value)
                           }
                           className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[11px] font-bold focus:outline-hidden"
                         >
