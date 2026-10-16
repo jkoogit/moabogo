@@ -16,6 +16,7 @@ import {
   Clock,
   Sparkles,
   Copy,
+  HelpCircle,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -1342,3 +1343,178 @@ export const ElmTip01: React.FC<{
     </div>
   );
 };
+
+/* =========================================================================
+   ELM-HLP-01 : 반응형 기능안내 [?] 팝업레이어
+   - HelpCircle ? 아이콘/버튼 트리거 (buttonText 옵션 제공)
+   - 모바일 뷰포트 초과 방어 레이아웃 (fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto)
+   - 바깥 클릭/Esc 키 누름 시 자동 닫기 핸들러 내장
+   - 모바일 전용 백드롭 (sm:hidden)
+   - 다크모드 Deep Obsidian / Midnight Black 완벽 호환
+   ========================================================================= */
+export const ElmHlp01: React.FC<{
+  title: string;
+  children: React.ReactNode;
+  buttonText?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  headerIcon?: React.ComponentType<{ className?: string }>;
+  align?: 'left' | 'right';
+  width?: string;
+  badge?: string;
+  className?: string;
+  buttonClassName?: string;
+  tooltip?: string;
+  colorScheme?: 'indigo' | 'sky' | 'emerald' | 'amber' | 'purple' | 'slate';
+  isOpen?: boolean;
+  onToggle?: (open: boolean) => void;
+}> = ({
+  title,
+  children,
+  buttonText,
+  icon: IconComponent = HelpCircle,
+  headerIcon: HeaderIconComponent,
+  align = 'right',
+  width = 'sm:w-84',
+  badge,
+  className = '',
+  buttonClassName = '',
+  tooltip,
+  colorScheme = 'indigo',
+  isOpen: controlledIsOpen,
+  onToggle,
+}) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isControlled = controlledIsOpen !== undefined;
+  const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const setIsOpen = (open: boolean) => {
+    if (!isControlled) {
+      setInternalIsOpen(open);
+    }
+    if (onToggle) {
+      onToggle(open);
+    }
+  };
+
+  // 바깥 클릭 및 Esc 키 닫기 이벤트 핸들러
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const colorStyles = {
+    indigo: {
+      activeBtn: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 shadow-2xs',
+      hoverBtn: 'hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-indigo-600 dark:text-indigo-400',
+    },
+    sky: {
+      activeBtn: 'bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 shadow-2xs',
+      hoverBtn: 'hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-sky-600 dark:text-sky-400',
+    },
+    emerald: {
+      activeBtn: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 shadow-2xs',
+      hoverBtn: 'hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-emerald-600 dark:text-emerald-400',
+    },
+    amber: {
+      activeBtn: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 shadow-2xs',
+      hoverBtn: 'hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-amber-600 dark:text-amber-400',
+    },
+    purple: {
+      activeBtn: 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 shadow-2xs',
+      hoverBtn: 'hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-purple-700 dark:text-purple-300',
+    },
+    slate: {
+      activeBtn: 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 shadow-2xs',
+      hoverBtn: 'hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+      headerText: 'text-slate-700 dark:text-zinc-200',
+    },
+  }[colorScheme];
+
+  const EffectiveHeaderIcon = HeaderIconComponent || IconComponent;
+  const alignClass = align === 'left' ? 'sm:left-0' : 'sm:right-0';
+
+  return (
+    <div ref={containerRef} className={`relative inline-flex items-center ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold select-none ${
+          isOpen
+            ? colorStyles.activeBtn
+            : `text-slate-400 dark:text-slate-400 ${colorStyles.hoverBtn}`
+        } ${buttonClassName}`}
+        title={tooltip || `${title} 안내보기`}
+      >
+        <IconComponent className="w-4 h-4 shrink-0" />
+        {buttonText && <span className="text-[11px] font-semibold break-keep hidden sm:inline">{buttonText}</span>}
+      </button>
+
+      {isOpen && (
+        <>
+          {/* 모바일 화면 밖 클릭 시 닫기 백드롭 */}
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] sm:hidden"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 드롭다운) */}
+          <div
+            className={`fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#1e2029] font-extrabold text-slate-900 dark:text-white">
+              <span className={`flex items-center gap-1.5 ${colorStyles.headerText} break-keep`}>
+                <EffectiveHeaderIcon className="w-4 h-4 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold tracking-tight">{title}</span>
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {badge && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-[#1c1e26] text-slate-500 dark:text-slate-400">
+                    {badge}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1c1e26] cursor-pointer transition-colors"
+                  title="닫기"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300 break-keep space-y-2">
+              {children}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+

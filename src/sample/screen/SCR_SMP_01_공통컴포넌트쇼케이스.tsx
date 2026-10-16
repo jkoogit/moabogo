@@ -19,6 +19,8 @@ import {
   ElmSld02,
   ElmSld03,
   ElmBsh01,
+  ElmTip01,
+  ElmHlp01,
   TreeNode,
 } from '../elements/Tokens';
 import {
@@ -565,6 +567,73 @@ export const SCR_SMP_01_공통컴포넌트쇼케이스: React.FC = () => {
       {/* =========================================================================
           SECTION 7 : 모바일 바텀시트 모달 테스트
           ========================================================================= */}
+      {/* [ELM-HLP-01] 반응형 기능안내 [?] 팝업레이어 쇼케이스 */}
+      <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-xs space-y-4">
+        <div>
+          <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 block">
+            [ELM-HLP-01] 반응형 기능안내 [?] 팝업레이어 (모바일 inset-x-3 초과 방어)
+          </span>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 break-keep">
+            화면 공간을 절약하는 컴팩트 [?] 아이콘 버튼 및 모바일 뷰포트 초과 방어 반응형 레이어
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-[#141720] border border-slate-100 dark:border-[#1e2029]">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">① 기본 아이콘 모드:</span>
+            <ElmHlp01
+              title="통합 시계열 원장 안내"
+              tooltip="시계열 원장 기본 안내"
+              colorScheme="indigo"
+              align="left"
+            >
+              <p>수입과 지출, 자산이동의 모든 입출금 흐름을 하나의 시간 순서대로 파악하는 단일 진실 공급원(SSOT)입니다.</p>
+            </ElmHlp01>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">② 레이블 결합 모드:</span>
+            <ElmHlp01
+              title="카드 명세서 대사 안내"
+              buttonText="명세서 안내"
+              tooltip="카드 명세서 대사 상세 안내"
+              colorScheme="sky"
+              align="right"
+              badge="신규 규격"
+            >
+              <p>6대 카드사 명세서 및 영수증 증빙 파일을 OCR 엔진으로 자동 파싱하여 원장과 일괄 대사합니다.</p>
+            </ElmHlp01>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">③ 앰버 경고 모드:</span>
+            <ElmHlp01
+              title="미등록 계좌 감지 주의사항"
+              buttonText="계좌 감지"
+              colorScheme="amber"
+              align="right"
+            >
+              <p>가계부에 등록되지 않은 계좌 내역 발견 시 대표계좌 귀속 매핑 또는 신규 보조계좌 등록을 선택하세요.</p>
+            </ElmHlp01>
+          </div>
+        </div>
+      </section>
+
+      {/* [ELM-TIP-01] 롱프레스 툴팁 & 클립보드 복사 쇼케이스 */}
+      <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-xs space-y-4">
+        <div>
+          <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 block">
+            [ELM-TIP-01] 롱프레스 툴팁 & 클립보드 복사
+          </span>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 break-keep">
+            500ms 길게 누르거나 마우스 롱프레스 시 전체 내용 팝오버 및 원클릭 복사 제공
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-[#141720] border border-slate-100 dark:border-[#1e2029]">
+          <ElmTip01 text="우리은행 1002-892-918231 (가계부 대표계좌)" />
+          <ElmTip01 text="신한카드 Deep Oil 카드승인 2026-10-16 ₩45,000" />
+        </div>
+      </section>
+
       <section className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div>
           <span className="text-xs font-mono font-bold text-indigo-600 block">
