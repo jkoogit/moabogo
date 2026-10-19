@@ -2791,8 +2791,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
       {/* 5. 퀵 사다리 결과 모달 */}
       {quickLadderResult.open && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border-2 border-purple-400 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setQuickLadderResult({ open: false })}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border-2 border-purple-400 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95"
+          >
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
               🪜 퀵 사다리 결과 매칭
             </h3>
@@ -2837,8 +2844,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
       {/* 6. 퀵 룰렛 결과 모달 */}
       {quickRouletteResult.open && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border-2 border-indigo-400 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setQuickRouletteResult({ open: false })}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border-2 border-indigo-400 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95"
+          >
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
               🎯 점심 메뉴 룰렛 결과
             </h3>
@@ -2881,17 +2895,17 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         </div>
       )}
 
-      {/* 7. 머니등록 모달 */}
+      {/* 7. 머니등록 모달 (단일 레이어 & 전파 차단) */}
       {activeQuickModal === 'MONEY' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-4 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setActiveQuickModal(null)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 z-10 cursor-pointer"
-            >
-              ✕
-            </button>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setActiveQuickModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl my-auto animate-in zoom-in-95"
+          >
             <SCR_QCK_01_빠른머니등록
               onClose={() => setActiveQuickModal(null)}
               onSuccess={() => {
@@ -2903,18 +2917,19 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         </div>
       )}
 
-      {/* 8. 수행등록 모달 */}
+      {/* 8. 수행등록 모달 (단일 레이어 & 전파 차단) */}
       {activeQuickModal === 'DUTY' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-4 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setActiveQuickModal(null)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 z-10 cursor-pointer"
-            >
-              ✕
-            </button>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setActiveQuickModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl my-auto animate-in zoom-in-95"
+          >
             <SCR_QCK_02_빠른수행등록
+              onClose={() => setActiveQuickModal(null)}
               onSuccess={() => {
                 setActiveQuickModal(null);
                 showToast('✓ 당번 과업 수행 및 사진 인증이 완료되었습니다!');
