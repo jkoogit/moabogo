@@ -100,44 +100,39 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
 
   return (
     <div
-      className={`w-full max-w-2xl mx-auto p-4 sm:p-6 space-y-6 min-h-screen flex flex-col justify-center transition-colors ${
+      className={`w-full max-w-2xl mx-auto p-5 sm:p-6 rounded-2xl border shadow-2xl space-y-5 transition-colors ${
         resolvedTheme === 'dawn'
-          ? 'bg-[#070d1e] text-[#f0f6fc]'
+          ? 'bg-[#0d1838] border-[#1e3a6d] text-[#f0f6fc]'
           : isDark
-          ? 'bg-[#121215] text-[#f4f4f6]'
-          : 'bg-slate-50 text-slate-900'
+          ? 'bg-[#18181b] border-[#27272a] text-[#f4f4f6]'
+          : 'bg-white border-slate-200 text-slate-900'
       }`}
     >
-      <div
-        className={`p-6 rounded-2xl border shadow-sm space-y-5 transition-colors ${
-          resolvedTheme === 'dawn'
-            ? 'bg-[#0d1838] border-[#1e3a6d]'
-            : isDark
-            ? 'bg-[#18181b] border-[#27272a]'
-            : 'bg-white border-slate-200'
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-zinc-800">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
-              SCR-QCK-01
-            </span>
-            <ElmTyp01
-              title="빠른 머니등록 (영수증 & 이체내역)"
-              subtitle="2단계 OCR 가상 스캔 및 생활비 통계 자동 분리"
-            />
-          </div>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-              title="닫기"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+      {/* Header - 문서ID, 제목, 설명을 flex-wrap 원자 인라인 요소로 구성하여 줄바꿈 최소화 */}
+      <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-zinc-800 gap-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
+            SCR-QCK-01
+          </span>
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight break-keep flex items-center gap-1.5">
+            <span>빠른 머니등록</span>
+            <span className="text-xs font-semibold text-slate-400 dark:text-zinc-400 hidden sm:inline">(영수증 & 이체)</span>
+          </h2>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 break-keep hidden md:inline">
+            • 2단계 OCR 가상스캔 & 생활비 자동분리
+          </span>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+            title="닫기"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
 
         {/* 인라인 성공 알림 배너 */}
         {submitSuccess && (
@@ -331,7 +326,6 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
             <span>가계부에 빠른 등록 완료</span>
           </button>
         </form>
-      </div>
     </div>
   );
 };
