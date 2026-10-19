@@ -9,6 +9,7 @@ import {
   Camera,
   ArrowUp,
   Plus,
+  Minus,
   Trash2,
   Edit2,
   Menu,
@@ -1115,6 +1116,14 @@ export const ElmSld03: React.FC<{
       {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 완전 해제, 드래그 & 휠 즉각 반영, overscroll-contain 전파차단 */}
       <div
         ref={containerRef}
+        onWheel={(e) => {
+          e.stopPropagation();
+          const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
+          if (rawDelta === 0) return;
+          const multiplier = e.deltaMode === 1 ? 24 : 1;
+          const delta = rawDelta * multiplier;
+          e.currentTarget.scrollLeft += delta;
+        }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1141,6 +1150,170 @@ export const ElmSld03: React.FC<{
         }}
       >
         {children}
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================================
+   ELM-RNG-01 : 상태바 증감드래그휠 컴포넌트 (표준화)
+   - 좌우 [-] / [+] 버튼 내장 (min/max 한계 도달 시 비활성화)
+   - input[type="range"] 슬라이더 내장 (터치 & 포인터 드래그 전파 차단)
+   - 마우스 휠 이벤트 내장: 상하 휠 스크롤 시 step 단위 증감 & 배경 스크롤 전파 차단
+   - 숫자 직접 입력 input 연동
+   - 테마 연동: indigo, rose, emerald, sky 등
+   ========================================================================= */
+export const ElmRng01: React.FC<{
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (val: number) => void;
+  colorScheme?: 'indigo' | 'rose' | 'emerald' | 'sky';
+  label?: string;
+  showInput?: boolean;
+  className?: string;
+  disabled?: boolean;
+  title?: string;
+}> = ({
+  value,
+  min,
+  max,
+  step = 1,
+  unit = '명',
+  onChange,
+  colorScheme = 'indigo',
+  label,
+  showInput = true,
+  className = '',
+  disabled = false,
+  title,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 휠 이벤트: DOM passive: false 리스너로 브라우저 상하 스크롤 원천 차단 + 값 증감
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (disabled) return;
+      if (e.deltaY < 0) {
+        onChange(Math.min(max, value + step));
+      } else if (e.deltaY > 0) {
+        onChange(Math.max(min, value - step));
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, [value, min, max, step, disabled, onChange]);
+
+  const colorStyles = {
+    indigo: {
+      accent: 'accent-indigo-600',
+      text: 'text-indigo-600 dark:text-indigo-400',
+      btnHover: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400',
+      activeBorder: 'focus:border-indigo-500',
+    },
+    rose: {
+      accent: 'accent-rose-600',
+      text: 'text-rose-600 dark:text-rose-400',
+      btnHover: 'hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-400',
+      activeBorder: 'focus:border-rose-500',
+    },
+    emerald: {
+      accent: 'accent-emerald-600',
+      text: 'text-emerald-600 dark:text-emerald-400',
+      btnHover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-400',
+      activeBorder: 'focus:border-emerald-500',
+    },
+    sky: {
+      accent: 'accent-sky-600',
+      text: 'text-sky-600 dark:text-sky-400',
+      btnHover: 'hover:bg-sky-50 dark:hover:bg-sky-950/40 hover:border-sky-400',
+      activeBorder: 'focus:border-sky-500',
+    },
+  }[colorScheme];
+
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      {label && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
+          {showInput && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input
+                type="number"
+                min={min}
+                max={max}
+                value={value}
+                disabled={disabled}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!isNaN(val)) onChange(Math.max(min, Math.min(max, val)));
+                }}
+                className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 ${colorStyles.text} ${colorStyles.activeBorder} outline-none`}
+              />
+              <span className={`text-xs font-bold ${colorStyles.text}`}>{unit}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        ref={containerRef}
+        title={title || '마우스 휠을 굴리거나 좌우로 드래그하여 조절할 수 있습니다'}
+        onWheel={(e) => {
+          e.stopPropagation();
+          if (disabled) return;
+          if (e.deltaY < 0) {
+            onChange(Math.min(max, value + step));
+          } else if (e.deltaY > 0) {
+            onChange(Math.max(min, value - step));
+          }
+        }}
+        className="flex items-center gap-2 select-none"
+      >
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - step))}
+          disabled={disabled || value <= min}
+          className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
+          title={`${step} 감소`}
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(Number(e.target.value))}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          style={{ touchAction: 'pan-x' }}
+          className={`flex-1 ${colorStyles.accent} cursor-ew-resize`}
+        />
+
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + step))}
+          disabled={disabled || value >= max}
+          className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
+          title={`${step} 증가`}
+        >
+          <Plus className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

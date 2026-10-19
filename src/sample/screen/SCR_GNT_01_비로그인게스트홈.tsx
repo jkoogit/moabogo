@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import {
   ElmInp01,
   ElmSld03,
+  ElmRng01,
 } from '../elements/Tokens';
 import {
   Gamepad2,
@@ -302,56 +303,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     { value: 1.5, label: '1.5x', interval: 13 },
   ];
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
-
-  // 4. [수치조절 바 휠이벤트] 배경 및 페이지 스크롤 전파 차단 + 값 증감 제어 훅
-  const useWheelControl = (onAdjust: (delta: number) => void) => {
-    const elRef = useRef<HTMLDivElement>(null);
-    const callbackRef = useRef(onAdjust);
-    callbackRef.current = onAdjust;
-
-    useEffect(() => {
-      const el = elRef.current;
-      if (!el) return;
-      const onWheel = (e: WheelEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.deltaY < 0) {
-          callbackRef.current(1);
-        } else if (e.deltaY > 0) {
-          callbackRef.current(-1);
-        }
-      };
-      const onStopPropagation = (e: Event) => {
-        e.stopPropagation();
-      };
-
-      el.addEventListener('wheel', onWheel, { passive: false, capture: true });
-      el.addEventListener('pointerdown', onStopPropagation, { capture: true });
-      el.addEventListener('pointermove', onStopPropagation, { capture: true });
-      el.addEventListener('touchstart', onStopPropagation, { capture: true, passive: true });
-      el.addEventListener('touchmove', onStopPropagation, { capture: true, passive: true });
-      return () => {
-        el.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
-        el.removeEventListener('pointerdown', onStopPropagation, { capture: true } as EventListenerOptions);
-        el.removeEventListener('pointermove', onStopPropagation, { capture: true } as EventListenerOptions);
-        el.removeEventListener('touchstart', onStopPropagation, { capture: true } as EventListenerOptions);
-        el.removeEventListener('touchmove', onStopPropagation, { capture: true } as EventListenerOptions);
-      };
-    }, []);
-    return elRef;
-  };
-
-  const settleMemberSliderRef = useWheelControl((delta) => {
-    handleUpdateMemberCount(memberCount + delta);
-  });
-
-  const ladderMemberSliderRef = useWheelControl((delta) => {
-    handleUpdateMemberCount(memberCount + delta);
-  });
-
-  const ladderWinnerSliderRef = useWheelControl((delta) => {
-    setWinnerCount((prev) => Math.max(1, Math.min(memberCount - 1, prev + delta)));
-  });
 
   // 1 & 2 & 3. 발자국 추적용 ElmSld03 Ref 및 목적 도착 1초 팝업 & 일시정지 제어 상태
   const ladderSliderRef = useRef<HTMLDivElement>(null);
@@ -1249,76 +1200,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </div>
                   </div>
                 </div>
-                {/* 정산 인원수 */}
+                {/* 정산 인원수 (ElmRng01 표준화) */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-indigo-400" />
-                      <span>정산 인원수 (인원 제한 없음)</span>
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="2"
-                        value={memberCount}
-                        onChange={(e) => handleUpdateMemberCount(Number(e.target.value) || 2)}
-                        className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border ${
-                          resolvedTheme === 'dawn'
-                            ? 'bg-white border-[#bfdbfe] text-blue-700'
-                            : isDark
-                            ? 'bg-[#151518] border-[#3f3f46] text-indigo-400'
-                            : 'bg-white border-slate-200 text-indigo-600'
-                        }`}
-                      />
-                      <span className="text-xs text-slate-500">명</span>
-                    </div>
-                  </div>
-
-                  <div
-                    ref={settleMemberSliderRef}
-                    className="flex items-center gap-2"
-                    title="마우스 휠을 굴려 인원수를 조절할 수 있습니다"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMemberCount(memberCount - 1)}
-                      disabled={memberCount <= 2}
-                      className={`p-2 rounded-lg border disabled:opacity-40 transition-all cursor-pointer ${
-                        resolvedTheme === 'dawn'
-                          ? 'bg-white border-[#bfdbfe] text-blue-700 hover:bg-blue-50'
-                          : isDark
-                          ? 'bg-[#27272a] border-[#3f3f46] text-slate-300'
-                          : 'bg-white border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <input
-                      type="range"
-                      min="2"
-                      max={Math.max(20, memberCount)}
-                      value={memberCount}
-                      onChange={(e) => handleUpdateMemberCount(Number(e.target.value))}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onTouchStart={(e) => e.stopPropagation()}
-                      onTouchMove={(e) => e.stopPropagation()}
-                      style={{ touchAction: 'pan-x' }}
-                      className="flex-1 accent-indigo-600 cursor-ew-resize"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                      className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                        resolvedTheme === 'dawn'
-                          ? 'bg-white border-[#bfdbfe] text-blue-700 hover:bg-blue-50'
-                          : isDark
-                          ? 'bg-[#27272a] border-[#3f3f46] text-slate-300'
-                          : 'bg-white border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <ElmRng01
+                    label="정산 인원수 (인원 제한 없음)"
+                    value={memberCount}
+                    min={2}
+                    max={Math.max(20, memberCount)}
+                    step={1}
+                    unit="명"
+                    onChange={(val) => handleUpdateMemberCount(val)}
+                    colorScheme="indigo"
+                  />
 
                   {/* 배정된 캐릭터 아바타 */}
                   <div className="flex items-center gap-1.5 flex-wrap pt-1.5 max-h-28 overflow-y-auto pr-1">
@@ -1440,119 +1333,29 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 }`}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* 참여 인원수 */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold">참여 인원수 (10인 기본 + 확장가능)</span>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min="2"
-                          value={memberCount}
-                          onChange={(e) => handleUpdateMemberCount(Number(e.target.value) || 2)}
-                          className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border ${
-                            resolvedTheme === 'dawn'
-                              ? 'bg-white border-[#bfdbfe] text-blue-700'
-                              : isDark
-                              ? 'bg-[#151518] border-[#3f3f46] text-indigo-400'
-                              : 'bg-white border-slate-200 text-indigo-600'
-                          }`}
-                        />
-                        <span className="text-xs text-indigo-400 font-extrabold">명</span>
-                      </div>
-                    </div>
-                    <div
-                      ref={ladderMemberSliderRef}
-                      className="flex items-center gap-2"
-                      title="마우스 휠을 굴려 참여 인원수를 조절할 수 있습니다"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateMemberCount(memberCount - 1)}
-                        disabled={memberCount <= 2}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <input
-                        type="range"
-                        min="2"
-                        max={Math.max(10, memberCount)}
-                        value={memberCount}
-                        onChange={(e) => handleUpdateMemberCount(Number(e.target.value))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                        onTouchMove={(e) => e.stopPropagation()}
-                        style={{ touchAction: 'pan-x' }}
-                        className="flex-1 accent-indigo-600 cursor-ew-resize"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                        className="p-2 rounded-lg border bg-black/20 hover:bg-black/30 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  {/* 참여 인원수 (ElmRng01 표준화) */}
+                  <ElmRng01
+                    label="참여 인원수 (10인 기본 + 확장가능)"
+                    value={memberCount}
+                    min={2}
+                    max={Math.max(10, memberCount)}
+                    step={1}
+                    unit="명"
+                    onChange={(val) => handleUpdateMemberCount(val)}
+                    colorScheme="indigo"
+                  />
 
-                  {/* 선택 인원수 */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold">선택 인원수</span>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min="1"
-                          max={memberCount - 1}
-                          value={winnerCount}
-                          onChange={(e) => setWinnerCount(Math.max(1, Math.min(memberCount - 1, Number(e.target.value) || 1)))}
-                          className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border ${
-                            resolvedTheme === 'dawn'
-                              ? 'bg-white border-[#bfdbfe] text-rose-700'
-                              : isDark
-                              ? 'bg-[#151518] border-[#3f3f46] text-rose-400'
-                              : 'bg-white border-slate-200 text-rose-600'
-                          }`}
-                        />
-                        <span className="text-xs text-rose-400 font-extrabold">명</span>
-                      </div>
-                    </div>
-                    <div
-                      ref={ladderWinnerSliderRef}
-                      className="flex items-center gap-2"
-                      title="마우스 휠을 굴려 선택 인원수를 조절할 수 있습니다"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setWinnerCount(Math.max(1, winnerCount - 1))}
-                        disabled={winnerCount <= 1}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <input
-                        type="range"
-                        min="1"
-                        max={Math.max(10, memberCount - 1)}
-                        value={winnerCount}
-                        onChange={(e) => setWinnerCount(Number(e.target.value))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                        onTouchMove={(e) => e.stopPropagation()}
-                        style={{ touchAction: 'pan-x' }}
-                        className="flex-1 accent-rose-600 cursor-ew-resize"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setWinnerCount(Math.min(memberCount - 1, winnerCount + 1))}
-                        disabled={winnerCount >= memberCount - 1}
-                        className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  {/* 선택 인원수 (ElmRng01 표준화) */}
+                  <ElmRng01
+                    label="선택 인원수"
+                    value={winnerCount}
+                    min={1}
+                    max={Math.max(1, memberCount - 1)}
+                    step={1}
+                    unit="명"
+                    onChange={(val) => setWinnerCount(val)}
+                    colorScheme="rose"
+                  />
                 </div>
 
                 {/* 가중치 설정 & 이름수정 */}
