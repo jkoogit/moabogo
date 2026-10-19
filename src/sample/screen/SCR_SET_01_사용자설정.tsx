@@ -8,6 +8,7 @@ import {
   ElmRad01,
   ElmChk01,
   ElmTab01,
+  ElmSld03,
 } from '../elements/Tokens';
 import {
   Settings,
@@ -78,20 +79,39 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
         </button>
       </div>
 
-      {/* Tabs - 모바일 가로폭주 방지: 간결 라벨 & ElmTab01 overflow-x-auto */}
+      {/* Tabs - 슬라이드드래그휠(ElmSld03) 적용으로 마우스 휠 및 좌우 드래그 완벽 지원 */}
       <div className="w-full min-w-0">
-        <ElmTab01
-          tabs={[
-            { id: 'THEME', label: '화면 테마' },
-            { id: 'LAYOUT', label: '화면배치' },
-            { id: 'PRIORITY', label: '우선순위' },
-            { id: 'NOTIFY', label: '알림설정' },
-            { id: 'ACCOUNT', label: '송금계좌' },
-            { id: 'OCR', label: 'OCR 키' },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        <ElmSld03 showNavButtons={false} className="w-full">
+          <div className="flex items-center min-w-max border-b border-slate-200 dark:border-zinc-800">
+            {[
+              { id: 'THEME', label: '화면 테마' },
+              { id: 'LAYOUT', label: '화면배치' },
+              { id: 'PRIORITY', label: '우선순위' },
+              { id: 'NOTIFY', label: '알림설정' },
+              { id: 'ACCOUNT', label: '송금계좌' },
+              { id: 'OCR', label: 'OCR 키' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative px-4 py-3 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'text-indigo-600 dark:text-indigo-400 font-extrabold'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {isActive && (
+                    <div className="absolute bottom-0 inset-x-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-t" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </ElmSld03>
       </div>
 
       {/* Tab 0: 화면 테마 (주간 / 야간 / 여명 / 시스템) */}
