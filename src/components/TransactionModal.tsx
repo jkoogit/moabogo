@@ -23,12 +23,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [isAssetTransfer, setIsAssetTransfer] = useState(false);
   const [note, setNote] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (force: boolean = false) => {
+    setFormError(null);
     if (!amount || !merchantName) {
-      alert('금액과 가맹점명을 입력해주세요.');
+      setFormError('금액과 가맹점명을 모두 입력해주세요.');
       return;
     }
 
@@ -57,19 +59,43 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      alert('내역 등록 중 오류가 발생했습니다.');
+      setFormError('내역 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 overscroll-contain"
+      >
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <h3 className="text-base font-bold text-white">가계부 내역 등록</h3>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white cursor-pointer"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {formError && (
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2">
+            <span>{formError}</span>
+            <button
+              type="button"
+              onClick={() => setFormError(null)}
+              className="text-rose-400 hover:text-rose-200"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {duplicateWarning && (
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
@@ -251,13 +277,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+              className="min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
             >
               취소
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white"
+              className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 active:scale-95 text-white cursor-pointer transition-all shadow-sm"
             >
               등록 완료
             </button>

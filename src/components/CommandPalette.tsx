@@ -200,8 +200,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-950/80 backdrop-blur-sm overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl overscroll-contain"
+      >
         {/* Input */}
         <div className="p-3.5 border-b border-slate-800 flex items-center gap-3">
           <Search className="w-5 h-5 text-slate-400" />
@@ -213,13 +220,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             placeholder="어떤 작업을 찾으시나요? (예: 정산, OCR, 당번, 가계부)..."
             className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
           />
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-400">
+          <button
+            type="button"
+            onClick={onClose}
+            title="닫기 (ESC)"
+            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 text-[10px] font-mono text-slate-400 cursor-pointer transition-colors shrink-0 min-h-[32px] flex items-center justify-center"
+          >
             ESC
-          </kbd>
+          </button>
         </div>
 
         {/* Results */}
-        <div className="max-h-96 overflow-y-auto p-2 space-y-3">
+        <div
+          className="max-h-96 overflow-y-auto p-2 space-y-3 overscroll-contain"
+          onWheel={(e) => e.stopPropagation()}
+        >
           {/* Quick Actions */}
           <div>
             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 block">
