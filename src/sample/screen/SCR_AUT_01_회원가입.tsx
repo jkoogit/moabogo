@@ -290,7 +290,7 @@ export const SCR_AUT_01_회원가입: React.FC<{
                 type="button"
                 onClick={handleSendCode}
                 disabled={isEmailVerified}
-                className="min-h-[40px] px-3.5 py-2 rounded-lg bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white text-xs font-semibold shrink-0 transition-colors whitespace-nowrap cursor-pointer"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white text-xs font-semibold shrink-0 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center"
               >
                 {isEmailVerified ? '인증완료' : isCodeSent ? '재발송' : '인증요청'}
               </button>
@@ -299,7 +299,7 @@ export const SCR_AUT_01_회원가입: React.FC<{
 
           {/* 인증번호 입력 박스 (3분 카운트다운 타이머 포함) */}
           {isCodeSent && !isEmailVerified && (
-            <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/50 space-y-2">
+            <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/50 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-indigo-950 dark:text-indigo-200 flex items-center gap-1">
                   <span>6자리 인증번호 입력</span>
@@ -321,7 +321,7 @@ export const SCR_AUT_01_회원가입: React.FC<{
                 <button
                   type="button"
                   onClick={handleVerifyCode}
-                  className="min-h-[40px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold shrink-0 transition-all shadow-xs cursor-pointer whitespace-nowrap"
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold shrink-0 transition-all shadow-xs cursor-pointer whitespace-nowrap flex items-center justify-center"
                 >
                   확인
                 </button>

@@ -7,7 +7,6 @@ import {
   ElmSwt01,
   ElmRad01,
   ElmChk01,
-  ElmTab01,
   ElmSld03,
 } from '../elements/Tokens';
 import {
@@ -23,11 +22,13 @@ import {
   Moon,
   Sparkles,
   Monitor,
+  X,
 } from 'lucide-react';
 
 export const SCR_SET_01_사용자설정: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('THEME');
+  const [saveToast, setSaveToast] = useState(false);
 
   // 6.1 메인화면 구성 설정
   const [showLedgerSummary, setShowLedgerSummary] = useState(true);
@@ -53,34 +54,50 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
   const [ocrKey, setOcrKey] = useState('sk-proj-user-key-dummy-sample');
 
   const handleSave = () => {
-    alert('사용자 설정이 안전하게 저장되었습니다.');
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50 min-h-screen text-slate-900">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-4">
+    <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
+      {/* Section 1: Header (Flat Peer 1) */}
+      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 dark:border-zinc-800 pb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 shrink-0">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
             SCR-SET-01
           </span>
           <ElmTyp01
             title="사용자 맞춤 설정"
-            subtitle="위젯 배치 • 우선순위 • 알림 • 송금 계좌 • OCR 키"
+            subtitle="위젯 배치 • 우선순위 • 알림 • 송금 계좌 • OCR 키 • 플랫 피어 레이아웃"
           />
         </div>
 
         <button
+          type="button"
           onClick={handleSave}
-          className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shrink-0 self-start sm:self-auto"
+          className="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-sm shrink-0 cursor-pointer transition-all"
         >
-          <Save className="w-3.5 h-3.5" />
+          <Save className="w-4 h-4" />
           <span>설정 저장</span>
         </button>
-      </div>
+      </section>
 
-      {/* Tabs - 슬라이드드래그휠(ElmSld03) 적용으로 마우스 휠 및 좌우 드래그 완벽 지원 */}
-      <div className="w-full min-w-0">
+      {/* In-app Save Success Toast (replaces window.alert) */}
+      {saveToast && (
+        <aside className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+          <span>✓ 사용자 맞춤 설정이 브라우저 로컬 스토리지에 안전하게 저장되었습니다.</span>
+          <button
+            type="button"
+            onClick={() => setSaveToast(false)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-emerald-600 dark:text-emerald-400"
+          >
+            ✕
+          </button>
+        </aside>
+      )}
+
+      {/* Section 2: Settings Tabs with ElmSld03 (Flat Peer 2) */}
+      <section className="w-full min-w-0">
         <ElmSld03 showNavButtons={false} className="w-full">
           <div className="flex items-center min-w-max border-b border-slate-200 dark:border-zinc-800">
             {[
@@ -97,7 +114,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative px-4 py-3 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  className={`min-h-[44px] px-5 py-3 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 cursor-pointer relative ${
                     isActive
                       ? 'text-indigo-600 dark:text-indigo-400 font-extrabold'
                       : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
@@ -112,17 +129,19 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             })}
           </div>
         </ElmSld03>
-      </div>
+      </section>
+
+      {/* Section 3: Tab Content Panels (Flat Peer 3) */}
 
       {/* Tab 0: 화면 테마 (주간 / 야간 / 여명 / 시스템) */}
       {activeTab === 'THEME' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-5">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-5">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
               화면 디스플레이 테마 (주간 • 야간 • 여명 • 시스템)
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              선호하는 색상 팔레트(화이트, 그레이, 블루)와 기기 기본 설정을 실시간으로 선택 및 적용할 수 있습니다.
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              선호하는 색상 팔레트와 기기 기본 설정을 실시간으로 선택 및 적용할 수 있습니다.
             </p>
           </div>
 
@@ -130,10 +149,10 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             {/* 1. Light Mode Card */}
             <div
               onClick={() => setTheme('light')}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+              className={`min-h-[44px] p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                 theme === 'light'
                   ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
-                  : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                  : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0B0F17] hover:bg-white dark:hover:bg-zinc-800'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -142,15 +161,15 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     <Sun className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block leading-tight">주간 (라이트)</span>
-                    <span className="text-[10px] text-slate-500">화이트 테마</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block leading-tight">주간 (라이트)</span>
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400">화이트 테마</span>
                   </div>
                 </div>
                 {theme === 'light' && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
                 밝은 주간 환경 및 문서 검토에 적합한 클린 화이트
               </p>
             </div>
@@ -158,10 +177,10 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             {/* 2. Dark Mode Card (Gray) */}
             <div
               onClick={() => setTheme('dark')}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+              className={`min-h-[44px] p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                 theme === 'dark'
                   ? 'border-zinc-400 bg-zinc-800/40 shadow-sm'
-                  : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                  : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0B0F17] hover:bg-white dark:hover:bg-zinc-800'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -170,43 +189,43 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     <Moon className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block leading-tight">야간 (다크)</span>
-                    <span className="text-[10px] text-slate-500">딥 그레이 테마</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block leading-tight">야간 (다크)</span>
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400">딥 잉크 블랙 테마</span>
                   </div>
                 </div>
                 {theme === 'dark' && (
-                  <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-400 shrink-0" />
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                차분하고 묵직한 뉴트럴 딥 그레이(#121214) 배경
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+                OLED 친화적인 딥 잉크 블랙(#0B0F17 / #131B2E) 배경
               </p>
             </div>
 
             {/* 3. Dawn Mode Card (Blue) */}
             <div
               onClick={() => setTheme('dawn')}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+              className={`min-h-[44px] p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                 theme === 'dawn'
-                  ? 'border-blue-500 bg-blue-50/80 shadow-sm'
-                  : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                  ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 shadow-sm'
+                  : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0B0F17] hover:bg-white dark:hover:bg-zinc-800'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block leading-tight">여명 (블루)</span>
-                    <span className="text-[10px] text-slate-500">오션 스카이 블루</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block leading-tight">여명 (블루)</span>
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400">오션 스카이 블루</span>
                   </div>
                 </div>
                 {theme === 'dawn' && (
-                  <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
                 산뜻하고 시원한 오션 스카이 블루(#edf4fc / #2563eb) 컬러웨이
               </p>
             </div>
@@ -214,41 +233,41 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             {/* 4. System Auto Card */}
             <div
               onClick={() => setTheme('system')}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+              className={`min-h-[44px] p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                 theme === 'system'
-                  ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
-                  : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                  ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-sm'
+                  : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0B0F17] hover:bg-white dark:hover:bg-zinc-800'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 flex items-center justify-center shrink-0">
                     <Monitor className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block leading-tight">시스템 연동</span>
-                    <span className="text-[10px] text-slate-500">기기 OS 자동</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block leading-tight">시스템 연동</span>
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400">기기 OS 자동</span>
                   </div>
                 </div>
                 {theme === 'system' && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
                 운영체제(OS)의 다크/라이트 모드 설정에 자동 동기화
               </p>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 1: 메인화면 구성 */}
       {activeTab === 'LAYOUT' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
             대시보드 Bento Grid 위젯 표시 항목 선택
           </h3>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
             <ElmSwt01
               checked={showLedgerSummary}
               onChange={setShowLedgerSummary}
@@ -274,13 +293,13 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               description="용돈 차감 요청 및 분납 D-Day 노출"
             />
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 2: 빠른수행 우선순위 */}
       {activeTab === 'PRIORITY' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
             빠른수행 위젯 우선순위 노출 정책
           </h3>
           <div className="space-y-3">
@@ -295,13 +314,13 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               label="설정별 전체 항목 카드 목록 노출 (당번, 목표 모두 펼쳐보기)"
             />
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 3: 알림 설정 */}
       {activeTab === 'NOTIFY' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
             알림톡 및 푸시 알림 시간/주기
           </h3>
           <div className="space-y-3">
@@ -327,16 +346,16 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               label="모아머니 상환 만기 3일 전 D-Day 알림"
             />
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 4: 송금 수신 계좌 */}
       {activeTab === 'ACCOUNT' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
             3대 빅테크 이체 딥링크 생성을 위한 수신 계좌
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
             정산 또는 용돈 요청 시 토스/카톡 이체 링크에 자동으로 채워질 계좌 정보입니다.
           </p>
           <div className="space-y-3 max-w-md">
@@ -364,16 +383,16 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               placeholder="구본영"
             />
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 5: 2차 OCR 인증키 */}
       {activeTab === 'OCR' && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
             2단계 사용자 OCR API 인증키 관리 (서버 운영비 0원)
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
             1차 로컬 Docker EasyOCR 인식 불가 시, 사용자가 등록한 개인 Google Cloud Vision 또는 OpenAI Key로만 Fallback됩니다.
           </p>
           <div className="max-w-md space-y-3">
@@ -384,11 +403,11 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               onChange={setOcrKey}
               placeholder="AIzaSy... 또는 sk-..."
             />
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-400 dark:text-zinc-500">
               * 키는 브라우저 로컬 스토리지에 암호화되어 보관되며 서버 비용 0원을 달성합니다.
             </p>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

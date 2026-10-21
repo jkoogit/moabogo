@@ -62,6 +62,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [gameResult, setGameResult] = useState<string | null>(null);
   const [isLinking, setIsLinking] = useState(false);
   const [linkSuccess, setLinkSuccess] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [modalNotice, setModalNotice] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -111,8 +113,10 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   const handleExecuteEvent = async () => {
+    setModalError(null);
+    setModalNotice(null);
     if (activeParticipants.length < 1) {
-      alert('최소 1명 이상의 참가자를 선택해주세요.');
+      setModalError('최소 1명 이상의 참가자를 선택해주세요.');
       return;
     }
 
@@ -146,13 +150,14 @@ export const EventModal: React.FC<EventModalProps> = ({
       setCreatedEvent(data);
       onEventCreated();
     } catch (err) {
-      alert('정산 생성 중 오류가 발생했습니다.');
+      setModalError('정산 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
 
   const handleLinkToLedger = async () => {
     if (!createdEvent) return;
     setIsLinking(true);
+    setModalError(null);
     try {
       const res = await fetch(`/api/v1/events/${createdEvent.event_id}/link-to-ledger`, {
         method: 'POST',
@@ -161,19 +166,20 @@ export const EventModal: React.FC<EventModalProps> = ({
           ledger_id: activeLedger?.ledger_id,
         }),
       });
-      const data = await res.json();
+      await res.json();
       setIsLinking(false);
       setLinkSuccess(true);
       onEventCreated();
     } catch (err) {
       setIsLinking(false);
-      alert('가계부 연동 중 오류가 발생했습니다.');
+      setModalError('가계부 연동 중 오류가 발생했습니다.');
     }
   };
 
   const handleDeepLinkClick = (scheme: string, name: string) => {
+    setModalError(null);
     if (isOffline) {
-      alert('오프라인 환경에서는 3대 간편 송금 딥링크가 비활성화됩니다.');
+      setModalError('오프라인 환경에서는 3대 간편 송금 딥링크가 비활성화됩니다.');
       return;
     }
 
@@ -185,9 +191,10 @@ export const EventModal: React.FC<EventModalProps> = ({
     }
 
     // Friendly feedback
-    alert(
-      `[${name} 3초 송금 연동]\n송금 앱(${scheme.split('://')[0]})으로 연결을 시도했습니다.\n(금액: ${splitAmount.toLocaleString()}원)`
+    setModalNotice(
+      `[${name} 3초 송금 연동] 송금 앱(${scheme.split('://')[0]})으로 연결을 시도했습니다. (금액: ₩${splitAmount.toLocaleString()}원)`
     );
+    setTimeout(() => setModalNotice(null), 4000);
   };
 
   const copyBankInfo = () => {
@@ -197,8 +204,15 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] overscroll-contain"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -218,12 +232,42 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title="닫기"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Modal Inline Error */}
+        {modalError && (
+          <div className="mx-6 mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2">
+            <span>{modalError}</span>
+            <button
+              type="button"
+              onClick={() => setModalError(null)}
+              className="text-rose-400 hover:text-rose-200 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Modal Inline Notice */}
+        {modalNotice && (
+          <div className="mx-6 mt-4 p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs flex items-center justify-between gap-2">
+            <span>{modalNotice}</span>
+            <button
+              type="button"
+              onClick={() => setModalNotice(null)}
+              className="text-blue-400 hover:text-blue-200 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-5">
@@ -404,7 +448,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                     type="button"
                     onClick={() => {
                       if (hasGuests) {
-                        alert('게스트가 포함된 경우 자동 연동이 차단됩니다. (확실한 구성원만 수동 연동 지원)');
+                        setModalError('게스트가 포함된 경우 자동 연동이 차단됩니다. (확실한 구성원만 수동 연동 지원)');
                         return;
                       }
                       setBindingOption('AUTO_LINK');
@@ -583,7 +627,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   type="button"
                   onClick={handleLinkToLedger}
                   disabled={isLinking || linkSuccess}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 flex items-center gap-1.5 shadow-md shrink-0"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md shrink-0 cursor-pointer transition-colors"
                 >
                   {linkSuccess ? (
                     <>
@@ -610,7 +654,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <button
               type="button"
               onClick={() => setCreatedEvent(null)}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors"
             >
               ← 다른 이벤트 생성
             </button>
@@ -624,7 +668,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors"
             >
               닫기
             </button>
@@ -633,7 +677,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="button"
                 onClick={handleExecuteEvent}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-lg shadow-indigo-600/20"
+                className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 cursor-pointer transition-colors"
               >
                 <Shuffle className="w-3.5 h-3.5" />
                 <span>이벤트 / 1/N 정산 실행</span>

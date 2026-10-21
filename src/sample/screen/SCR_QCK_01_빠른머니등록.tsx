@@ -126,7 +126,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
             title="닫기"
           >
             <X className="w-5 h-5" />
@@ -150,7 +150,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setSubmitSuccess(null)}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shrink-0"
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
                 >
                   새 내역 계속 등록
                 </button>
@@ -158,7 +158,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
                   >
                     대시보드로 복귀
                   </button>
@@ -173,7 +173,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
           <button
             type="button"
             onClick={() => setEntryType('RECEIPT_EXPENSE')}
-            className={`p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
+            className={`min-h-[56px] p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
               entryType === 'RECEIPT_EXPENSE'
                 ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-indigo-500/30'
                 : 'bg-white dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:border-slate-300'
@@ -189,7 +189,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
           <button
             type="button"
             onClick={() => setEntryType('TRANSFER_PAYMENT')}
-            className={`p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
+            className={`min-h-[56px] p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
               entryType === 'TRANSFER_PAYMENT'
                 ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 shadow-xs ring-1 ring-purple-500/30'
                 : 'bg-white dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:border-slate-300'
@@ -219,7 +219,7 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
                 type="button"
                 onClick={() => handleApplyPreset(pr)}
                 disabled={isScanning}
-                className="p-2.5 rounded-xl border text-left text-xs font-bold transition-all bg-slate-50 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-700 border-slate-200 dark:border-zinc-700 hover:border-indigo-400 disabled:opacity-50 cursor-pointer"
+                className="min-h-[48px] p-2.5 rounded-xl border text-left text-xs font-bold transition-all bg-slate-50 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-700 border-slate-200 dark:border-zinc-700 hover:border-indigo-400 disabled:opacity-50 cursor-pointer flex flex-col justify-center"
               >
                 <div className="truncate text-slate-800 dark:text-zinc-100">{pr.label}</div>
                 <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">

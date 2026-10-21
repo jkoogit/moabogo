@@ -1,0 +1,677 @@
+[
+  {
+    "id": "ELM-TYP-01",
+    "name": "메인 타이틀",
+    "category": "Typography",
+    "description": "화면 및 주요 섹션의 최상단 타이틀로 높이 기준 수직 100% 중앙 정렬과 배지/서브타이틀 결합을 지원합니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center 및 leading-none 결합으로 폰트 높이 중심선 100% 일치",
+      "textWrapPolicy": "break-keep 필수 적용으로 한글 단어 단위 개행, 배지는 whitespace-nowrap",
+      "touchTargetMin": "min-h-[32px] (헤더 기준), 클릭 트리거 시 44px 이상",
+      "keyTailwindClasses": "text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-none flex items-center break-keep",
+      "eventIsolation": "해당 없음 (텍스트 렌더링)"
+    },
+    "states": ["default", "with-badge", "with-subtitle", "compact"],
+    "viewportSupport": {
+      "pc": "text-xl 폰트 및 여유로운 가로 배치",
+      "tablet": "text-lg 폰트 및 flex-wrap 줄바꿈 안전",
+      "mobile": "text-base 폰트, break-keep 및 32px 높이 축 유지"
+    },
+    "codeSnippet": "<ElmTyp01\n  title=\"우리집 가계부 관리\"\n  badge=\"운영중\"\n  subtitle=\"가계부의 수입/지출을 투명하게 기록하고 대사합니다.\"\n/>",
+    "propsInterface": "interface ElmTyp01Props {\n  title: string;\n  badge?: string;\n  subtitle?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "메인 헤더 타이틀" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "대시보드 메인 타이틀" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "가계부 2대축 메인 타이틀" },
+      { "screenId": "SCR-AUT-01", "screenName": "회원가입 화면", "role": "회원가입 인트로 타이틀" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "설정 관리 타이틀" }
+    ]
+  },
+  {
+    "id": "ELM-INP-01",
+    "name": "일반 입력필드 (상시 X 클리어)",
+    "category": "Form",
+    "description": "값 입력 시 즉시 전체 삭제 가능한 원형 ✕ 클리어 버튼이 상시 탑재된 표준 텍스트 인풋입니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center 및 leading-normal로 텍스트와 우측 ✕ 버튼의 수평 중심선 1:1 일치",
+      "textWrapPolicy": "단일 라인 입력, 긴 텍스트 입력 시 수평 스크롤 허용",
+      "touchTargetMin": "min-h-[44px] (인풋 높이 최소 44px, ✕ 버튼 min-w-[44px] min-h-[44px] 터치 영역 보장)",
+      "keyTailwindClasses": "w-full min-h-[44px] pl-3.5 pr-11 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none",
+      "eventIsolation": "클리어 버튼 클릭 시 e.stopPropagation() 및 e.preventDefault() 수행으로 폼 자동제출 차단"
+    },
+    "states": ["default", "focused", "filled", "disabled", "error"],
+    "viewportSupport": {
+      "pc": "가로폭 100% 또는 반응형 그리드 내 최적화",
+      "tablet": "44px 터치 높이 유지",
+      "mobile": "44px~48px 터치 타겟 확보 및 가상 키보드 대응"
+    },
+    "codeSnippet": "<ElmInp01\n  value={text}\n  onChange={setText}\n  placeholder=\"거래명 또는 메모를 입력하세요\"\n  label=\"거래 적요\"\n/>",
+    "propsInterface": "interface ElmInp01Props {\n  value: string;\n  onChange: (val: string) => void;\n  placeholder?: string;\n  type?: string;\n  label?: string;\n  disabled?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-AUT-01", "screenName": "회원가입 화면", "role": "아이디/비밀번호/닉네임 입력" },
+      { "screenId": "SCR-AUT-02", "screenName": "로그인 & 오프라인 세션", "role": "로그인 폼 입력" },
+      { "screenId": "SCR-QCK-01", "screenName": "빠른 머니 등록", "role": "금액 및 내역 입력" },
+      { "screenId": "SCR-QCK-02", "screenName": "빠른 수행 등록", "role": "당번 활동 메모 입력" }
+    ]
+  },
+  {
+    "id": "ELM-INP-04",
+    "name": "검색 입력필드 (Search + 상시 X)",
+    "category": "Form",
+    "description": "좌측 Search 돋보기 아이콘과 우측 ✕ 클리어 버튼이 통합된 실시간 검색 특화 입력필드입니다.",
+    "guardrails": {
+      "verticalCenterRule": "Search 아이콘, 텍스트 플레이스홀더, ✕ 클리어 버튼의 높이 중심선 100% 일치",
+      "textWrapPolicy": "단일 라인 텍스트, placeholder truncate 적용",
+      "touchTargetMin": "min-h-[44px], ✕ 버튼 44px 터치 패딩",
+      "keyTailwindClasses": "w-full min-h-[44px] pl-10 pr-11 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20",
+      "eventIsolation": "클리어 클릭 시 포커스 유지 및 상위 버블링 차단"
+    },
+    "states": ["default", "searching", "filled", "focused"],
+    "viewportSupport": {
+      "pc": "상단 필터 바에 인라인 배치",
+      "tablet": "독립 행 배치 가능",
+      "mobile": "너비 100% 확장 및 44px 터치 패딩"
+    },
+    "codeSnippet": "<ElmInp04\n  value={keyword}\n  onChange={setKeyword}\n  placeholder=\"거래처, 카테고리 검색...\"\n/>",
+    "propsInterface": "interface ElmInp04Props {\n  value: string;\n  onChange: (val: string) => void;\n  placeholder?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "통합 거래 검색" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "지출/수입 내역 실시간 필터 검색" }
+    ]
+  },
+  {
+    "id": "ELM-SEL-01",
+    "name": "선택 드롭다운",
+    "category": "Form",
+    "description": "네이티브 접근성과 커스텀 ChevronDown 아이콘을 단일 수평축으로 일치시킨 셀렉트 박스입니다.",
+    "guardrails": {
+      "verticalCenterRule": "선택 텍스트와 우측 Chevron 아이콘의 수직 100% 중앙 정렬",
+      "textWrapPolicy": "truncate 적용으로 긴 옵션명 오버플로우 방어",
+      "touchTargetMin": "min-h-[44px]",
+      "keyTailwindClasses": "w-full min-h-[44px] px-3.5 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl appearance-none",
+      "eventIsolation": "네이티브 onChange 이벤트 전파 제어"
+    },
+    "states": ["default", "focused", "disabled"],
+    "viewportSupport": {
+      "pc": "컴팩트 그리드",
+      "tablet": "44px 터치 높이",
+      "mobile": "100% 너비 및 터치 친화적 시스템 피커 호출"
+    },
+    "codeSnippet": "<ElmSel01\n  value={ledgerId}\n  onChange={setLedgerId}\n  options={[\n    { value: '1', label: '우리집 생활비' },\n    { value: '2', label: '개인 비상금' }\n  ]}\n  label=\"가계부 선택\"\n/>",
+    "propsInterface": "interface ElmSel01Props {\n  value: string;\n  onChange: (val: string) => void;\n  options: Array<{ value: string; label: string }>;\n  label?: string;\n  disabled?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "결제수단 및 카테고리 선택" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "출금/입금 계좌 선택" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "기본 통화 및 테마 선택" }
+    ]
+  },
+  {
+    "id": "ELM-SEL-02",
+    "name": "실시간 필터 드롭다운",
+    "category": "Form",
+    "description": "텍스트 입력과 동시에 항목이 실시간 필터링되며 상시 ✕ 초기화 및 ChevronDown이 결합된 고급형 셀렉트입니다.",
+    "guardrails": {
+      "verticalCenterRule": "텍스트 인풋, 필터 키워드, 초기화 ✕ 및 화살표의 수평축 정렬",
+      "textWrapPolicy": "목록 아이템 truncate 및 whitespace-nowrap",
+      "touchTargetMin": "트리거 min-h-[44px], 드롭다운 항목 min-h-[44px]",
+      "keyTailwindClasses": "relative w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900",
+      "eventIsolation": "바깥 클릭(Outside Click) 감지 시 자동 닫기 및 드롭다운 내부 클릭 전파 차단"
+    },
+    "states": ["closed", "opened", "filtering", "item-selected"],
+    "viewportSupport": {
+      "pc": "절대좌표 드롭다운 레이어(sm:w-80)",
+      "tablet": "너비 자동 조절",
+      "mobile": "모바일 뷰포트 내 최대 높이 제한(max-h-60) 및 스크롤"
+    },
+    "codeSnippet": "<ElmSel02\n  value={category}\n  onChange={setCategory}\n  options={[\n    { value: 'FOOD', label: '식음료 / 카페' },\n    { value: 'MART', label: '생활 / 장보기' }\n  ]}\n  placeholder=\"카테고리 검색/선택\"\n/>",
+    "propsInterface": "interface ElmSel02Props {\n  value: string;\n  onChange: (val: string) => void;\n  options: Array<{ value: string; label: string }>;\n  placeholder?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "대분류/소분류 실시간 검색 선택" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "보고서 대분류 필터" }
+    ]
+  },
+  {
+    "id": "ELM-FLT-01",
+    "name": "필터 선택 칩",
+    "category": "Control",
+    "description": "클릭 시 활성/비활성이 토글되는 세그먼트형 필터 칩으로 내부 줄바꿈을 절대 금지합니다.",
+    "guardrails": {
+      "verticalCenterRule": "inline-flex items-center 및 leading-none으로 텍스트 수직 100% 중앙 정렬",
+      "textWrapPolicy": "whitespace-nowrap 필수, 내부 줄바꿈 절대 금지, 부모 컨테이너 flex-wrap 권장",
+      "touchTargetMin": "min-h-[44px] 터치 영역 패딩 확보",
+      "keyTailwindClasses": "inline-flex items-center justify-center min-h-[44px] px-3.5 py-2 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap cursor-pointer select-none",
+      "eventIsolation": "onClick 이벤트 활성화 및 키보드 Enter/Space 접근성 지원"
+    },
+    "states": ["inactive", "active", "hover"],
+    "viewportSupport": {
+      "pc": "가로 일렬 배치",
+      "tablet": "flex-wrap으로 자동 줄바꿈",
+      "mobile": "ELM-SLD-03 가로 스크롤 트랙 내 슬라이드 배치 지원"
+    },
+    "codeSnippet": "<ElmFlt01\n  label=\"식음료\"\n  count={12}\n  active={activeTab === 'FOOD'}\n  onClick={() => setActiveTab('FOOD')}\n/>",
+    "propsInterface": "interface ElmFlt01Props {\n  label: string;\n  count?: number;\n  active: boolean;\n  onClick: () => void;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리/룰렛 게임 모드 필터" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "기간별 거래 필터(전체, 이번달, 지난달)" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "지출/수입/고정비 세부 필터" }
+    ]
+  },
+  {
+    "id": "ELM-RAD-01",
+    "name": "라디오 버튼",
+    "category": "Control",
+    "description": "라벨 텍스트와 컨트롤 중앙점이 1:1 수직 중앙으로 정확히 일치하는 단일 선택 원형 버튼입니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center를 통해 라디오 원형 중심과 라벨 텍스트 x-height 정밀 일치",
+      "textWrapPolicy": "라벨 break-keep, 부모 flex-wrap 허용",
+      "touchTargetMin": "min-h-[44px] min-w-[44px] 전체 영역 클릭 가능",
+      "keyTailwindClasses": "flex items-center gap-2.5 min-h-[44px] cursor-pointer select-none text-sm font-medium",
+      "eventIsolation": "네이티브 change 이벤트 및 키보드 라디오 그룹 순회 지원"
+    },
+    "states": ["unselected", "selected", "disabled"],
+    "viewportSupport": {
+      "pc": "인라인 수평 정렬",
+      "tablet": "그리드 2열 배치",
+      "mobile": "수직 스택 또는 44px 행 단위 정렬"
+    },
+    "codeSnippet": "<ElmRad01\n  checked={type === 'PERSONAL'}\n  onChange={() => setType('PERSONAL')}\n  label=\"개인 가계부 (단독 관리)\"\n/>",
+    "propsInterface": "interface ElmRad01Props {\n  checked: boolean;\n  onChange: () => void;\n  label: string;\n  disabled?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-AUT-01", "screenName": "회원가입 화면", "role": "계정 유형 선택" },
+      { "screenId": "SCR-EVT-01", "screenName": "독립 이벤트 정산 & 게임", "role": "정산 분할 방식 선택" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "테마(다크/라이트/시스템) 선택" }
+    ]
+  },
+  {
+    "id": "ELM-CHK-01",
+    "name": "체크박스",
+    "category": "Control",
+    "description": "텍스트 라벨과 체크박스 박스가 수직 100% 중앙 정렬되는 다중 선택 컨트롤입니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center로 체크 박스와 텍스트 높이선 수직 중앙 일치",
+      "textWrapPolicy": "break-keep 적용, 긴 약관의 경우 행간 leading-relaxed",
+      "touchTargetMin": "min-h-[44px] (체크 박스 자체 20px, 터치 컨테이너 44px 이상)",
+      "keyTailwindClasses": "flex items-center gap-2.5 min-h-[44px] cursor-pointer select-none text-sm font-medium",
+      "eventIsolation": "체크박스 토글 시 부모 이벤트와 충돌 방지"
+    },
+    "states": ["unchecked", "checked", "disabled"],
+    "viewportSupport": {
+      "pc": "인라인",
+      "tablet": "여백 보장",
+      "mobile": "44px 터치 패딩 전수 보장"
+    },
+    "codeSnippet": "<ElmChk01\n  checked={agreed}\n  onChange={setAgreed}\n  label=\"[필수] 개인정보 수집 및 이용 동의\"\n/>",
+    "propsInterface": "interface ElmChk01Props {\n  checked: boolean;\n  onChange: (checked: boolean) => void;\n  label: string;\n  disabled?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-AUT-01", "screenName": "회원가입 화면", "role": "서비스 이용약관 동의" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "원자 거래 다중 선택 및 일괄 삭제" },
+      { "screenId": "SCR-QCK-01", "screenName": "빠른 머니 등록", "role": "고정비 자동등록 체크" }
+    ]
+  },
+  {
+    "id": "ELM-SWT-01",
+    "name": "토글 스위치",
+    "category": "Control",
+    "description": "설정 켜기/끄기를 즉각 직관적으로 전환하는 모바일 친화적 스위치 컨트롤입니다.",
+    "guardrails": {
+      "verticalCenterRule": "스위치 트랙(24px)과 좌측 설명 라벨의 높이 축 100% 수직 중앙 일치",
+      "textWrapPolicy": "라벨 텍스트 break-keep 및 설명문 가로폭 제어",
+      "touchTargetMin": "min-h-[44px] min-w-[56px] 터치 영역",
+      "keyTailwindClasses": "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+      "eventIsolation": "토글 클릭 시 stopPropagation 적용"
+    },
+    "states": ["off", "on", "disabled"],
+    "viewportSupport": {
+      "pc": "우측 정렬",
+      "tablet": "행 단위 분리",
+      "mobile": "44px 터치 높이 및 부드러운 트랜지션"
+    },
+    "codeSnippet": "<ElmSwt01\n  enabled={isPushOn}\n  onChange={setIsPushOn}\n  label=\"야간 알림 제한\"\n  description=\"오후 10시 이후 푸시 알림을 무음 처리합니다.\"\n/>",
+    "propsInterface": "interface ElmSwt01Props {\n  enabled: boolean;\n  onChange: (val: boolean) => void;\n  label?: string;\n  description?: string;\n  disabled?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "푸시 알림 및 자동 동기화 ON/OFF" },
+      { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "당번 자동 교대 알림 스위치" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "비상금 자동 채우기 스위치" }
+    ]
+  },
+  {
+    "id": "ELM-RNG-01",
+    "name": "상태바 증감드래그휠",
+    "category": "Control",
+    "description": "좌우 [-]/[+] 44px 버튼 + Range 슬라이더 + 마우스 휠 ±step 증감 + 숫자 직접 입력이 통합된 4-in-1 표준 컨트롤입니다.",
+    "guardrails": {
+      "verticalCenterRule": "좌우 버튼, 슬라이더 바, 숫자 인풋의 수직 중심선 100% 일치",
+      "textWrapPolicy": "라벨 break-keep, 단위 라벨 whitespace-nowrap",
+      "touchTargetMin": "좌우 버튼 min-w-[44px] min-h-[44px], 슬라이더 터치 영역 min-h-[44px]",
+      "keyTailwindClasses": "flex items-center gap-2 select-none min-h-[44px]",
+      "eventIsolation": "passive: false wheel 이벤트 리스너 탑재로 브라우저 상하 스크롤 완전 차단(e.preventDefault & e.stopPropagation)"
+    },
+    "states": ["default", "dragging", "min-limit", "max-limit", "disabled"],
+    "viewportSupport": {
+      "pc": "휠 스크롤 및 마우스 드래그 최적화",
+      "tablet": "터치 슬라이더 및 버튼 겸용",
+      "mobile": "44px 터치 버튼을 통한 정확한 1단위 증감 지원"
+    },
+    "codeSnippet": "<ElmRng01\n  value={memberCount}\n  min={2}\n  max={20}\n  step={1}\n  unit=\"명\"\n  onChange={setMemberCount}\n  label=\"참가자 수\"\n  colorScheme=\"indigo\"\n/>",
+    "propsInterface": "interface ElmRng01Props {\n  value: number;\n  min: number;\n  max: number;\n  step?: number;\n  unit?: string;\n  onChange: (val: number) => void;\n  colorScheme?: 'indigo' | 'rose' | 'emerald' | 'sky';\n  label?: string;\n  showInput?: boolean;\n  className?: string;\n  disabled?: boolean;\n  title?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리 타기 / 룰렛 참가자 수 및 당첨 수 실시간 조절" },
+      { "screenId": "SCR-EVT-01", "screenName": "독립 이벤트 정산 & 게임", "role": "정산 N등분 인원 수 조절" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "금액 범위 필터 슬라이더" }
+    ]
+  },
+  {
+    "id": "ELM-CNT-01",
+    "name": "건수 카운트 뱃지",
+    "category": "Badge",
+    "description": "목록 건수, 미처리 항목 수를 깔끔하게 시각화하는 인라인 숫자 뱃지입니다.",
+    "guardrails": {
+      "verticalCenterRule": "inline-flex items-center justify-center 및 leading-none 일치",
+      "textWrapPolicy": "whitespace-nowrap 필수, font-mono tabular-nums",
+      "touchTargetMin": "비인터랙티브 시 20px, 클릭 트리거 시 44px 컨테이너 패딩",
+      "keyTailwindClasses": "inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 whitespace-nowrap",
+      "eventIsolation": "해당 없음"
+    },
+    "states": ["default", "highlight", "muted"],
+    "viewportSupport": {
+      "pc": "탭 및 라벨 우측 인라인",
+      "tablet": "유지",
+      "mobile": "숫자 폰트 tabular-nums 유지"
+    },
+    "codeSnippet": "<ElmCnt01 count={8} highlight={true} />",
+    "propsInterface": "interface ElmCnt01Props {\n  count: number;\n  highlight?: boolean;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "오늘의 미처리 당번 건수 표기" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "카테고리별 거래 건수 표기" },
+      { "screenId": "SCR-OFF-01", "screenName": "오프라인 동기화", "role": "대기열 미동기화 건수 표기" }
+    ]
+  },
+  {
+    "id": "ELM-STT-01",
+    "name": "상태 Pills 뱃지 (6종)",
+    "category": "Badge",
+    "description": "진행/완료/반려/자산이동 등 도메인 상태를 나타내는 6종 시맨틱 배색 뱃지입니다.",
+    "guardrails": {
+      "verticalCenterRule": "inline-flex items-center 및 leading-none으로 텍스트 수직 100% 중앙 정렬",
+      "textWrapPolicy": "whitespace-nowrap 필수, 요소 내부 줄바꿈 절대 금지",
+      "touchTargetMin": "비인터랙티브 뱃지 규격, 미세 1px 테두리 결합",
+      "keyTailwindClasses": "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap leading-none",
+      "eventIsolation": "해당 없음"
+    },
+    "states": ["COMPLETED", "PENDING", "REJECTED", "TRANSFER", "IN_PROGRESS", "ON_HOLD"],
+    "viewportSupport": {
+      "pc": "테이블 행 인라인",
+      "tablet": "카드 헤더 우측 정렬",
+      "mobile": "whitespace-nowrap 및 축소 방지"
+    },
+    "codeSnippet": "<ElmStt01 status=\"COMPLETED\" label=\"정산완료\" />\n<ElmStt01 status=\"TRANSFER\" label=\"자산이체\" />",
+    "propsInterface": "interface ElmStt01Props {\n  status: 'COMPLETED' | 'PENDING' | 'REJECTED' | 'TRANSFER' | 'IN_PROGRESS' | 'ON_HOLD';\n  label?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "원자지출 상태 및 자산이체 여부 표기" },
+      { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "당번 3상태머신 표기" },
+      { "screenId": "SCR-GOL-01", "screenName": "모아목표 상세", "role": "목표 달성 여부 표기" }
+    ]
+  },
+  {
+    "id": "ELM-TRE-01",
+    "name": "목록 데이터 트리 (뷰/편집)",
+    "category": "Layout",
+    "description": "계층형 카테고리와 지출 트리를 접기/펼침(View) 또는 인라인 수정/삭제(Edit) 모드로 전환 관리합니다.",
+    "guardrails": {
+      "verticalCenterRule": "트리 들여쓰기 인덴트, 접기 화살표, 라벨, 금액 텍스트의 수평 중심선 100% 일치",
+      "textWrapPolicy": "노드 이름 break-keep 및 금액 font-mono tabular-nums",
+      "touchTargetMin": "각 노드 행 min-h-[44px], 토글 버튼 min-w-[44px] min-h-[44px]",
+      "keyTailwindClasses": "w-full space-y-1.5 select-none",
+      "eventIsolation": "접기/펼침 클릭 시 자식 노드 선택 이벤트 전파 차단(e.stopPropagation())"
+    },
+    "states": ["view-mode", "edit-mode", "collapsed", "expanded"],
+    "viewportSupport": {
+      "pc": "우측 액션 버튼 상시 노출",
+      "tablet": "인덴트 간격 16px 최적화",
+      "mobile": "44px 터치 행 높이 및 간결한 액션 메뉴"
+    },
+    "codeSnippet": "<ElmTre01\n  data={treeData}\n  isEditing={isEditing}\n  onToggleExpand={handleToggle}\n  onUpdateNode={handleUpdate}\n/>",
+    "propsInterface": "interface ElmTre01Props {\n  data: TreeNode[];\n  isEditing?: boolean;\n  onToggleExpand?: (id: string) => void;\n  onUpdateNode?: (id: string, name: string) => void;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "수입/지출 2단계 카테고리 트리 편집" }
+    ]
+  },
+  {
+    "id": "ELM-PRF-01",
+    "name": "프로필 아바타",
+    "category": "Badge",
+    "description": "사용자 프로필 이미지 또는 닉네임 첫 글자를 원형 3종 규격(32px, 48px, 64px)으로 렌더링합니다.",
+    "guardrails": {
+      "verticalCenterRule": "원형 컨테이너 내부 텍스트/이미지 100% 수직·수평 정중앙 일치",
+      "textWrapPolicy": "이니셜 1~2자 제한, 줄바꿈 불가",
+      "touchTargetMin": "클릭 가능 아바타인 경우 44px 이상 터치 영역 보장",
+      "keyTailwindClasses": "rounded-full flex items-center justify-center font-bold text-white shrink-0 select-none overflow-hidden",
+      "eventIsolation": "해당 없음"
+    },
+    "states": ["small-32", "medium-48", "large-64", "image", "initials"],
+    "viewportSupport": {
+      "pc": "헤더 및 리스트",
+      "tablet": "유지",
+      "mobile": "터치 시 프로필 모달 연동"
+    },
+    "codeSnippet": "<ElmPrf01 name=\"김모아\" size=\"md\" imageUrl=\"/avatar.jpg\" />",
+    "propsInterface": "interface ElmPrf01Props {\n  name: string;\n  size?: 'sm' | 'md' | 'lg';\n  imageUrl?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "우측 상단 사용자 프로필" },
+      { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "오늘의 당번 수행자 아바타" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "내 프로필 사진 관리" }
+    ]
+  },
+  {
+    "id": "ELM-STP-01",
+    "name": "수평 진행상태 스테퍼",
+    "category": "Navigation",
+    "description": "할당 ➔ 인증 ➔ 승인 등 단계별 업무 흐름을 시각화하는 수평 프로세스 바입니다.",
+    "guardrails": {
+      "verticalCenterRule": "스텝 원형 번호와 연결 라인, 스텝 텍스트의 수평 중심선 100% 일치",
+      "textWrapPolicy": "라벨 텍스트 break-keep 및 whitespace-nowrap",
+      "touchTargetMin": "각 스텝 min-h-[44px] 터치 영역",
+      "keyTailwindClasses": "flex items-center justify-between w-full select-none",
+      "eventIsolation": "클릭 가능한 스텝 전환 시 부모 폼 제출 방지"
+    },
+    "states": ["step-pending", "step-current", "step-completed"],
+    "viewportSupport": {
+      "pc": "가로 전체 펼침",
+      "tablet": "간격 축소",
+      "mobile": "텍스트 생략 및 번호 원형 위주 컴팩트 표시"
+    },
+    "codeSnippet": "<ElmStp01\n  currentStep={2}\n  steps={['할당', '인증제출', '최종승인']}\n/>",
+    "propsInterface": "interface ElmStp01Props {\n  currentStep: number;\n  steps: string[];\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "당번 수행 및 승인 프로세스" },
+      { "screenId": "SCR-GOL-01", "screenName": "모아목표 상세", "role": "목표 저축 단계 표시" }
+    ]
+  },
+  {
+    "id": "ELM-TAB-01",
+    "name": "탭 네비게이션",
+    "category": "Navigation",
+    "description": "화면 내 하위 섹션 전환을 위한 탭 메뉴로 Indigo-600 하단 활성 인디케이터 바를 제공합니다.",
+    "guardrails": {
+      "verticalCenterRule": "탭 라벨과 카운트 뱃지의 수직 100% 중앙 정렬",
+      "textWrapPolicy": "whitespace-nowrap 필수, 탭 간 줄바꿈 방지 및 필요 시 가로 스크롤",
+      "touchTargetMin": "min-h-[44px] (모든 탭 버튼 최소 44px 높이)",
+      "keyTailwindClasses": "flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 w-full overflow-x-auto [scrollbar-width:none]",
+      "eventIsolation": "탭 클릭 시 URL 해시 변경 및 전파 방지"
+    },
+    "states": ["default", "active", "hover"],
+    "viewportSupport": {
+      "pc": "좌측 정렬 탭 리스트",
+      "tablet": "가로 스크롤 허용",
+      "mobile": "모바일 스크롤 트랙 및 44px 터치 높이"
+    },
+    "codeSnippet": "<ElmTab01\n  tabs={[\n    { id: 'EXPENSE', label: '지출내역', count: 24 },\n    { id: 'INCOME', label: '수입내역', count: 3 }\n  ]}\n  activeTab={activeTab}\n  onSelect={setActiveTab}\n/>",
+    "propsInterface": "interface ElmTab01Props {\n  tabs: Array<{ id: string; label: string; count?: number }>;\n  activeTab: string;\n  onSelect: (id: string) => void;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "지출/수입/분석 탭 전환" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "모아머니/외부계좌 탭" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "일반/보안/알림 탭" }
+    ]
+  },
+  {
+    "id": "ELM-SLD-03",
+    "name": "슬라이드 드래그휠 (이벤트 전파 완전 차단)",
+    "category": "Slider & Touch",
+    "description": "상하 휠 ➔ 가로 스크롤 변환, 마우스/터치 드래그, 좌우 ◀▶ 1단계 스냅 이동 버튼, 그리고 부모 페이지 스크롤 간섭을 100% 차단하는 고성능 슬라이더 트랙입니다.",
+    "guardrails": {
+      "verticalCenterRule": "내부 컨텐츠 카드 및 좌우 네비게이션 버튼의 높이 기준 수직 100% 중앙 정렬",
+      "textWrapPolicy": "내부 자식 아이템 줄바꿈 방지(whitespace-nowrap), 가로 일렬 나열",
+      "touchTargetMin": "좌우 이동 버튼 min-w-[44px] min-h-[44px], 내부 카드 터치 높이 44px 이상",
+      "keyTailwindClasses": "w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-none overscroll-contain overscroll-x-contain touch-pan-x",
+      "eventIsolation": "onWheel e.stopPropagation() + onClickCapture 드래그 중 내부 클릭 차단 + overscroll-contain으로 페이지 스크롤 방어"
+    },
+    "states": ["idle", "dragging", "wheeling", "hover-nav"],
+    "viewportSupport": {
+      "pc": "휠 가로 스크롤 및 마우스 드래그, 좌우 버튼 호버 노출",
+      "tablet": "터치 스와이프 및 부드러운 감속",
+      "mobile": "touch-pan-x 스와이프 및 스크롤바 미노출"
+    },
+    "codeSnippet": "<ElmSld03 showNavButtons={true} stepWidth={240}>\n  {cards.map(card => (\n    <div key={card.id} className=\"shrink-0 w-60 p-4 rounded-xl border bg-white\">\n      {card.title}\n    </div>\n  ))}\n</ElmSld03>",
+    "propsInterface": "interface ElmSld03Props {\n  children: React.ReactNode;\n  className?: string;\n  innerClassName?: string;\n  showNavButtons?: boolean;\n  stepWidth?: number;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "가계부 2대축 인덱스 슬라이드 및 서류철 슬라이더" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "Bento 가계부 책장 슬라이더" },
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리/룰렛 게임 결과 카드 슬라이더" },
+      { "screenId": "SCR-QCK-02", "screenName": "빠른 수행 등록", "role": "인증 사진 프리셋 썸네일 슬라이더" }
+    ]
+  },
+  {
+    "id": "ELM-TIP-01",
+    "name": "롱프레스 툴팁 & 클립보드 원클릭 복사",
+    "category": "Feedback & Overlay",
+    "description": "말줄임(truncate)된 긴 텍스트를 450ms 롱프레스 시 전체 팝오버로 확인하고 원클릭으로 클립보드에 복사할 수 있는 접근성 컴포넌트입니다.",
+    "guardrails": {
+      "verticalCenterRule": "기본 텍스트 및 복사 완료 뱃지의 수직 중앙 정렬",
+      "textWrapPolicy": "기본 상태 truncate, 롱프레스 팝오버 시 break-all select-all",
+      "touchTargetMin": "기본 터치 영역 확보 및 팝오버 내 복사 버튼 min-h-[44px]",
+      "keyTailwindClasses": "relative inline-flex items-center cursor-help select-text",
+      "eventIsolation": "복사 클릭 시 e.stopPropagation() 및 e.preventDefault() 실행"
+    },
+    "states": ["default", "long-pressed", "copied"],
+    "viewportSupport": {
+      "pc": "호버 툴팁 및 클릭 복사",
+      "tablet": "터치 롱프레스",
+      "mobile": "450ms 롱프레스 팝오버 및 토스트 알림"
+    },
+    "codeSnippet": "<ElmTip01 text=\"010-1234-5678 (국민은행)\">\n  <span className=\"truncate\">010-1234-5678...</span>\n</ElmTip01>",
+    "propsInterface": "interface ElmTip01Props {\n  text: string;\n  children?: React.ReactNode;\n  className?: string;\n  badgeClassName?: string;\n  onCopyNotice?: (msg: string) => void;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "긴 거래 적요 및 가계부 공유 식별키 복사" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "계좌번호 및 송금 메모 원클릭 복사" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "사용자 고유 UUID 복사" }
+    ]
+  },
+  {
+    "id": "ELM-HLP-01",
+    "name": "반응형 기능안내 [?] 팝업레이어",
+    "category": "Feedback & Overlay",
+    "description": "모바일 화면 가로폭 초과를 완벽 방어(fixed inset-x-3)하고 바깥 클릭 및 Esc 키로 자동 닫히는 기능 도움말 레이어입니다.",
+    "guardrails": {
+      "verticalCenterRule": "[?] 아이콘 버튼 및 헤더 타이틀의 수직 중앙 정렬",
+      "textWrapPolicy": "모바일 가로폭 기준 break-keep 및 leading-relaxed",
+      "touchTargetMin": "트리거 버튼 min-w-[44px] min-h-[44px], 닫기 버튼 44px 터치 영역",
+      "keyTailwindClasses": "fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto z-50 p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl",
+      "eventIsolation": "바깥 클릭 리스너 내장, 팝업 내부 클릭 시 e.stopPropagation()"
+    },
+    "states": ["closed", "opened", "mobile-backdrop"],
+    "viewportSupport": {
+      "pc": "트리거 우측/좌측 절대좌표 드롭다운 레이어(sm:w-84)",
+      "tablet": "최적 너비 유지",
+      "mobile": "화면 중앙 fixed inset-x-3 팝업 및 어두운 백드롭 오버레이"
+    },
+    "codeSnippet": "<ElmHlp01 title=\"원자 지출(Atomic) 안내\" badge=\"가이드\">\n  <p>모든 결제는 1개 원자 지출로 기록되며 이중 집계되지 않습니다.</p>\n</ElmHlp01>",
+    "propsInterface": "interface ElmHlp01Props {\n  title: string;\n  children: React.ReactNode;\n  buttonText?: string;\n  align?: 'left' | 'right';\n  width?: string;\n  badge?: string;\n  colorScheme?: 'indigo' | 'sky' | 'emerald' | 'amber' | 'purple' | 'slate';\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "원자지출 SSOT 및 멀티 증빙 대사 규칙 안내" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "Bento 가계부 요약 및 회계 용어 안내" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "계좌 간 이체(TRANSFER) 비지출 규칙 안내" }
+    ]
+  },
+  {
+    "id": "ELM-BSH-01",
+    "name": "모바일 바텀시트 모달",
+    "category": "Feedback & Overlay",
+    "description": "모바일에서 하단에서 부드럽게 올라오는 프로그레시브 디스클로저 전용 바텀시트 컨테이너입니다.",
+    "guardrails": {
+      "verticalCenterRule": "상단 핸들 바 중앙 정렬 및 헤더 타이틀 수직 정렬",
+      "textWrapPolicy": "헤더 타이틀 whitespace-nowrap 및 truncate",
+      "touchTargetMin": "상단 닫기 ✕ 버튼 및 내부 액션 min-h-[44px]",
+      "keyTailwindClasses": "fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs",
+      "eventIsolation": "백드롭 클릭 시 닫기 핸들러 및 시트 내부 클릭 전파 차단"
+    },
+    "states": ["closed", "opening", "opened"],
+    "viewportSupport": {
+      "pc": "중앙 모달 또는 하단 시트",
+      "tablet": "최대 너비 max-w-lg 중앙 배치",
+      "mobile": "하단 밀착(bottom-0) 및 최대 높이 85vh 스크롤"
+    },
+    "codeSnippet": "<ElmBsh01 isOpen={isOpen} onClose={() => setIsOpen(false)} title=\"거래 상세 필터\">\n  <div className=\"space-y-4\">필터 옵션 내용</div>\n</ElmBsh01>",
+    "propsInterface": "interface ElmBsh01Props {\n  isOpen: boolean;\n  onClose: () => void;\n  title: string;\n  children: React.ReactNode;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "모바일 거래 필터 및 카테고리 설정 시트" },
+      { "screenId": "SCR-MON-01", "screenName": "모아머니 통합 이동관리", "role": "이체 금액 입력 바텀시트" },
+      { "screenId": "SCR-OFF-01", "screenName": "오프라인 동기화", "role": "동기화 충돌 상세 확인 시트" }
+    ]
+  },
+  {
+    "id": "ELM-NAV-01",
+    "name": "모바일 하단 네비게이션 바",
+    "category": "Navigation",
+    "description": "모바일 뷰포트에서 한 손 엄지손가락으로 주요 메뉴를 전환할 수 있는 44px+ 터치 보장 하단 고정 바입니다.",
+    "guardrails": {
+      "verticalCenterRule": "아이콘과 텍스트 라벨의 수직 중심선 100% 일치",
+      "textWrapPolicy": "라벨 텍스트 leading-none 및 whitespace-nowrap",
+      "touchTargetMin": "각 탭 min-w-[56px] min-h-[44px] 전수 보장",
+      "keyTailwindClasses": "h-16 flex items-center justify-around px-2 w-full border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md",
+      "eventIsolation": "메뉴 이동 이벤트 격리"
+    },
+    "states": ["default", "active-tab"],
+    "viewportSupport": {
+      "pc": "숨김 (PC는 상단/사이드바 네비게이션 사용)",
+      "tablet": "하단 고정 또는 상단 네비 병행",
+      "mobile": "최하단 고정(fixed inset-x-0 bottom-0 z-40) 상시 노출"
+    },
+    "codeSnippet": "<ElmNav01\n  activeItem=\"ledger\"\n  onSelect={handleMenuChange}\n  items={[\n    { id: 'dashboard', label: '홈', icon: <Home /> },\n    { id: 'ledger', label: '가계부', icon: <Book /> },\n    { id: 'duty', label: '당번', icon: <CheckSquare /> },\n    { id: 'settings', label: '설정', icon: <Settings /> }\n  ]}\n/>",
+    "propsInterface": "interface ElmNav01Props {\n  activeItem: string;\n  onSelect: (item: string) => void;\n  items: Array<{ id: string; label: string; icon: React.ReactNode }>;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "모바일 게스트 네비게이션" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "모바일 대시보드 퀵 네비" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "모바일 하단 메뉴 네비게이션" }
+    ]
+  },
+  {
+    "id": "ELM-OFF-01",
+    "name": "오프라인 인디케이터 바",
+    "category": "Feedback & Overlay",
+    "description": "네트워크 단절 시 최상단에 스티키로 고정되어 오프라인 모드와 동기화 대기 건수를 알리는 투명성 배너입니다.",
+    "guardrails": {
+      "verticalCenterRule": "와이파이 차단 아이콘, 안내 텍스트, 대기건수 뱃지의 수직 100% 중앙 정렬",
+      "textWrapPolicy": "break-keep 및 안내 텍스트 유연 축소",
+      "touchTargetMin": "높이 32px (클릭 시 동기화 모달 연동 44px 패딩)",
+      "keyTailwindClasses": "w-full bg-slate-700 dark:bg-slate-800 border-b border-slate-600 dark:border-slate-700 text-slate-200 text-xs font-medium py-1.5 px-4 flex items-center justify-between shadow-xs sticky top-0 z-50",
+      "eventIsolation": "해당 없음"
+    },
+    "states": ["online-hidden", "offline-visible", "sync-pending"],
+    "viewportSupport": {
+      "pc": "상단 100% 가로 배너",
+      "tablet": "유지",
+      "mobile": "텍스트 줄바꿈 방지 및 대기 건수 우선 표기"
+    },
+    "codeSnippet": "<ElmOff01 isOffline={true} pendingCount={3} />",
+    "propsInterface": "interface ElmOff01Props {\n  isOffline: boolean;\n  pendingCount?: number;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-AUT-02", "screenName": "로그인 & 오프라인 세션", "role": "오프라인 로그인 세션 안내" },
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "오프라인 거래 작성 안내" },
+      { "screenId": "SCR-OFF-01", "screenName": "오프라인 동기화", "role": "동기화 큐 상태 표시" }
+    ]
+  },
+  {
+    "id": "ELM-BNR-01",
+    "name": "인라인 시맨틱 피드백 배너",
+    "category": "Feedback & Overlay",
+    "description": "세션 0013에서 브라우저 내장 alert/confirm을 100% 퇴출하면서 도입된 시맨틱(info, success, warning, error) 피드백 배너입니다.",
+    "guardrails": {
+      "verticalCenterRule": "상태 아이콘, 메시지 텍스트, 우측 ✕ 닫기 버튼의 수직 100% 중앙 정렬",
+      "textWrapPolicy": "break-keep 적용으로 한글 어절 단위 개행, 줄바꿈 시에도 ✕ 버튼 우측 상단 고정",
+      "touchTargetMin": "우측 닫기 버튼 min-w-[44px] min-h-[44px] 터치 영역 전수 보장",
+      "keyTailwindClasses": "p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs font-medium shadow-xs animate-in fade-in",
+      "eventIsolation": "닫기 버튼 클릭 시 stopPropagation() 적용"
+    },
+    "states": ["info", "success", "warning", "error"],
+    "viewportSupport": {
+      "pc": "카드 상단 전폭 배치",
+      "tablet": "유지",
+      "mobile": "44px 닫기 버튼 확보 및 긴 텍스트 줄바꿈 대응"
+    },
+    "codeSnippet": "<ElmBnr01\n  type=\"warning\"\n  message=\"동일한 금액의 중복 거래가 감지되었습니다.\"\n  onClose={() => setWarning(null)}\n/>",
+    "propsInterface": "interface ElmBnr01Props {\n  type: 'info' | 'success' | 'warning' | 'error';\n  message: string;\n  onClose?: () => void;\n  actionLabel?: string;\n  onAction?: () => void;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "중복 거래 경고 및 등록 성공 피드백" },
+      { "screenId": "SCR-AUT-02", "screenName": "로그인 & 오프라인 세션", "role": "인증 실패 및 세션 만료 안내" },
+      { "screenId": "SCR-QCK-01", "screenName": "빠른 머니 등록", "role": "금액 검증 에러 및 저장 알림" }
+    ]
+  },
+  {
+    "id": "ELM-BTO-01",
+    "name": "Bento 플랫 카드 컨테이너",
+    "category": "Layout",
+    "description": "다중 div 래퍼 중첩을 제거하고 내부 요소를 동등 깊이(Peer)로 배치하는 여백 누적 0%의 표준 플랫 카드입니다.",
+    "guardrails": {
+      "verticalCenterRule": "단일 레벨 표면 유지, 내부 섹션 간 일관된 space-y-4 또는 flex/grid 정렬",
+      "textWrapPolicy": "내부 헤더 및 뱃지 whitespace-nowrap 및 break-keep",
+      "touchTargetMin": "내부 모든 상호작용 요소 최소 44px 터치 높이 확보",
+      "keyTailwindClasses": "rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-2xs transition-colors",
+      "eventIsolation": "카드 클릭 가능한 경우 하위 버튼 클릭 시 이벤트 버블링 차단"
+    },
+    "states": ["default", "interactive-hover", "active-bordered", "highlight"],
+    "viewportSupport": {
+      "pc": "그리드 다열(col-span-1/2/3) 레이아웃",
+      "tablet": "2열 반응형 그리드",
+      "mobile": "1열 전체 폭 확장 및 p-4 패딩 유지"
+    },
+    "codeSnippet": "<ElmBto01\n  title=\"이번 달 지출 현황\"\n  badge=\"실시간\"\n  headerAction={<button className=\"min-h-[44px] min-w-[44px] ...\">더보기</button>}\n>\n  <div>플랫하게 배치되는 컨텐츠 내용</div>\n</ElmBto01>",
+    "propsInterface": "interface ElmBto01Props {\n  title?: string;\n  badge?: string;\n  headerAction?: React.ReactNode;\n  children: React.ReactNode;\n  className?: string;\n  onClick?: () => void;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "Bento 위젯 표준 컨테이너" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "수입/지출 분석 요약 카드" },
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리/정산 게임 메인 프레임" },
+      { "screenId": "SCR-SET-01", "screenName": "사용자 맞춤 설정", "role": "설정 그룹별 플랫 카드" }
+    ]
+  },
+  {
+    "id": "ELM-NUM-01",
+    "name": "반응형 라벨·금액 분리 표시",
+    "category": "Badge",
+    "description": "라벨 텍스트는 whitespace-nowrap으로 절대 줄바꿈하지 않고, 뷰포트가 좁아질 때 금액 수치 요소만 독립 개행되는 반응형 금융 포맷터입니다.",
+    "guardrails": {
+      "verticalCenterRule": "라벨과 금액의 items-baseline 정렬 및 tabular-nums 폰트 정렬",
+      "textWrapPolicy": "라벨은 whitespace-nowrap으로 절대 개행 금지, 금액은 flex flex-wrap으로 좁은 공간 시 독립 행 분리",
+      "touchTargetMin": "해당 없음 (인포메이션 요소)",
+      "keyTailwindClasses": "flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 font-mono tabular-nums",
+      "eventIsolation": "해당 없음"
+    },
+    "states": ["default", "income", "expense", "transfer"],
+    "viewportSupport": {
+      "pc": "라벨 좌측, 금액 우측 단일 행 수평 정렬",
+      "tablet": "수평 정렬 유지",
+      "mobile": "공간 협소 시 라벨은 한줄 보존되고 금액만 다음 줄 우측 정렬로 유연 스태킹"
+    },
+    "codeSnippet": "<ElmNum01\n  label=\"자산이체(용돈·저축 등)\"\n  amount={180000}\n  variant=\"transfer\"\n  subText=\"* 계좌 간 단순 이동으로 순수 생활비 지출 통계에서 제외됨\"\n/>",
+    "propsInterface": "interface ElmNum01Props {\n  label: string;\n  amount: number | string;\n  prefix?: string;\n  unit?: string;\n  variant?: 'default' | 'income' | 'expense' | 'transfer';\n  subText?: string;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "종합 자산, 순수 수입, 자산이체 통계 라벨·금액 분리 표기" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "가계부 요약 카드 라벨 및 금액 표기" }
+    ]
+  },
+  {
+    "id": "ELM-QCK-01",
+    "name": "플로팅 빠른등록 레이어 도크",
+    "category": "Navigation",
+    "description": "접었을 때는 텍스트를 생략하고 아이콘만 미니멀하게 표시하며, 그립 핸들로 화면 내 상하 위치를 자유롭게 드래그 이동할 수 있는 전역 빠른등록 위젯입니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center 및 rounded-2xl 패딩으로 아이콘/버튼 정렬",
+      "textWrapPolicy": "접힘 시 whitespace-nowrap 텍스트 생략 및 아이콘만 표시",
+      "touchTargetMin": "min-h-[38px] min-w-[38px] 터치 버튼 보장",
+      "keyTailwindClasses": "fixed right-2.5 sm:right-5 z-40 flex flex-col items-end backdrop-blur-md rounded-2xl shadow-xl",
+      "eventIsolation": "터치 및 드래그 제스처 PointerCapture 격리"
+    },
+    "states": ["folded", "expanded", "dragging"],
+    "viewportSupport": {
+      "pc": "우측 5px 여백 플로팅 및 상하 드래그 위치 제어",
+      "tablet": "우측 여백 플로팅",
+      "mobile": "컴팩트 아이콘 뷰 및 화면 경계 클램핑"
+    },
+    "codeSnippet": "<ElmQck01\n  onOpenMoney={() => navigate('SCR-QCK-01')}\n  onOpenDuty={() => navigate('SCR-QCK-02')}\n/>",
+    "propsInterface": "interface ElmQck01Props {\n  onOpenMoney: () => void;\n  onOpenDuty: () => void;\n  initialTop?: number;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-DSH-01", "screenName": "로그인 메인 대시보드", "role": "전역 빠른 머니/수행 등록 독" },
+      { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "전역 빠른 머니/수행 등록 독" },
+      { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "전역 빠른 머니/수행 등록 독" }
+    ]
+  }
+]

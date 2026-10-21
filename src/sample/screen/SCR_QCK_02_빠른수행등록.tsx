@@ -93,7 +93,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
             title="닫기"
           >
             <X className="w-5 h-5" />
@@ -116,7 +116,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setSubmitSuccess(null)}
-                  className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors shrink-0"
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
                 >
                   새 수행 계속 등록
                 </button>
@@ -124,7 +124,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
                   >
                     대시보드로 복귀
                   </button>
@@ -142,7 +142,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
               setTaskType('DUTY');
               setMemo('분리수거 및 청소기 돌리기 완료했습니다!');
             }}
-            className={`p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
+            className={`min-h-[56px] p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
               taskType === 'DUTY'
                 ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 shadow-xs ring-1 ring-purple-500/30'
                 : 'bg-white dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:border-slate-300'
@@ -161,7 +161,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
               setTaskType('GOAL');
               setMemo('가족 1만보 걷기 챌린지 10,240보 완료!');
             }}
-            className={`p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
+            className={`min-h-[56px] p-3.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer ${
               taskType === 'GOAL'
                 ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-indigo-500/30'
                 : 'bg-white dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:border-slate-300'
@@ -204,10 +204,10 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setStatus('COMPLETED')}
-                  className={`p-2 rounded-lg border text-xs font-bold transition-all text-center break-keep ${
+                  className={`min-h-[44px] p-2 rounded-xl border text-xs font-bold transition-all text-center break-keep flex items-center justify-center cursor-pointer ${
                     status === 'COMPLETED'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300'
-                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <span>완료</span>
@@ -216,10 +216,10 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setStatus('SUBSTITUTE_REQUESTED')}
-                  className={`p-2 rounded-lg border text-xs font-bold transition-all text-center break-keep ${
+                  className={`min-h-[44px] p-2 rounded-xl border text-xs font-bold transition-all text-center break-keep flex items-center justify-center cursor-pointer ${
                     status === 'SUBSTITUTE_REQUESTED'
-                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-700 dark:text-amber-300'
-                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-700 dark:text-amber-300 shadow-xs'
+                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <span>대신요청</span>
@@ -228,10 +228,10 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setStatus('ON_HOLD')}
-                  className={`p-2 rounded-lg border text-xs font-bold transition-all text-center break-keep ${
+                  className={`min-h-[44px] p-2 rounded-xl border text-xs font-bold transition-all text-center break-keep flex items-center justify-center cursor-pointer ${
                     status === 'ON_HOLD'
-                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300'
-                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 shadow-xs'
+                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <span>보류양해</span>
@@ -285,7 +285,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                     key={idx}
                     type="button"
                     onClick={() => setAttachedPhoto(ph.url)}
-                    className="px-2.5 py-1 rounded-lg border text-[11px] font-bold shrink-0 whitespace-nowrap transition-colors bg-slate-50 dark:bg-zinc-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/40 border-slate-200 dark:border-zinc-700 hover:border-purple-400 text-slate-700 dark:text-zinc-300 cursor-pointer shadow-2xs"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl border text-xs font-bold shrink-0 whitespace-nowrap transition-colors bg-slate-50 dark:bg-zinc-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/40 border-slate-200 dark:border-zinc-700 hover:border-purple-400 text-slate-700 dark:text-zinc-300 cursor-pointer shadow-2xs flex items-center justify-center"
                   >
                     {ph.label}
                   </button>
@@ -311,7 +311,7 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
                 <button
                   type="button"
                   onClick={() => setAttachedPhoto(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors shrink-0"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 transition-colors shrink-0 cursor-pointer"
                   title="사진 삭제"
                 >
                   <X className="w-4 h-4" />

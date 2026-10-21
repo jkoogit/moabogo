@@ -5,6 +5,7 @@ import {
   Upload,
   Sparkles,
   AlertTriangle,
+  AlertCircle,
   CheckCircle,
   FileText,
   KeyRound,
@@ -49,10 +50,14 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
   const [parsedItems, setParsedItems] = useState<Array<{ name: string; price: number; qty: number }>>([]);
   const [step, setStep] = useState<'UPLOAD' | 'REVIEW'>('UPLOAD');
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [duplicateWarningData, setDuplicateWarningData] = useState<{ message: string } | null>(null);
 
   if (!isOpen) return null;
 
   const handleSelectSample = (sampleType: 'clear' | 'blurry') => {
+    setErrorMessage(null);
+    setDuplicateWarningData(null);
     if (sampleType === 'clear') {
       setSelectedFile(new File(['dummy-receipt'], 'starbucks_receipt.jpg', { type: 'image/jpeg' }));
       setPreviewUrl('https://images.unsplash.com/photo-1554415707-9e4c2bc052df?w=600&auto=format&fit=crop&q=60');
@@ -70,12 +75,16 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
       setSimulateError(false);
+      setErrorMessage(null);
+      setDuplicateWarningData(null);
     }
   };
 
   const handleRunOCR = async () => {
+    setErrorMessage(null);
+    setDuplicateWarningData(null);
     if (isOffline) {
-      alert('오프라인 환경에서는 OCR 업로드가 차단됩니다.');
+      setErrorMessage('오프라인 환경에서는 OCR 업로드가 차단됩니다.');
       return;
     }
     if (!selectedFile && !previewUrl) return;
@@ -121,16 +130,11 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
       }, 700);
     } catch (err) {
       setIsProcessing(false);
-      alert('OCR 분석 요청 중 오류가 발생했습니다.');
+      setErrorMessage('OCR 분석 요청 중 오류가 발생했습니다.');
     }
   };
 
-  const handleConfirmTransaction = async () => {
-    if (!merchantName || !amount) {
-      alert('가맹점명과 금액을 입력해주세요.');
-      return;
-    }
-
+  const executeSaveTransaction = async (force: boolean = false) => {
     try {
       const res = await fetch(`/api/v1/ledgers/${activeLedger?.ledger_id}/transactions`, {
         method: 'POST',
@@ -142,31 +146,14 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
           category_name: category,
           transaction_date: date ? new Date(date).toISOString() : new Date().toISOString(),
           is_asset_transfer: isAssetTransfer,
-          note: `[2단계 OCR 인증: ${engineUsed === 'USER_KEY_OCR' ? '개인 Key' : '로컬 EasyOCR'}]`,
+          note: force ? '[중복 강제등록 OCR]' : `[2단계 OCR 인증: ${engineUsed === 'USER_KEY_OCR' ? '개인 Key' : '로컬 EasyOCR'}]`,
+          force,
         }),
       });
 
       if (res.status === 409) {
         const errData = await res.json();
-        const proceed = confirm(`[중복 경고]\n${errData.message}\n그래도 등록하시겠습니까?`);
-        if (proceed) {
-          await fetch(`/api/v1/ledgers/${activeLedger?.ledger_id}/transactions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              transaction_type: 'EXPENSE',
-              amount: Number(amount),
-              merchant_name: merchantName,
-              category_name: category,
-              transaction_date: date ? new Date(date).toISOString() : new Date().toISOString(),
-              is_asset_transfer: isAssetTransfer,
-              note: `[중복 강제등록 OCR]`,
-              force: true,
-            }),
-          });
-          onSuccessTransaction({});
-          onClose();
-        }
+        setDuplicateWarningData({ message: errData.message });
         return;
       }
 
@@ -174,13 +161,30 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
       onSuccessTransaction(savedTx);
       onClose();
     } catch (err) {
-      alert('내역 등록 중 오류가 발생했습니다.');
+      setErrorMessage('내역 등록 중 오류가 발생했습니다.');
     }
   };
 
+  const handleConfirmTransaction = async () => {
+    setErrorMessage(null);
+    setDuplicateWarningData(null);
+    if (!merchantName || !amount) {
+      setErrorMessage('가맹점명과 금액을 모두 입력해주세요.');
+      return;
+    }
+    await executeSaveTransaction(false);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] overscroll-contain"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -200,12 +204,57 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title="닫기"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Inline Error Banner */}
+        {errorMessage && (
+          <div className="mx-6 mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-400 hover:text-rose-200 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Duplicate Warning Confirmation Panel */}
+        {duplicateWarningData && (
+          <div className="mx-6 mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5">
+            <div className="font-bold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>[중복 거래 경고] {duplicateWarningData.message}</span>
+            </div>
+            <p className="text-[11px] text-amber-200/80">
+              이미 동일한 금액과 일자의 영수증 내역이 존재합니다. 중복 등록을 강제하시겠습니까?
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => executeSaveTransaction(true)}
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center cursor-pointer shadow-xs"
+              >
+                중복 무시하고 강제 등록
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuplicateWarningData(null)}
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center cursor-pointer"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-5">
@@ -472,7 +521,7 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
             <button
               type="button"
               onClick={() => setStep('UPLOAD')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors"
             >
               ← 다시 스캔
             </button>
@@ -486,7 +535,7 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors"
             >
               취소
             </button>
@@ -496,7 +545,7 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
                 type="button"
                 onClick={handleRunOCR}
                 disabled={isProcessing || (!selectedFile && !previewUrl)}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-lg shadow-blue-600/20"
+                className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-lg shadow-blue-600/20 cursor-pointer transition-colors"
               >
                 {isProcessing ? (
                   <>
@@ -514,7 +563,7 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmTransaction}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"
+                className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 cursor-pointer transition-colors"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>가계부에 최종 등록</span>
