@@ -18,6 +18,9 @@ import {
   Sparkles,
   Copy,
   HelpCircle,
+  Zap,
+  GripHorizontal,
+  Coins,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -1070,39 +1073,69 @@ export const ElmTab01: React.FC<{
   activeTab: string;
   onTabChange: (id: string) => void;
   className?: string;
-}> = ({ tabs, activeTab, onTabChange, className = '' }) => (
-  <div
-    className={`w-full max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex items-center border-b border-slate-200 bg-white shrink-0 scroll-smooth ${className}`}
-  >
-    {tabs.map((tab) => {
-      const isActive = activeTab === tab.id;
-      return (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          className={`relative px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            isActive ? 'text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>{tab.label}</span>
-          {typeof tab.count === 'number' && (
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
-              }`}
-            >
-              {tab.count}
-            </span>
-          )}
-          {isActive && (
-            <div className="absolute bottom-0 inset-x-0 h-0.5 bg-indigo-600 rounded-t" />
-          )}
-        </button>
-      );
-    })}
-  </div>
-);
+}> = ({ tabs, activeTab, onTabChange, className = '' }) => {
+  const tabRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = tabRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
+      if (rawDelta === 0) return;
+
+      const isAtStart = el.scrollLeft <= 1;
+      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
+
+      // 첫 아이템 도달 후 좌측 스크롤이거나 끝 아이템 도달 후 우측 스크롤 시 화면 상하 스크롤 허용
+      if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      el.scrollLeft += rawDelta;
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  return (
+    <div
+      ref={tabRef}
+      className={`w-full max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex items-center border-b border-slate-200 bg-white shrink-0 scroll-smooth ${className}`}
+    >
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onTabChange(tab.id)}
+            className={`relative px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+              isActive ? 'text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <span>{tab.label}</span>
+            {typeof tab.count === 'number' && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {tab.count}
+              </span>
+            )}
+            {isActive && (
+              <div className="absolute bottom-0 inset-x-0 h-0.5 bg-indigo-600 rounded-t" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 /* =========================================================================
    ELM-SLD-01 / ELM-SLD-02 : 슬라이드 휠 트랙 (기본형 & 좌우 이동버튼형)
@@ -1190,12 +1223,20 @@ export const ElmSld03: React.FC<{
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
+      const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
+      if (rawDelta === 0) return;
+
+      const isAtStart = el.scrollLeft <= 1;
+      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
+
+      // 첫 아이템 도달 후 좌측 스크롤이거나, 끝 아이템 도달 후 우측 스크롤 시 화면 상하 스크롤 허용
+      if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
+        return;
+      }
+
       // 상위 윈도우 스크롤 체이닝 및 배경 덜컹거림 원천 차단
       e.preventDefault();
       e.stopPropagation();
-
-      const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
-      if (rawDelta === 0) return;
 
       // 휠 델타 정규화 (부드럽고 직관적인 가로 슬라이드)
       const multiplier = e.deltaMode === 1 ? 24 : 1;
@@ -1923,4 +1964,122 @@ export const ElmHlp01: React.FC<{
     </div>
   );
 };
+
+/* =========================================================================
+   ELM-QCK-01 : 전역 플로팅 빠른등록 도크 (단일 번개 접힘, 상단 핸들, 136px 상한선)
+   ========================================================================= */
+export const ElmQck01: React.FC<{
+  onOpenMoney: () => void;
+  onOpenDuty: () => void;
+  initialTop?: number;
+  className?: string;
+}> = ({ onOpenMoney, onOpenDuty, initialTop = 136, className = '' }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [topPos, setTopPos] = useState(initialTop);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef(0);
+  const initialTopRef = useRef(initialTop);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartY.current = e.clientY;
+    initialTopRef.current = topPos;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const deltaY = e.clientY - dragStartY.current;
+    // 136px(대시보드 타이틀 기준선)을 상한선(Ceiling)으로 제한하고, 화면 하단 80px 내에서만 이동
+    const maxTop = typeof window !== 'undefined' ? window.innerHeight - 80 : 600;
+    const newTop = Math.max(136, Math.min(maxTop, initialTopRef.current + deltaY));
+    setTopPos(newTop);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
+
+  return (
+    <aside
+      aria-label="빠른등록 플로팅 메뉴"
+      style={{ top: `${topPos}px` }}
+      className={`fixed right-3 sm:right-5 z-40 flex flex-col items-end select-none transition-shadow ${className}`}
+    >
+      {/* 1.2 위치이동 핸들: 접고 펼치는 영역 상단에 배치 */}
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="w-10 h-5 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/80 hover:bg-slate-900 text-slate-300 hover:text-white rounded-full shadow-md backdrop-blur-md transition-all active:scale-95"
+        title="상하 위치 이동 핸들 (상한선: 화면 타이틀선)"
+      >
+        <GripHorizontal className="w-3.5 h-3.5" />
+      </div>
+
+      {/* 접힘 / 펼침 영역 */}
+      {!isExpanded ? (
+        /* 1.1 접었을 때: 처음 번개(Zap) 아이콘 하나만 표시 */
+        <button
+          type="button"
+          onClick={() => setIsExpanded(true)}
+          className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          title="빠른등록 열기"
+        >
+          <Zap className="w-5 h-5 fill-amber-300 text-amber-300" />
+        </button>
+      ) : (
+        /* 펼쳤을 때: 빠른 머니/수행 등록 및 접기 버튼 */
+        <div className="flex flex-col gap-2 p-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-2xl animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-between pb-1.5 px-1 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              빠른등록
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsExpanded(false)}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="접기"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenMoney();
+              setIsExpanded(false);
+            }}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px]"
+          >
+            <Coins className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>빠른 머니 등록</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenDuty();
+              setIsExpanded(false);
+            }}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px]"
+          >
+            <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span>빠른 수행 등록</span>
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+};
+
 

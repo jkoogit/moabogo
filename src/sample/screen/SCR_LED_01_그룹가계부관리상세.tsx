@@ -2941,7 +2941,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
-      <div className="relative pt-1 pb-2 sm:pt-1 sm:pb-3 landscape:py-1 px-1 sm:px-4">
+      <div className="relative pt-0 pb-2 sm:pt-0 sm:pb-3 landscape:py-1 px-1 sm:px-4">
         {/* 상단 장부책장 반응형 헤더 (모바일: 1행 타이틀·새장부·건수·열기·방향 한줄 집약, 2행 필터 배치 / 데스크톱: 3단 헤더) */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-2.5 pb-2 mb-1.5 border-b border-stone-200 dark:border-stone-800">
           {/* 모바일 상단 1행 / 데스크톱 좌측: 타이틀 및 컨트롤러 */}
