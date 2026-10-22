@@ -23,7 +23,21 @@ import {
   Sparkles,
   Monitor,
   X,
+  Store,
+  ExternalLink,
+  Coffee,
+  CheckCircle2,
+  Utensils,
+  Search,
 } from 'lucide-react';
+import {
+  SYSTEM_STORE_POOL,
+  loadUserStorePreference,
+  saveUserStorePreference,
+  StorePreset,
+  StoreMenuItem,
+  UserStorePreference,
+} from '../data/systemStorePool';
 
 export const SCR_SET_01_사용자설정: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -53,7 +67,39 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
   // 6.5 OCR 개인 키
   const [ocrKey, setOcrKey] = useState('sk-proj-user-key-dummy-sample');
 
+  // 6.6 단골 매장 관리 (시스템 풀 연동)
+  const [userStorePref, setUserStorePref] = useState<UserStorePreference>(() => loadUserStorePreference());
+  const [selectedMenuStore, setSelectedMenuStore] = useState<StorePreset | null>(null);
+  const [menuModalCategory, setMenuModalCategory] = useState<string>('전체');
+  const [storeFilterCategory, setStoreFilterCategory] = useState<string>('전체');
+
+
+  const handleToggleMyStore = (storeId: string) => {
+    setUserStorePref((prev) => {
+      const exists = prev.myStoreIds.includes(storeId);
+      const newIds = exists
+        ? prev.myStoreIds.filter((id) => id !== storeId)
+        : [...prev.myStoreIds, storeId];
+      const newSelected = !newIds.includes(prev.selectedStoreId)
+        ? (newIds[0] || 'sys_store_pluscafe_45f')
+        : prev.selectedStoreId;
+      return {
+        selectedStoreId: newSelected,
+        myStoreIds: newIds,
+      };
+    });
+  };
+
+  const handleSetDefaultStore = (storeId: string) => {
+    setUserStorePref((prev) => ({
+      ...prev,
+      selectedStoreId: storeId,
+      myStoreIds: prev.myStoreIds.includes(storeId) ? prev.myStoreIds : [...prev.myStoreIds, storeId],
+    }));
+  };
+
   const handleSave = () => {
+    saveUserStorePreference(userStorePref);
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 3000);
   };
@@ -68,7 +114,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           </span>
           <ElmTyp01
             title="사용자 맞춤 설정"
-            subtitle="위젯 배치 • 우선순위 • 알림 • 송금 계좌 • OCR 키 • 플랫 피어 레이아웃"
+            subtitle="위젯 배치 • 우선순위 • 알림 • 송금 계좌 • 단골 매장 • OCR 키 • 플랫 피어 레이아웃"
           />
         </div>
 
@@ -85,7 +131,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
       {/* In-app Save Success Toast (replaces window.alert) */}
       {saveToast && (
         <aside className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
-          <span>✓ 사용자 맞춤 설정이 브라우저 로컬 스토리지에 안전하게 저장되었습니다.</span>
+          <span>✓ 사용자 맞춤 설정 및 단골 매장 설정이 브라우저 로컬 스토리지에 안전하게 저장되었습니다.</span>
           <button
             type="button"
             onClick={() => setSaveToast(false)}
@@ -102,6 +148,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           <div className="flex items-center min-w-max border-b border-slate-200 dark:border-zinc-800">
             {[
               { id: 'THEME', label: '화면 테마' },
+              { id: 'STORE', label: '단골 매장' },
               { id: 'LAYOUT', label: '화면배치' },
               { id: 'PRIORITY', label: '우선순위' },
               { id: 'NOTIFY', label: '알림설정' },
@@ -259,6 +306,314 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             </div>
           </div>
         </section>
+      )}
+
+      {/* Tab: 단골 매장 관리 (시스템 매장 풀 & 사다리 연동) */}
+      {activeTab === 'STORE' && (
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Store className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                  단골 매장 및 메뉴 관리 (사다리 커피내기 연동)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                시스템에서 수집된 매장 풀 중 우리 모임/사내 단골 매장을 등록하면, 사다리게임에서 각 참가자가 원하는 음료/메뉴를 직접 선택할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800">
+                등록 매장 {userStorePref.myStoreIds.length}개
+              </span>
+            </div>
+          </div>
+
+          {/* Category Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              { id: '전체', label: '전체 매장' },
+              { id: 'CAFE', label: '☕ 카페 / 디저트' },
+              { id: 'LUNCH', label: '🍱 점심 / 한식 / 샐러드' },
+              { id: 'SNACK', label: '🥟 분식 / 간편식' },
+            ].map((cat) => {
+              const isActive = storeFilterCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setStoreFilterCategory(cat.id)}
+                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* System Store Pool Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {SYSTEM_STORE_POOL.filter((s) => {
+              if (storeFilterCategory === '전체') return true;
+              return s.category === storeFilterCategory;
+            }).map((store) => {
+              const isRegistered = userStorePref.myStoreIds.includes(store.id);
+              const isDefault = userStorePref.selectedStoreId === store.id;
+
+
+              return (
+                <div
+                  key={store.id}
+                  className={`p-4 sm:p-5 rounded-xl border-2 transition-all flex flex-col justify-between space-y-4 ${
+                    isDefault
+                      ? 'border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-xs'
+                      : isRegistered
+                      ? 'border-indigo-300 dark:border-indigo-900/60 bg-white dark:bg-[#172239]'
+                      : 'border-slate-200 dark:border-zinc-700 bg-slate-50/50 dark:bg-[#0B0F17]'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0 shadow-xs"
+                          style={{ backgroundColor: store.themeColor || '#006241' }}
+                        >
+                          <Coffee className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                              {store.name}
+                            </span>
+                            {isDefault && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold">
+                                기본 매장
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-500 dark:text-zinc-400 block">
+                            {store.partnerBrand || store.categoryLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-medium shrink-0">
+                        메뉴 {store.menus.length}종
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 dark:text-zinc-300 line-clamp-2">
+                      📍 {store.locationMemo}
+                    </p>
+
+                    {/* Menu category preview tags */}
+                    <div className="flex flex-wrap gap-1">
+                      {store.menuCategories.slice(0, 4).map((cat) => (
+                        <span
+                          key={cat}
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                      {store.menuCategories.length > 4 && (
+                        <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
+                          +{store.menuCategories.length - 4}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Store Action Buttons (44px touch target) */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMenuStore(store);
+                        setMenuModalCategory('전체');
+                      }}
+                      className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <span>📋 전체 메뉴판 보기</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {isRegistered && !isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefaultStore(store.id)}
+                          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+                        >
+                          기본 매장 지정
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMyStore(store.id)}
+                        className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isRegistered
+                            ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                        }`}
+                      >
+                        {isRegistered ? '등록 해제' : '+ 내 매장 등록'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <aside className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-zinc-800 text-[11px] text-slate-500 dark:text-zinc-400 space-y-1">
+            <p className="font-semibold text-slate-700 dark:text-zinc-300">💡 매장 풀 안내</p>
+            <p>• 시스템 매장 풀은 공식 파트너십 및 수집 데이터를 기반으로 제공되며, 사용자 요청에 따라 향후 엑셀 업로드 및 신규 매장 제안 기능이 순차 제공될 예정입니다.</p>
+          </aside>
+        </section>
+      )}
+
+      {/* Store Menu Board Modal (전체 메뉴판 레이어 팝업) */}
+      {selectedMenuStore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden">
+            {/* Modal Header */}
+            <div
+              className="p-4 sm:p-5 text-white flex items-center justify-between gap-3 shrink-0"
+              style={{ backgroundColor: selectedMenuStore.themeColor || '#006241' }}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base sm:text-lg font-bold">{selectedMenuStore.name}</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
+                    전체 {selectedMenuStore.menus.length}종
+                  </span>
+                </div>
+                <p className="text-xs text-white/80 mt-0.5">
+                  {selectedMenuStore.locationMemo} • {selectedMenuStore.partnerBrand}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedMenuStore.naverBookingUrl && (
+                  <a
+                    href={selectedMenuStore.naverBookingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
+                    title="네이버 주문/예약 페이지 열기"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">네이버 주문</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedMenuStore(null)}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter Chips */}
+            <div className="p-3 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/80 dark:bg-[#0B0F17]/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              <button
+                type="button"
+                onClick={() => setMenuModalCategory('전체')}
+                className={`min-h-[36px] px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  menuModalCategory === '전체'
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                    : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                전체 ({selectedMenuStore.menus.length})
+              </button>
+              {selectedMenuStore.menuCategories.map((cat) => {
+                const count = selectedMenuStore.menus.filter((m) => m.categoryName === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setMenuModalCategory(cat)}
+                    className={`min-h-[36px] px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      menuModalCategory === cat
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Menu List Scrollable Area */}
+            <div className="p-4 overflow-y-auto space-y-2 flex-1 overscroll-contain">
+              {selectedMenuStore.menus
+                .filter((m) => menuModalCategory === '전체' || m.categoryName === menuModalCategory)
+                .map((menu) => (
+                  <div
+                    key={menu.id}
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
+                          {menu.name}
+                        </span>
+                        {menu.badge && (
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                              menu.badge === 'BEST'
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                            }`}
+                          >
+                            {menu.badge}
+                          </span>
+                        )}
+                        {menu.temperature && (
+                          <span className="text-[10px] text-slate-400">
+                            [{menu.temperature}]
+                          </span>
+                        )}
+                      </div>
+                      {menu.description && (
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                          {menu.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {menu.price.toLocaleString()}원
+                      </span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedMenuStore(null)}
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab 1: 메인화면 구성 */}

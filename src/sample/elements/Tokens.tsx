@@ -299,6 +299,239 @@ export const ElmSel02: React.FC<{
 };
 
 /* =========================================================================
+   ELM-CMB-01 : 선택 및 직접입력 콤보박스 (Editable Combobox / 목록 선택 + 자유 직접입력)
+   ========================================================================= */
+export interface ElmCmbOption {
+  value: string;
+  label: string;
+  icon?: string;
+  subtext?: string;
+  isAction?: boolean;
+}
+
+export const ElmCmb01: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
+  options: ElmCmbOption[];
+  onSelectOption?: (option: ElmCmbOption) => void;
+  placeholder?: string;
+  label?: string;
+  className?: string;
+  disabled?: boolean;
+  selectedIcon?: string;
+  onIconChange?: (icon: string) => void;
+  availableIcons?: string[];
+  size?: 'sm' | 'md';
+  onActionClick?: (actionVal: string) => void;
+}> = ({
+  value,
+  onChange,
+  options,
+  onSelectOption,
+  placeholder = '직접 입력 또는 선택...',
+  label,
+  className = '',
+  disabled = false,
+  selectedIcon,
+  onIconChange,
+  size = 'md',
+  onActionClick,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 250,
+  });
+
+  const isSmall = size === 'sm';
+
+  const updateDropdownPos = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const targetWidth = isSmall ? 250 : Math.max(250, rect.width);
+      let left = isSmall ? rect.left - (targetWidth - rect.width) / 2 : rect.left;
+      // 화면 밖으로 벗어나지 않도록 좌우 마진 12px 방어
+      left = Math.max(12, Math.min(window.innerWidth - targetWidth - 12, left));
+
+      // 화면 하단 넘침 방지 (공간 부족 시 상단으로 전개)
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow < 240 && rect.top > 240 ? rect.top - 240 - 4 : rect.bottom + 4;
+
+      setDropdownPos({ top, left, width: targetWidth });
+    }
+  };
+
+  const handleToggleOpen = () => {
+    if (disabled) return;
+    if (!isOpen) {
+      updateDropdownPos();
+    }
+    setIsOpen(!isOpen);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleReposition = () => {
+      updateDropdownPos();
+    };
+    window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      window.removeEventListener('scroll', handleReposition, { capture: true });
+      window.removeEventListener('resize', handleReposition);
+    };
+  }, [isOpen, isSmall]);
+
+  const handleSelect = (opt: ElmCmbOption) => {
+    if (opt.isAction) {
+      if (onActionClick) onActionClick(opt.value);
+      setIsOpen(false);
+      return;
+    }
+    onChange(opt.label);
+    if (opt.icon && onIconChange) {
+      onIconChange(opt.icon);
+    }
+    if (onSelectOption) {
+      onSelectOption(opt);
+    }
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      {label && (
+        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1 leading-none">
+          {label}
+        </label>
+      )}
+      <div
+        className={`relative flex items-center bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg transition-all focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 ${
+          isSmall ? 'min-h-[28px] h-7' : 'min-h-[40px] h-10'
+        } ${disabled ? 'bg-slate-100 dark:bg-zinc-900 opacity-60 cursor-not-allowed' : ''}`}
+      >
+        {/* 선두 아이콘 (아이콘 목록 불필요로 단독 깔끔 표시) */}
+        {selectedIcon && (
+          <div className="relative shrink-0 flex items-center">
+            <span
+              className={`flex items-center justify-center select-none ${
+                isSmall ? 'pl-1.5 pr-0.5 text-xs' : 'pl-2.5 pr-1 text-sm'
+              }`}
+            >
+              {selectedIcon}
+            </span>
+          </div>
+        )}
+
+        {/* 직접 입력 인풋 필드 */}
+        <input
+          type="text"
+          disabled={disabled}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`flex-1 min-w-0 h-full bg-transparent text-slate-900 dark:text-zinc-100 outline-none leading-normal font-medium ${
+            isSmall
+              ? `text-[10px] ${selectedIcon ? 'pl-0.5 pr-7' : 'px-1.5 pr-7'}`
+              : `text-sm ${selectedIcon ? 'pl-1 pr-12' : 'pl-3 pr-12'}`
+          } placeholder-slate-400 dark:placeholder-zinc-500`}
+        />
+
+        {/* 우측 클리어 및 드롭다운 토글 버튼 */}
+        <div className={`absolute right-1 flex items-center ${isSmall ? 'gap-0.5' : 'gap-1'}`}>
+          {value && !disabled && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className={`flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${
+                isSmall ? 'w-3.5 h-3.5' : 'w-5 h-5'
+              }`}
+              title="지우기"
+            >
+              <X className={isSmall ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} />
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={handleToggleOpen}
+            className={`flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${
+              isSmall ? 'w-3.5 h-3.5' : 'w-6 h-6'
+            }`}
+            title="목록 열기/닫기"
+          >
+            <ChevronDown
+              className={`${isSmall ? 'w-3 h-3' : 'w-4 h-4'} transition-transform ${
+                isOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* 선택목록 드롭다운 (가로 250px 확장 & position:fixed + z-[100]으로 아래 영역에 절대 가려지지 않음) */}
+      {isOpen && (
+        <>
+          {/* 외부 클릭 감지 백드롭 */}
+          <div
+            className="fixed inset-0 z-[90]"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
+          />
+
+          <div
+            style={{
+              position: 'fixed',
+              top: `${dropdownPos.top}px`,
+              left: `${dropdownPos.left}px`,
+              width: `${dropdownPos.width}px`,
+              zIndex: 100,
+            }}
+            className="max-h-60 overflow-y-auto bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl py-1 scroll-smooth animate-in fade-in zoom-in-95"
+          >
+            {options.length > 0 ? (
+              options.map((opt) => {
+                const isSelected = opt.label === value;
+                return (
+                  <button
+                    key={opt.value || opt.label}
+                    type="button"
+                    onClick={() => handleSelect(opt)}
+                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between gap-2 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer ${
+                      opt.isAction
+                        ? 'border-t border-slate-100 dark:border-zinc-700 text-indigo-600 dark:text-indigo-400 font-bold mt-1 pt-2'
+                        : isSelected
+                        ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold'
+                        : 'text-slate-700 dark:text-zinc-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {opt.icon && <span className="text-base shrink-0">{opt.icon}</span>}
+                      <span className="font-semibold truncate">{opt.label}</span>
+                    </div>
+                    {opt.subtext && (
+                      <span className="text-[10px] text-slate-400 dark:text-zinc-500 shrink-0 font-normal">
+                        {opt.subtext}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">선택 목록이 없습니다</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+/* =========================================================================
    ELM-FLT-01 : 필터 선택 칩 (whitespace-nowrap, 수직 100% 중앙 정렬)
    ========================================================================= */
 export const ElmFlt01: React.FC<{

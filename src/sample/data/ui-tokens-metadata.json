@@ -131,6 +131,31 @@
     ]
   },
   {
+    "id": "ELM-CMB-01",
+    "name": "선택형 직접입력 콤보박스",
+    "category": "Form",
+    "description": "선택 목록(프리셋) 팝업에서 항목을 선택하거나 사용자가 직접 텍스트를 타이핑/편집할 수 있는 하이브리드 입력 토큰입니다. 아이콘 커스터마이징 및 상시 클리어 버튼을 지원합니다.",
+    "guardrails": {
+      "verticalCenterRule": "flex items-center 및 leading-normal로 텍스트/아이콘/드롭다운 트리거의 중심선 수평 일치",
+      "textWrapPolicy": "단일 라인 텍스트, 긴 문자열 입력 시 input min-w-0 기반 수평 스크롤 및 truncate",
+      "touchTargetMin": "min-h-[44px] 터치 높이 및 44px 이상 탭 영역 보장",
+      "keyTailwindClasses": "relative w-full flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl",
+      "eventIsolation": "드롭다운 또는 팝업 트리거 시 e.stopPropagation() 격리"
+    },
+    "states": ["default", "dropdown-open", "direct-input", "icon-picker"],
+    "viewportSupport": {
+      "pc": "인라인 콤보 드롭다운 또는 그리드 배치",
+      "tablet": "44px 터치 높이 유지",
+      "mobile": "하단 바텀시트 / 전폭 레이어 팝업 모드로 전환하여 가림 현상 방지"
+    },
+    "codeSnippet": "<ElmCmb01\n  value={goalText}\n  selectedIcon={goalIcon}\n  onChange={setGoalText}\n  onSelectOption={(opt) => setGoalText(opt.label)}\n  options={presets}\n/>",
+    "propsInterface": "interface ElmCmb01Props {\n  value: string;\n  onChange: (val: string) => void;\n  selectedIcon?: string;\n  onIconChange?: (icon: string) => void;\n  options: { value: string; label: string; icon?: string }[];\n  onSelectOption?: (opt: { value: string; label: string; icon?: string }) => void;\n  placeholder?: string;\n  size?: 'sm' | 'md';\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리 목표 설정 컴포넌트" },
+      { "screenId": "SCR-SMP-01", "screenName": "공통 컴포넌트 쇼케이스", "role": "입력·선택 하이브리드 토큰" }
+    ]
+  },
+  {
     "id": "ELM-FLT-01",
     "name": "필터 선택 칩",
     "category": "Control",

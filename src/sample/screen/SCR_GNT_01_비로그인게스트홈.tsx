@@ -4,6 +4,7 @@ import {
   ElmInp01,
   ElmSld03,
   ElmRng01,
+  ElmCmb01,
 } from '../elements/Tokens';
 import {
   Gamepad2,
@@ -25,7 +26,26 @@ import {
   FastForward,
   Gauge,
   X,
+  ChevronDown,
+  Share2,
+  Coffee,
+  Store,
+  CheckCircle2,
+  ExternalLink,
+  Edit2,
+  Link,
+  CheckSquare,
+  Bookmark,
+  Settings,
+  Trash2,
 } from 'lucide-react';
+import {
+  SYSTEM_STORE_POOL,
+  loadUserStorePreference,
+  LADDER_ROLE_PRESETS,
+  StorePreset,
+  StoreMenuItem,
+} from '../data/systemStorePool';
 
 // Character avatar presets
 interface Participant {
@@ -36,6 +56,8 @@ interface Participant {
   bgLight: string;
   weight: number; // for weighted games (default 1)
   isSent?: boolean; // for settlement
+  claimedBy?: string; // 클라이언트 탭/사용자 식별자 (점유자)
+  selectedMenu?: StoreMenuItem; // 선택한 음료/메뉴
 }
 
 const PRESET_CHARACTERS = [
@@ -53,7 +75,57 @@ const PRESET_CHARACTERS = [
   { avatar: '🐸', color: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-100 border-green-300 dark:bg-green-950/40 dark:border-green-800' },
 ];
 
-const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑'];
+const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑', '🏃', '🧹', '✨', '🍫', '🏪', '🥇', '💀'];
+
+export interface GoalPresetItem {
+  id: string;
+  text: string;
+  icon: string;
+}
+
+export const DEFAULT_GOAL_PRESETS: GoalPresetItem[] = [
+  { id: 'gp_1', text: '당첨', icon: '🎁' },
+  { id: 'gp_2', text: '통과', icon: '💨' },
+  { id: 'gp_3', text: '커피 쏘기', icon: '☕' },
+  { id: 'gp_4', text: '디저트 쏘기', icon: '🍰' },
+  { id: 'gp_5', text: '픽업 당번', icon: '🏃' },
+  { id: 'gp_6', text: '자리 정리', icon: '🧹' },
+  { id: 'gp_7', text: '면제', icon: '✨' },
+  { id: 'gp_8', text: '점심 쏘기', icon: '🍜' },
+  { id: 'gp_9', text: '간식 쏘기', icon: '🍫' },
+  { id: 'gp_10', text: '편의점 쏘기', icon: '🏪' },
+  { id: 'gp_11', text: '1등', icon: '🥇' },
+  { id: 'gp_12', text: '꼴찌', icon: '💀' },
+];
+
+const LOCAL_STORAGE_KEY_LADDER_GOAL_PRESETS = 'moabogo_ladder_goal_presets_v1';
+
+export function loadUserGoalPresets(): GoalPresetItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LADDER_GOAL_PRESETS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load ladder goal presets:', e);
+  }
+  return DEFAULT_GOAL_PRESETS;
+}
+
+export function saveUserGoalPresets(presets: GoalPresetItem[]): void {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY_LADDER_GOAL_PRESETS, JSON.stringify(presets));
+  } catch (e) {
+    console.error('Failed to save ladder goal presets:', e);
+  }
+}
+
+// 하위 호환성 유지용 별칭
+const POPULAR_GOAL_PRESETS = DEFAULT_GOAL_PRESETS;
+
 const LADDER_COL_WIDTH = 84; // 사다리 열 고정 폭 (84px 완벽 통일)
 
 // 목표 기본 텍스트 생성: 선택 1 (🎁), 선택 2 (🎁)... 통과 1 (💨), 통과 2 (💨)... (안전 범위 보장)
@@ -126,6 +198,244 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   // 6. 술래잡기 > 룰렛으로 명칭 변경 ('ROULETTE')
   const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>('SPLIT');
+
+  // ---------------------------------------------------------------------------
+  // 1-B. [인스턴트 사다리 게임룸 & 매장 메뉴 연동] 상태 관리
+  // ---------------------------------------------------------------------------
+  const [currentTabId] = useState<string>(() => 'tab_' + Math.random().toString(36).slice(2, 9));
+  const [myNickname, setMyNickname] = useState<string>('나 (게스트)');
+  const [isRoomMode, setIsRoomMode] = useState<boolean>(false);
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [isMasterView, setIsMasterView] = useState<boolean>(true); // 마스터 시점 vs 참가자 시점 시뮬레이터
+  const [roomCopyToast, setRoomCopyToast] = useState<boolean>(false);
+  const [copiedResultText, setCopiedResultText] = useState<boolean>(false);
+  const [invalidRoomNotice, setInvalidRoomNotice] = useState<string | null>(null);
+
+  // 연동 매장 및 메뉴판 모달 상태 (초기값: 매장선택 없음 null)
+  const [userStorePref] = useState(() => loadUserStorePreference());
+  const [selectedStore, setSelectedStore] = useState<StorePreset | null>(null);
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState<boolean>(false);
+  const [selectingTargetMemberId, setSelectingTargetMemberId] = useState<string | null>(null);
+  const [menuModalCategory, setMenuModalCategory] = useState<string>('전체');
+
+  // 사다리 목표 프리셋 목록 상태 (사용자 설정 & localStorage 영속화)
+  const [goalPresets, setGoalPresets] = useState<GoalPresetItem[]>(() => loadUserGoalPresets());
+  const [isGoalPresetsModalOpen, setIsGoalPresetsModalOpen] = useState<boolean>(false);
+  const [newPresetText, setNewPresetText] = useState<string>('');
+  const [newPresetIcon, setNewPresetIcon] = useState<string>('🎁');
+
+  const handleAddGoalPreset = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newPresetText.trim();
+    if (!trimmed) return;
+    if (goalPresets.some((p) => p.text === trimmed)) {
+      alert('이미 동일한 이름의 목표가 등록되어 있습니다.');
+      return;
+    }
+    const next = [...goalPresets, { id: 'gp_' + Date.now(), text: trimmed, icon: newPresetIcon }];
+    setGoalPresets(next);
+    saveUserGoalPresets(next);
+    setNewPresetText('');
+  };
+
+  const handleDeleteGoalPreset = (id: string) => {
+    if (goalPresets.length <= 1) {
+      alert('최소 1개 이상의 목표가 필요합니다.');
+      return;
+    }
+    const next = goalPresets.filter((p) => p.id !== id);
+    setGoalPresets(next);
+    saveUserGoalPresets(next);
+  };
+
+  const handleResetGoalPresets = () => {
+    setGoalPresets(DEFAULT_GOAL_PRESETS);
+    saveUserGoalPresets(DEFAULT_GOAL_PRESETS);
+  };
+
+  // 사다리 개별 기둥 목표 편집 레이어 팝업 모달 상태 (모바일 가로 전폭 지원)
+  const [editingGoalIdx, setEditingGoalIdx] = useState<number | null>(null);
+  const [tempGoalText, setTempGoalText] = useState<string>('');
+  const [tempGoalIcon, setTempGoalIcon] = useState<string>('🎁');
+  const [isGoalIconPickerOpen, setIsGoalIconPickerOpen] = useState<boolean>(false);
+
+  const handleOpenGoalModal = (idx: number) => {
+    const currentGoal = ladderGoals[idx] || { text: `목표 ${idx + 1}`, icon: '🎁' };
+    setEditingGoalIdx(idx);
+    setTempGoalText(currentGoal.text);
+    setTempGoalIcon(currentGoal.icon);
+    setIsGoalIconPickerOpen(false);
+  };
+
+  const handleConfirmGoal = () => {
+    if (editingGoalIdx === null) return;
+    const trimmed = tempGoalText.trim();
+    const finalText = trimmed || `목표 ${editingGoalIdx + 1}`;
+    setLadderGoals((prev) =>
+      prev.map((g, i) =>
+        i === editingGoalIdx
+          ? { text: finalText, icon: tempGoalIcon }
+          : g
+      )
+    );
+    setEditingGoalIdx(null);
+    setIsGoalIconPickerOpen(false);
+  };
+
+  // 2.1 매장 선택 팝업 모달 상태
+  const [isStoreSelectModalOpen, setIsStoreSelectModalOpen] = useState<boolean>(false);
+  const [storeSelectTab, setStoreSelectTab] = useState<'MY' | 'ALL'>('MY');
+
+  // 2.2 롱프레스 풀텍스트 확인 툴팁 상태 및 Ref
+  const [menuTooltip, setMenuTooltip] = useState<{
+    memberId: string;
+    menu: StoreMenuItem;
+    x: number;
+    y: number;
+  } | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressTriggeredRef = useRef<boolean>(false);
+
+  // 모바일 터치 외부 클릭 시 툴팁 닫기
+  useEffect(() => {
+    if (!menuTooltip) return;
+    const handleClose = () => setMenuTooltip(null);
+    window.addEventListener('touchstart', handleClose);
+    return () => window.removeEventListener('touchstart', handleClose);
+  }, [menuTooltip]);
+
+  // 매장 선택 적용 핸들러
+  const handleSelectStore = (store: StorePreset) => {
+    setSelectedStore(store);
+    setIsStoreSelectModalOpen(false);
+    // 매장 변경 시 이전 매장의 선택 메뉴 초기화
+    setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+  };
+
+  // URL ?room= 파라미터 감지 및 인스턴트 룸 자동 진입
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('room');
+      if (room) {
+        if (room.startsWith('ladder_')) {
+          setIsRoomMode(true);
+          setRoomCode(room);
+          setGameType('LADDER');
+        } else {
+          setInvalidRoomNotice(`공유된 게임을 찾을 수 없습니다. (유효하지 않은 링크 키: ${room})`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // 방 생성 핸들러
+  const handleCreateRoom = () => {
+    const newCode = 'ladder_' + Math.random().toString(36).slice(2, 8);
+    setRoomCode(newCode);
+    setIsRoomMode(true);
+    setIsMasterView(true);
+    setInvalidRoomNotice(null);
+    try {
+      const newUrl = `${window.location.pathname}?room=${newCode}`;
+      window.history.pushState({ room: newCode }, '', newUrl);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+
+  // 방 나가기 / 개인 모드 복귀 핸들러
+  const handleExitRoom = () => {
+    setIsRoomMode(false);
+    setRoomCode('');
+    setIsMasterView(true);
+    setInvalidRoomNotice(null);
+    try {
+      window.history.pushState({}, '', window.location.pathname);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // 초대 링크 복사 핸들러 (실제 서비스 도메인: moabogo.com, dev.moabogo.com 등 배포 환경에 자동 정합)
+  const handleCopyInviteLink = () => {
+    const origin = window.location.origin;
+    const storeTitle = selectedStore ? selectedStore.name : '팀';
+    const fullUrl = `${origin}${window.location.pathname}?room=${roomCode}`;
+    const text = `[모아보고] ☕ ${storeTitle} 사다리게임에 초대되었습니다!\n지금 접속해서 원하는 메뉴를 고르고 자리를 찜하세요!\n👉 참여 링크: ${fullUrl}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setRoomCopyToast(true);
+      setTimeout(() => setRoomCopyToast(false), 3000);
+    });
+  };
+
+  // 자리 찜하기(점유/해제) 토글 핸들러
+  const handleToggleClaim = (memberId: string) => {
+    setMembers((prev) => {
+      return prev.map((m) => {
+        if (m.id === memberId) {
+          if (m.claimedBy === currentTabId) {
+            // 점유 해제
+            const idx = prev.indexOf(m);
+            const defaultPreset = PRESET_CHARACTERS[idx % PRESET_CHARACTERS.length];
+            return {
+              ...m,
+              claimedBy: undefined,
+              name: `참가자 ${idx + 1}`,
+              avatar: defaultPreset.avatar,
+              selectedMenu: undefined,
+            };
+          } else {
+            // 점유
+            return {
+              ...m,
+              claimedBy: currentTabId,
+              name: myNickname,
+              avatar: '😎',
+            };
+          }
+        } else if (m.claimedBy === currentTabId) {
+          // 1인 1자리: 기존 기둥은 자동 해제
+          const idx = prev.indexOf(m);
+          const defaultPreset = PRESET_CHARACTERS[idx % PRESET_CHARACTERS.length];
+          return {
+            ...m,
+            claimedBy: undefined,
+            name: `참가자 ${idx + 1}`,
+            avatar: defaultPreset.avatar,
+          };
+        }
+        return m;
+      });
+    });
+  };
+
+  // 메뉴 선택 모달 열기 핸들러 (매장 미선택 시 매장 선택 모달 선행 유도)
+  const handleOpenMenuModalForMember = (memberId: string) => {
+    if (!selectedStore) {
+      setSelectingTargetMemberId(memberId);
+      setStoreSelectTab('MY');
+      setIsStoreSelectModalOpen(true);
+      return;
+    }
+    setSelectingTargetMemberId(memberId);
+    setMenuModalCategory('전체');
+    setIsMenuModalOpen(true);
+  };
+
+  // 메뉴 선택 완료 핸들러
+  const handleSelectMenuForMember = (menu: StoreMenuItem) => {
+    if (selectingTargetMemberId) {
+      setMembers((prev) =>
+        prev.map((m) => (m.id === selectingTargetMemberId ? { ...m, selectedMenu: menu } : m))
+      );
+    }
+    setIsMenuModalOpen(false);
+    setSelectingTargetMemberId(null);
+  };
 
   // ---------------------------------------------------------------------------
   // 1. 공통 참가자 상태 관리
@@ -286,6 +596,56 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [ladderResult, setLadderResult] = useState<{
     [memberId: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean };
   } | null>(null);
+
+
+  // 사다리 결과 기반 주문 취합서 및 카톡 텍스트 자동 계산
+  const orderSummaryData = useMemo(() => {
+    if (!ladderResult) return null;
+
+    // 결제 당첨자 찾기 (isWinner === true 인 참가자)
+    const payerEntry = Object.entries(ladderResult).find(([, res]) => res.isWinner);
+    const payerMember = payerEntry ? members.find((m) => m.id === payerEntry[0]) : null;
+
+    // 메뉴 주문 수량 및 금액 집계
+    const menuCounts: { [name: string]: { count: number; unitPrice: number; subtotal: number } } = {};
+    let totalAmount = 0;
+    let totalCount = 0;
+
+    members.forEach((m) => {
+      const menu = m.selectedMenu;
+      const menuName = menu ? menu.name : '기본 아메리카노 (선택안함)';
+      const price = menu ? menu.price : 4500;
+
+      if (!menuCounts[menuName]) {
+        menuCounts[menuName] = { count: 0, unitPrice: price, subtotal: 0 };
+      }
+      menuCounts[menuName].count += 1;
+      menuCounts[menuName].subtotal += price;
+      totalAmount += price;
+      totalCount += 1;
+    });
+
+    // 카톡 전송용 포맷 텍스트 생성
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const itemsText = Object.entries(menuCounts)
+      .map(([name, item], i) => ` ${i + 1}. ${name} x ${item.count}잔 - ${item.subtotal.toLocaleString()}원`)
+      .join('\n');
+
+    const participantMenuText = members
+      .map((m, i) => ` • ${m.name}: ${m.selectedMenu ? m.selectedMenu.name : '아메리카노(기본)'}`)
+      .join('\n');
+
+    const storeLabel = selectedStore ? selectedStore.name : '사다리';
+    const kakaoText = `[모아보고 사다리 결과 - ${storeLabel}]\n📅 ${dateStr} | 총 ${members.length}명 참여\n\n🏆 당첨 결과:\n• 💳 오늘 결제: ${payerMember ? payerMember.name : '결제 당첨자'} (축하합니다! 🎉)\n\n☕ 주문 내역 요약 (총 ${totalCount}잔 / ${totalAmount.toLocaleString()}원):\n${itemsText}\n\n👥 각자 선택한 메뉴:\n${participantMenuText}`;
+
+    return {
+      payerMember,
+      menuCounts,
+      totalAmount,
+      totalCount,
+      kakaoText,
+    };
+  }, [ladderResult, members, selectedStore]);
 
   // 4. 하나씩 순차 이동 애니메이션 상태
   const [isLadderTracing, setIsLadderTracing] = useState<boolean>(false);
@@ -460,7 +820,19 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       paths[member.id] = densePoints;
 
       const finalGoal = ladderGoals[currentCol] || { text: '통과 1', icon: '💨' };
-      const isWinner = finalGoal.text.includes('선택') || finalGoal.text.includes('당첨') || finalGoal.icon === '🎁' || finalGoal.icon === '☕';
+      const isPass = finalGoal.text.includes('통과') || finalGoal.text.includes('면제') || finalGoal.icon === '💨' || finalGoal.icon === '❌';
+      const isWinner = !isPass && (
+        finalGoal.text.includes('선택') ||
+        finalGoal.text.includes('당첨') ||
+        finalGoal.text.includes('쏘기') ||
+        finalGoal.text.includes('당번') ||
+        finalGoal.text.includes('1등') ||
+        finalGoal.text.includes('꼴찌') ||
+        finalGoal.icon === '🎁' ||
+        finalGoal.icon === '☕' ||
+        finalGoal.icon === '👑' ||
+        finalGoal.icon === '💸'
+      );
       results[member.id] = {
         goalIndex: currentCol,
         text: finalGoal.text,
@@ -1322,40 +1694,364 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           )}
 
           {/* -----------------------------------------------------------------
-              사다리타기 (2. +5인 버튼 제거, 3. 폭 완벽 일치 & 줄바꿈, 4. 부드러운 하나씩 이동)
+              사다리타기 (인스턴트 공유방, 자리 점유 토글, 매장 메뉴 연동, 역할 분리)
               ----------------------------------------------------------------- */}
           {gameType === 'LADDER' && (
             <div className="space-y-6">
-              {/* 설정 패널 (2. +5인 버튼 제거 완료) */}
+              {/* 잘못된 링크키 경고 배너 */}
+              {invalidRoomNotice && (
+                <aside className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <span>{invalidRoomNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExitRoom}
+                    className="min-h-[36px] px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer"
+                  >
+                    새 게임 시작하기
+                  </button>
+                </aside>
+              )}
+
+              {/* 1. 인스턴트 실시간 공유방 헤더 & 연동 매장 배너 */}
+              <div
+                className={`p-4 rounded-2xl border space-y-4 transition-all ${
+                  isRoomMode
+                    ? 'border-indigo-500/80 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-sm'
+                    : resolvedTheme === 'dawn'
+                    ? 'bg-[#f0f7ff] border-[#bfdbfe]'
+                    : isDark
+                    ? 'bg-[#1a1a1e] border-[#27272a]'
+                    : 'bg-slate-50 border-slate-200/80'
+                }`}
+              >
+                {!isRoomMode ? (
+                  // 방 생성 전 인트로 배너
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {selectedStore ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStoreSelectTab('MY');
+                                setIsStoreSelectModalOpen(true);
+                              }}
+                              className="min-h-[36px] px-2.5 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-300 dark:border-emerald-800 shadow-2xs"
+                              title="클릭하여 이번 사다리 게임에 적용할 매장 변경"
+                            >
+                              <Store className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                              <span>🏪 {selectedStore.name}</span>
+                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-extrabold underline ml-0.5">▾ 매장변경</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedStore(null);
+                                setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+                              }}
+                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
+                              title="매장 선택 취소"
+                              aria-label="매장 선택 취소"
+                            >
+                              <X className="w-4 h-4 text-rose-500" />
+                            </button>
+
+                            <span className="text-xs text-slate-500 dark:text-zinc-400">
+                              ({selectedStore.categoryLabel} • 메뉴 {selectedStore.menus.length}종 연동)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStoreSelectTab('MY');
+                                setIsStoreSelectModalOpen(true);
+                              }}
+                              className="min-h-[36px] px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                              title="매장을 선택하면 메뉴 취합 및 주문서가 연동됩니다"
+                            >
+                              <Store className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              <span>+ 매장 선택</span>
+                            </button>
+                            <span className="text-xs text-slate-500 dark:text-zinc-400">
+                              (매장을 선택하면 참가자별 음료/메뉴를 고르고 정산할 수 있습니다)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-zinc-300 font-medium">
+                        {selectedStore
+                          ? '카카오톡 공유 링크를 생성하여 팀원들과 각자 원하는 음료를 고르고 커피내기 사다리를 즐겨보세요!'
+                          : '단순 사다리 타기 또는 매장을 연동하여 음료 내기 및 주문서 취합을 함께 진행해보세요!'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {selectedStore && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectingTargetMemberId(null);
+                            setIsMenuModalOpen(true);
+                          }}
+                          className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 hover:border-emerald-500 cursor-pointer shadow-2xs"
+                        >
+                          <Coffee className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>메뉴판 ({selectedStore.menus.length}종)</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleCreateRoom}
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        <span>게임공유</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // 실시간 공유방 활성화 상태
+                  <div className="space-y-3.5">
+                    <div className="flex flex-col gap-3 border-b border-indigo-200/60 dark:border-indigo-900/40 pb-3">
+                      {/* 상단 행: 방 코드 & 초대링크 복사 + 게임공유 끄기 버튼 (매장선택 위 배치) */}
+                      <div className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-full bg-indigo-600 text-white font-mono font-bold text-xs flex items-center gap-1 shadow-xs">
+                            <span>방 코드: {roomCode}</span>
+                          </span>
+                        </div>
+
+                        {/* 초대 링크 복사 & 게임공유 끄기 버튼 */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCopyInviteLink}
+                            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
+                            title="초대 링크를 복사합니다"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>{roomCopyToast ? '✓ 초대링크 복사완료!' : '초대링크 복사'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleExitRoom}
+                            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer transition-colors"
+                            title="게임공유를 끄고 혼자하기 모드로 복귀합니다"
+                          >
+                            게임공유 끄기
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 하단 행: 매장 선택 / 취소 / 메뉴판 */}
+                      <div className="flex items-center gap-2.5 flex-wrap pt-0.5">
+                        {selectedStore ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStoreSelectTab('MY');
+                                setIsStoreSelectModalOpen(true);
+                              }}
+                              className="min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-800 text-xs font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 cursor-pointer shadow-2xs transition-all"
+                              title="클릭하여 이번 사다리에 사용할 단골 매장 변경"
+                            >
+                              <Store className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{selectedStore.name}</span>
+                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold underline">▾ 변경</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedStore(null);
+                                setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+                              }}
+                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
+                              title="매장 선택 취소"
+                              aria-label="매장 선택 취소"
+                            >
+                              <X className="w-4 h-4 text-rose-500" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectingTargetMemberId(null);
+                                setIsMenuModalOpen(true);
+                              }}
+                              className="min-h-[36px] px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 cursor-pointer"
+                            >
+                              📋 메뉴판 ({selectedStore.menus.length}종)
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStoreSelectTab('MY');
+                                setIsStoreSelectModalOpen(true);
+                              }}
+                              className="min-h-[36px] px-3 py-1 rounded-xl bg-white dark:bg-zinc-800 text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 border border-dashed border-indigo-300 dark:border-indigo-700 hover:border-indigo-500 cursor-pointer shadow-2xs transition-all"
+                              title="매장을 선택하면 메뉴 취합이 가능합니다"
+                            >
+                              <Store className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>+ 매장 선택</span>
+                            </button>
+                            <span className="text-xs text-slate-500 dark:text-zinc-400">
+                              (매장을 선택하면 메뉴 취합 및 주문서가 연동됩니다)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 뷰 전환 시뮬레이터 툴바 (마스터 vs 참가자 시점) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white dark:bg-[#131B2E] border border-indigo-100 dark:border-indigo-950 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">내 시점 전환:</span>
+                        <div className="inline-flex rounded-lg border border-slate-200 dark:border-zinc-700 p-0.5 bg-slate-100 dark:bg-zinc-900">
+                          <button
+                            type="button"
+                            onClick={() => setIsMasterView(true)}
+                            className={`min-h-[36px] px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                              isMasterView
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                            }`}
+                          >
+                            👑 방장 (마스터) 모드
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsMasterView(false)}
+                            className={`min-h-[36px] px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                              !isMasterView
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                            }`}
+                          >
+                            👤 참가자 (게스트) 모드
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 내 닉네임 인라인 수정 */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-500 dark:text-zinc-400">내 닉네임:</span>
+                        <input
+                          type="text"
+                          value={myNickname}
+                          onChange={(e) => setMyNickname(e.target.value)}
+                          className="min-h-[36px] px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-zinc-100 outline-none focus:border-indigo-500 w-32"
+                          placeholder="내 이름 입력"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 참가자 대기방 (Lobby) 카드 스트립 */}
+                    <div className="p-3 rounded-xl bg-slate-100/80 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                        <span className="font-bold whitespace-nowrap shrink-0">
+                          👥 참가자 대기방 ({members.filter((m) => m.claimedBy).length + 1}명 접속 중)
+                        </span>
+                        <span className="text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap break-keep leading-tight">
+                          * 비로그인 참가자는 [내 자리 찜하기]로 원하는 기둥을 점유할 수 있습니다.
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* 현재 내 아바타 (하이라이트) */}
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 border-2 border-indigo-500 text-indigo-900 dark:text-indigo-200 text-xs font-bold shadow-2xs whitespace-nowrap shrink-0">
+                          <span className="text-base">😎</span>
+                          <span>{myNickname}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-600 text-white font-semibold">
+                            YOU
+                          </span>
+                        </div>
+
+                        {/* 다른 점유자들 */}
+                        {members
+                          .filter((m) => m.claimedBy && m.claimedBy !== currentTabId)
+                          .map((m) => (
+                            <div
+                              key={m.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-medium whitespace-nowrap shrink-0"
+                            >
+                              <span>{m.avatar}</span>
+                              <span>{m.name}</span>
+                              {m.selectedMenu && (
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                                  ({m.selectedMenu.name})
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. 게임 설정 패널 (마스터만 조작 가능) */}
               <div
                 className={`p-4 rounded-xl border space-y-4 ${
                   resolvedTheme === 'dawn' ? 'bg-[#f0f7ff] border-[#bfdbfe]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-slate-50 border-slate-200/80'
                 }`}
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* 참여 인원수 (ElmRng01 표준화) */}
-                  <ElmRng01
-                    label="참여 인원수 (10인 기본 + 확장가능)"
-                    value={memberCount}
-                    min={2}
-                    max={Math.max(10, memberCount)}
-                    step={1}
-                    unit="명"
-                    onChange={(val) => handleUpdateMemberCount(val)}
-                    colorScheme="indigo"
-                  />
+                {/* 4. 참여자 안내문구 복구 (방장 전용 조작 권한 안내) */}
+                {isRoomMode && !isMasterView && (
+                  <div className="p-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">👑</span>
+                      <span className="font-medium">
+                        방장님이 참가 인원 수({memberCount}명)와 당첨 인원 수({winnerCount}명)를 설정하고 있습니다.
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full shrink-0">
+                      조작 권한: 방장 전용
+                    </span>
+                  </div>
+                )}
 
-                  {/* 선택 인원수 (ElmRng01 표준화) */}
-                  <ElmRng01
-                    label="선택 인원수"
-                    value={winnerCount}
-                    min={1}
-                    max={Math.max(1, memberCount - 1)}
-                    step={1}
-                    unit="명"
-                    onChange={(val) => setWinnerCount(val)}
-                    colorScheme="rose"
-                  />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 참여 인원수 (ElmRng01 표준화) */}
+                    <ElmRng01
+                      label="참여 인원수 (10인 기본 + 확장가능)"
+                      value={memberCount}
+                      min={2}
+                      max={Math.max(10, memberCount)}
+                      step={1}
+                      unit="명"
+                      disabled={isRoomMode && !isMasterView}
+                      onChange={(val) => handleUpdateMemberCount(val)}
+                      colorScheme="indigo"
+                    />
+
+                    {/* 선택 인원수 (ElmRng01 표준화) */}
+                    <ElmRng01
+                      label="선택 인원수"
+                      value={winnerCount}
+                      min={1}
+                      max={Math.max(1, memberCount - 1)}
+                      step={1}
+                      unit="명"
+                      disabled={isRoomMode && !isMasterView}
+                      onChange={(val) => setWinnerCount(val)}
+                      colorScheme="rose"
+                    />
+                  </div>
                 </div>
 
                 {/* 가중치 설정 & 이름수정 */}
@@ -1501,30 +2197,125 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         {members.map((m, idx) => {
                           const isOdd = idx % 2 === 1;
                           const isCurrentActive = activeTracingMemberIndex === idx;
+                          const isMyClaim = m.claimedBy === currentTabId;
+                          const isOtherClaim = m.claimedBy && !isMyClaim;
+
                           return (
                             <div
                               key={m.id}
-                              className={`flex flex-col items-center gap-1 shrink-0 transition-transform ${
-                                isOdd ? 'translate-y-3' : 'translate-y-0'
-                              }`}
+                              className="flex flex-col items-center gap-0.5 shrink-0 transition-transform translate-y-0"
                               style={{ width: `${LADDER_COL_WIDTH}px` }}
                             >
+                              {/* 인스턴트 공유방: 자리 찜하기 토글 버튼 */}
+                              {isRoomMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleClaim(m.id)}
+                                  className={`min-h-[24px] px-1.5 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all border mb-0.5 ${
+                                    isMyClaim
+                                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                                      : isOtherClaim
+                                      ? 'bg-slate-200 dark:bg-zinc-800 text-slate-500 border-transparent cursor-not-allowed'
+                                      : 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50'
+                                  }`}
+                                  title={isMyClaim ? '클릭 시 내 자리 점유 해제' : isOtherClaim ? '다른 참가자가 점유 중입니다' : '이 자리를 내 자리로 찜합니다'}
+                                  disabled={Boolean(isOtherClaim)}
+                                >
+                                  {isMyClaim ? '✓ 찜해제' : isOtherClaim ? '선점됨' : '📌 찜하기'}
+                                </button>
+                              )}
+
                               <span
-                                className={`w-10 h-10 rounded-full flex items-center justify-center text-xl shadow-md border-2 ${
+                                className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shadow-sm border-2 ${
                                   m.bgLight
-                                } ${isCurrentActive ? 'scale-125 ring-4 ring-indigo-500 animate-pulse' : ''}`}
+                                } ${isMyClaim ? 'ring-2 ring-indigo-500 scale-105' : ''} ${
+                                  isCurrentActive ? 'scale-125 ring-4 ring-indigo-500 animate-pulse' : ''
+                                }`}
                               >
                                 {m.avatar}
                               </span>
-                              {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea (포커스온 전체선택) */}
+
+                              {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea (이름-메뉴 공백 축소) */}
                               <textarea
-                                rows={2}
+                                rows={1}
                                 lang="ko"
                                 value={m.name}
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                                className="text-[11px] font-bold text-center w-[76px] bg-transparent outline-none resize-none overflow-hidden leading-tight break-words py-0.5 border-b border-transparent focus:border-indigo-500"
+                                className="text-[11px] font-bold text-center w-[76px] bg-transparent outline-none resize-none overflow-hidden leading-tight break-words py-0 border-b border-transparent focus:border-indigo-500 min-h-[18px] max-h-[30px]"
                               />
+
+                              {/* 선택한 메뉴 칩 or 메뉴 고르기 버튼 (매장 선택 시에만 표시되며, 매장 미선택 시 노출 안 됨) */}
+                              {selectedStore && (
+                                <div className="flex flex-col items-center relative mt-0.5 mb-1.5">
+                                  {m.selectedMenu ? (
+                                    <button
+                                      type="button"
+                                      onTouchStart={(e) => {
+                                        isLongPressTriggeredRef.current = false;
+                                        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                        const touch = e.touches[0];
+                                        const clientX = touch.clientX;
+                                        const clientY = touch.clientY;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          isLongPressTriggeredRef.current = true;
+                                          navigator.vibrate?.(40);
+                                          setMenuTooltip({
+                                            memberId: m.id,
+                                            menu: m.selectedMenu!,
+                                            x: clientX,
+                                            y: clientY,
+                                          });
+                                        }, 450);
+                                      }}
+                                      onTouchEnd={() => {
+                                        if (longPressTimerRef.current) {
+                                          clearTimeout(longPressTimerRef.current);
+                                          longPressTimerRef.current = null;
+                                        }
+                                        if (!isLongPressTriggeredRef.current) {
+                                          handleOpenMenuModalForMember(m.id);
+                                        }
+                                      }}
+                                      onTouchMove={() => {
+                                        if (longPressTimerRef.current) {
+                                          clearTimeout(longPressTimerRef.current);
+                                          longPressTimerRef.current = null;
+                                        }
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setMenuTooltip({
+                                          memberId: m.id,
+                                          menu: m.selectedMenu!,
+                                          x: rect.left + rect.width / 2,
+                                          y: rect.top,
+                                        });
+                                      }}
+                                      onMouseLeave={() => {
+                                        setMenuTooltip(null);
+                                      }}
+                                      onClick={() => {
+                                        if (!isLongPressTriggeredRef.current) {
+                                          handleOpenMenuModalForMember(m.id);
+                                        }
+                                      }}
+                                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 truncate max-w-[80px] hover:border-emerald-500 cursor-pointer block select-none active:scale-95 transition-all shadow-2xs"
+                                      title="클릭: 메뉴 변경 | 길게 누름(롱프레스): 풀텍스트 확인"
+                                    >
+                                      {m.selectedMenu.name}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenMenuModalForMember(m.id)}
+                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-emerald-50 hover:text-emerald-700 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs transition-colors"
+                                    >
+                                      +메뉴선택
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1686,21 +2477,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         </svg>
                       </div>
 
-                      {/* 3. 하단 대상 목표 아이콘 (폭 84px 고정 & 줄바꿈 textarea & 도착 참가자 뱃지) */}
+                      {/* 3. 하단 대상 목표 (클릭 시 전폭 레이어 팝업으로 펼쳐져 입력창+목록 선택) */}
                       <div
                         className="flex items-start pt-2 pb-3 relative"
                         style={{ width: `${members.length * LADDER_COL_WIDTH}px` }}
                       >
                         {ladderGoals.slice(0, members.length).map((goal, idx) => {
-                          const isOdd = idx % 2 === 1;
                           const landedMember = revealedGoalCols[idx];
 
                           return (
                             <div
                               key={`goal_${idx}`}
-                              className={`flex flex-col items-center shrink-0 transition-transform ${
-                                isOdd ? 'translate-y-3' : 'translate-y-0'
-                              }`}
+                              className="flex flex-col items-center shrink-0 transition-transform translate-y-0"
                               style={{ width: `${LADDER_COL_WIDTH}px` }}
                             >
                               {/* 도착자 실시간 뱃지 */}
@@ -1717,54 +2505,33 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                 </div>
                               )}
 
-                              <div
-                                className={`flex flex-col items-center gap-1 p-1 rounded-xl border w-[76px] transition-all ${
+                              {/* 목표 카드 버튼 (클릭 시 전폭 레이어 팝업 오픈) */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenGoalModal(idx)}
+                                className={`w-[76px] py-1.5 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-center transition-all group cursor-pointer shadow-2xs select-none ${
                                   landedMember
                                     ? landedMember.isWinner
-                                      ? 'ring-2 ring-rose-500 scale-105 bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700'
-                                      : 'ring-2 ring-indigo-500 scale-105 bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700'
+                                      ? 'ring-2 ring-rose-500 scale-105 bg-rose-50/90 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700'
+                                      : 'ring-2 ring-indigo-500 scale-105 bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-300 dark:border-indigo-700'
                                     : resolvedTheme === 'dawn'
-                                    ? 'bg-white border-[#bfdbfe] text-blue-900'
+                                    ? 'bg-white hover:bg-blue-50/80 border-[#bfdbfe] text-blue-900 active:scale-95'
                                     : isDark
-                                    ? 'bg-[#151518] border-[#27272a]'
-                                    : 'bg-slate-50 border-slate-200'
+                                    ? 'bg-[#151518] hover:bg-[#1f1f24] border-[#27272a] text-zinc-100 active:scale-95'
+                                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 active:scale-95'
                                 }`}
+                                title={`${idx + 1}번 목표 수정 (클릭하여 변경)`}
                               >
-                                <select
-                                  value={goal.icon}
-                                  onChange={(e) => {
-                                    const icon = e.target.value;
-                                    setLadderGoals((prev) =>
-                                      prev.map((g, i) => (i === idx ? { ...g, icon } : g))
-                                    );
-                                  }}
-                                  className="text-base rounded px-0.5 py-0.5 cursor-pointer border bg-transparent"
-                                >
-                                  {TARGET_ICONS.map((ic) => (
-                                    <option key={ic} value={ic}>
-                                      {ic}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                {/* 3. 텍스트 줄바꿈 textarea (포커스 시 전체 선택 & 한글 자판) */}
-                                <textarea
-                                  rows={2}
-                                  lang="ko"
-                                  inputMode="text"
-                                  autoCapitalize="none"
-                                  autoCorrect="off"
-                                  value={goal.text}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => {
-                                    const text = e.target.value;
-                                    setLadderGoals((prev) =>
-                                      prev.map((g, i) => (i === idx ? { ...g, text } : g))
-                                    );
-                                  }}
-                                  className="w-full text-center text-[10px] font-bold rounded px-0.5 py-0.5 border bg-transparent resize-none overflow-hidden break-words leading-tight"
-                                />
-                              </div>
+                                <span className="text-lg leading-none transition-transform group-hover:scale-110">
+                                  {goal.icon}
+                                </span>
+                                <div className="flex items-center justify-center gap-0.5 w-full px-0.5">
+                                  <span className="text-[11px] font-bold truncate max-w-[54px] leading-tight">
+                                    {goal.text}
+                                  </span>
+                                  <ChevronDown className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-500 shrink-0 transition-colors" />
+                                </div>
+                              </button>
                             </div>
                           );
                         })}
@@ -1805,30 +2572,56 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </select>
                   </div>
 
+                  {/* 사다리 목표 프리셋 목록 관리 버튼 */}
                   <button
                     type="button"
-                    onClick={() => handlePlayLadder(false)}
-                    disabled={isLadderTracing}
-                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 shrink-0" />
-                    <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : '사다리 그래프 타기'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSkipToResult}
-                    className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer shadow-xs active:scale-95 ${
-                      isLadderTracing
-                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400 animate-pulse'
-                        : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-slate-700 dark:text-zinc-200'
+                    onClick={() => setIsGoalPresetsModalOpen(true)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold shrink-0 shadow-xs transition-colors cursor-pointer ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-white border-blue-200 text-blue-900 hover:border-indigo-400'
+                        : isDark
+                        ? 'bg-zinc-800/80 border-zinc-700 text-zinc-100 hover:border-indigo-400'
+                        : 'bg-white border-slate-200 text-slate-800 hover:border-indigo-400'
                     }`}
-                    title="사다리 타기 진행을 즉시 중단하고 최종 결과를 바로 확인합니다"
+                    title="사다리 목표 선택 목록 관리 (추가/삭제/아이콘 설정)"
                   >
-                    <FastForward className="w-4 h-4 shrink-0" />
-                    <span className="whitespace-nowrap">
-                      {isLadderTracing ? '⚡ 즉시 결과 보기 (생략)' : '그래프 타기 생략'}
-                    </span>
+                    <Settings className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <span className="whitespace-nowrap">목표 목록 관리</span>
                   </button>
+
+                  {isRoomMode && !isMasterView ? (
+                    <div className="flex items-center justify-center p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold gap-2 animate-pulse">
+                      <span>👑</span>
+                      <span>방장님이 사다리를 시작하기를 기다리고 있습니다... (자리를 찜하고 메뉴를 선택해주세요)</span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handlePlayLadder(false)}
+                        disabled={isLadderTracing}
+                        className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 shrink-0" />
+                        <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : '사다리 그래프 타기'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSkipToResult}
+                        className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer shadow-xs active:scale-95 ${
+                          isLadderTracing
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400 animate-pulse'
+                            : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-slate-700 dark:text-zinc-200'
+                        }`}
+                        title="사다리 타기 진행을 즉시 중단하고 최종 결과를 바로 확인합니다"
+                      >
+                        <FastForward className="w-4 h-4 shrink-0" />
+                        <span className="whitespace-nowrap">
+                          {isLadderTracing ? '⚡ 즉시 결과 보기 (생략)' : '그래프 타기 생략'}
+                        </span>
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* 2 & 3. 목적에 도착할 때 마다 목표 화면 팝업 노출 (1초 카운트다운 후 자동 진행 & 일시정지 제어) */}
@@ -2101,6 +2894,72 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       })()}
                     </div>
 
+                    {/* 실시간 매장 메뉴 주문 취합표 (Order Summary Card) */}
+                    {orderSummaryData && (
+                      <div className="w-full max-w-xl p-4 mt-3 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-zinc-800 text-left space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Coffee className="w-4 h-4 text-emerald-600" />
+                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                              📋 {selectedStore ? selectedStore.name : '사다리'} 주문 취합 내역서
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            총 {orderSummaryData.totalCount}잔 / {orderSummaryData.totalAmount.toLocaleString()}원
+                          </span>
+                        </div>
+
+                        {/* 결제 당첨자 하이라이트 박스 */}
+                        <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between">
+                          <span className="font-bold">
+                            💳 오늘 결제 당첨자: {orderSummaryData.payerMember ? orderSummaryData.payerMember.name : '당첨자'}님!
+                          </span>
+                          <span className="text-[11px] text-rose-600 dark:text-rose-400">
+                            (카페 카운터에서 결제)
+                          </span>
+                        </div>
+
+                        {/* 메뉴별 수량 집계 */}
+                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                          {Object.entries(orderSummaryData.menuCounts).map(([name, item]) => (
+                            <div
+                              key={name}
+                              className="flex items-center justify-between text-xs py-1 border-b border-slate-100 dark:border-zinc-800/60"
+                            >
+                              <span className="text-slate-700 dark:text-zinc-300 truncate max-w-[200px]">
+                                {name}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {item.count}잔
+                                </span>
+                                <span className="text-slate-500 font-mono">
+                                  {item.subtotal.toLocaleString()}원
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 카카오톡 결과 복사 버튼 */}
+                        <div className="pt-1 flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(orderSummaryData.kakaoText).then(() => {
+                                setCopiedResultText(true);
+                                setTimeout(() => setCopiedResultText(false), 3000);
+                              });
+                            }}
+                            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>{copiedResultText ? '✓ 카톡 결과 복사완료!' : '카톡으로 결과 & 주문서 복사'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 1 & 2. 다시 사다리 타기 (주 액션 전방 배치) 및 결과 닫기 (후방 배치) */}
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
                       <button
@@ -2122,6 +2981,748 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Store Menu Board Modal (사다리 화면 내 매장 전체 메뉴판 및 선택 레이어) */}
+          {isMenuModalOpen && selectedStore && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+              <div className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden">
+                {/* Modal Header */}
+                <div
+                  className="p-4 sm:p-5 text-white flex items-center justify-between gap-3 shrink-0"
+                  style={{ backgroundColor: selectedStore.themeColor || '#006241' }}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base sm:text-lg font-bold">{selectedStore.name}</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
+                        전체 {selectedStore.menus.length}종
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/80 mt-0.5">
+                      {selectedStore.locationMemo} • {selectedStore.partnerBrand}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {selectedStore.naverBookingUrl && (
+                      <a
+                        href={selectedStore.naverBookingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
+                        title="네이버 주문/예약 페이지 열기"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">네이버 주문</span>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuModalOpen(false);
+                        setSelectingTargetMemberId(null);
+                      }}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm cursor-pointer transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtitle / Mode Notice */}
+                <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900 text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between">
+                  <span>
+                    {selectingTargetMemberId
+                      ? `👉 [${members.find((m) => m.id === selectingTargetMemberId)?.name || '참가자'}] 님의 메뉴를 아래에서 선택해주세요.`
+                      : '📋 매장 전체 메뉴판 열람 모드입니다. (사다리 기둥의 [+메뉴선택]을 누르면 즉시 배정됩니다)'}
+                  </span>
+                </div>
+
+                {/* Category Filter Chips */}
+                <div className="p-3 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/80 dark:bg-[#0B0F17]/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMenuModalCategory('전체')}
+                    className={`min-h-[36px] px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      menuModalCategory === '전체'
+                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                        : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                    }`}
+                  >
+                    전체 ({selectedStore.menus.length})
+                  </button>
+                  {selectedStore.menuCategories.map((cat) => {
+                    const count = selectedStore.menus.filter((m) => m.categoryName === cat).length;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setMenuModalCategory(cat)}
+                        className={`min-h-[36px] px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                          menuModalCategory === cat
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                        }`}
+                      >
+                        {cat} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Menu List Scrollable Area */}
+                <div className="p-4 overflow-y-auto space-y-2 flex-1 overscroll-contain">
+                  {selectedStore.menus
+                    .filter((m) => menuModalCategory === '전체' || m.categoryName === menuModalCategory)
+                    .map((menu) => (
+                      <div
+                        key={menu.id}
+                        onClick={() => {
+                          if (selectingTargetMemberId) {
+                            handleSelectMenuForMember(menu);
+                          }
+                        }}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                          selectingTargetMemberId
+                            ? 'cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 active:scale-[0.99]'
+                            : ''
+                        } bg-slate-50 dark:bg-[#0B0F17] border-slate-200/80 dark:border-zinc-800`}
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
+                              {menu.name}
+                            </span>
+                            {menu.badge && (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                  menu.badge === 'BEST'
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                }`}
+                              >
+                                {menu.badge}
+                              </span>
+                            )}
+                            {menu.temperature && (
+                              <span className="text-[10px] text-slate-400">
+                                [{menu.temperature}]
+                              </span>
+                            )}
+                          </div>
+                          {menu.description && (
+                            <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                              {menu.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <span className="text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {menu.price.toLocaleString()}원
+                          </span>
+                          {selectingTargetMemberId && (
+                            <span className="min-h-[32px] px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold shadow-2xs">
+                              선택
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-3 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuModalOpen(false);
+                      setSelectingTargetMemberId(null);
+                    }}
+                    className="min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              2.1 사다리 연동 매장 선택 팝업 모달 (단골 매장 즐겨찾기 연동)
+              ----------------------------------------------------------------- */}
+          {isStoreSelectModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+              <div className="w-full max-w-xl max-h-[85vh] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden">
+                {/* Modal Header */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-zinc-100">
+                        사다리 연동 매장 선택
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        이번 사다리 게임에 적용할 매장을 선택하세요. 참가자들이 해당 매장의 메뉴를 고르게 됩니다.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreSelectModalOpen(false)}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Tab Switch: 내 단골 매장 vs 전체 매장 */}
+                <div className="px-4 pt-3 flex items-center gap-2 border-b border-slate-100 dark:border-zinc-800 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStoreSelectTab('MY')}
+                    className={`min-h-[40px] px-3.5 py-2 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                      storeSelectTab === 'MY'
+                        ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-zinc-400'
+                    }`}
+                  >
+                    <span>⭐ 내 단골 매장 ({userStorePref.myStoreIds.length}개)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoreSelectTab('ALL')}
+                    className={`min-h-[40px] px-3.5 py-2 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                      storeSelectTab === 'ALL'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-zinc-400'
+                    }`}
+                  >
+                    <span>🌐 전체 매장 둘러보기 ({SYSTEM_STORE_POOL.length}개)</span>
+                  </button>
+                </div>
+
+                {/* Store Cards List */}
+                <div className="p-4 overflow-y-auto space-y-3 flex-1">
+                  {(() => {
+                    const targetStores =
+                      storeSelectTab === 'MY'
+                        ? SYSTEM_STORE_POOL.filter((s) => userStorePref.myStoreIds.includes(s.id))
+                        : SYSTEM_STORE_POOL;
+
+                    if (targetStores.length === 0) {
+                      return (
+                        <div className="py-12 text-center space-y-3">
+                          <Store className="w-10 h-10 text-slate-300 dark:text-zinc-600 mx-auto" />
+                          <p className="text-xs text-slate-500 dark:text-zinc-400">
+                            등록된 단골 매장이 없습니다.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setStoreSelectTab('ALL')}
+                            className="min-h-[38px] px-4 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold"
+                          >
+                            전체 매장에서 고르기
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return targetStores.map((store) => {
+                      const isCurrent = selectedStore?.id === store.id;
+                      const isFavorited = userStorePref.myStoreIds.includes(store.id);
+
+                      return (
+                        <div
+                          key={store.id}
+                          onClick={() => handleSelectStore(store)}
+                          className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                            isCurrent
+                              ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-xs'
+                              : 'border-slate-200 dark:border-zinc-700 hover:border-emerald-400 bg-white dark:bg-[#172239]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0 shadow-xs"
+                              style={{ backgroundColor: store.themeColor || '#006241' }}
+                            >
+                              <Store className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100 truncate">
+                                  {store.name}
+                                </span>
+                                {isFavorited && (
+                                  <span className="text-[10px] text-amber-500 font-bold">⭐</span>
+                                )}
+                                {isCurrent && (
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-600 text-white font-bold">
+                                    현재 선택됨
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                                {store.partnerBrand || store.categoryLabel} • 메뉴 {store.menus.length}종
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                📍 {store.locationMemo}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={`min-h-[36px] px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+                              isCurrent
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-emerald-50 hover:text-emerald-700'
+                            }`}
+                          >
+                            {isCurrent ? '선택중' : '매장선택'}
+                          </button>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-3 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between text-xs shrink-0 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    {selectedStore && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedStore(null);
+                          setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+                          setIsStoreSelectModalOpen(false);
+                        }}
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 font-bold text-xs border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors flex items-center gap-1"
+                        title="선택된 매장을 취소하고 기본 사다리로 돌아갑니다"
+                      >
+                        <X className="w-3.5 h-3.5 text-rose-500" />
+                        <span>매장 선택 취소 (해제)</span>
+                      </button>
+                    )}
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      💡 사용자 설정에서 즐겨찾기 관리 가능
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreSelectModalOpen(false)}
+                    className="min-h-[40px] px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              2.5 사다리 목표 설정 전폭 레이어 팝업 모달 (모바일 가로 100% 바텀시트 / 상단 아이콘선택 + 첫항목 입력필드 + 프리셋목록)
+              ----------------------------------------------------------------- */}
+          {editingGoalIdx !== null && (
+            <div
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+              onClick={() => {
+                setEditingGoalIdx(null);
+                setIsGoalIconPickerOpen(false);
+              }}
+            >
+              <div
+                className="w-full sm:max-w-md bg-white dark:bg-[#131B2E] rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden max-h-[85vh] animate-in slide-in-from-bottom-4 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* 모바일 상단 바텀시트 핸들 */}
+                <div className="w-10 h-1 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mt-2.5 sm:hidden" />
+
+                {/* Modal Header */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800 text-lg">
+                      🎯
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-zinc-100">
+                        {editingGoalIdx + 1}번 기둥 목표 설정
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        직접 타이핑하거나 아래 추천 프리셋을 탭하여 설정하세요.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingGoalIdx(null);
+                      setIsGoalIconPickerOpen(false);
+                    }}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                  {/* [요구사항 5-1] 입력필드 아이콘을 누르면 바로 위에 표시되는 아이콘 그리드 선택기 */}
+                  {isGoalIconPickerOpen && (
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/80 border border-indigo-200 dark:border-indigo-800 animate-in zoom-in-95 duration-150 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                          🎯 목표 대표 아이콘 선택
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsGoalIconPickerOpen(false)}
+                          className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                        >
+                          닫기
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-8 gap-1.5">
+                        {TARGET_ICONS.map((ic) => (
+                          <button
+                            key={ic}
+                            type="button"
+                            onClick={() => {
+                              setTempGoalIcon(ic);
+                              setIsGoalIconPickerOpen(false);
+                            }}
+                            className={`min-h-[36px] flex items-center justify-center rounded-lg text-lg transition-transform active:scale-90 ${
+                              tempGoalIcon === ic
+                                ? 'bg-indigo-100 dark:bg-indigo-900/60 ring-2 ring-indigo-500 scale-110'
+                                : 'hover:bg-slate-200 dark:hover:bg-zinc-800 bg-white dark:bg-zinc-800/60 border border-slate-200/60 dark:border-zinc-700/60'
+                            }`}
+                          >
+                            {ic}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* [요구사항 5-2] 첫 항목은 편집 가능한 입력창 + 확인 버튼 */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center justify-between">
+                      <span>목표 내용 직접 입력</span>
+                      <span className="text-[11px] font-normal text-slate-400">
+                        아이콘 탭 시 상단 변경
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/80 dark:bg-zinc-900/60 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                      {/* 아이콘 버튼 (누르면 위에 아이콘 선택기 펼침) */}
+                      <button
+                        type="button"
+                        onClick={() => setIsGoalIconPickerOpen(!isGoalIconPickerOpen)}
+                        className="min-h-[40px] px-2.5 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center gap-1 hover:border-indigo-400 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                        title="아이콘 변경 (클릭 시 위쪽에 아이콘 그리드 노출)"
+                      >
+                        <span className="text-xl leading-none">{tempGoalIcon}</span>
+                        <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isGoalIconPickerOpen ? 'rotate-180 text-indigo-500' : ''}`} />
+                      </button>
+
+                      {/* 텍스트 입력창 (상시 클리어 X) */}
+                      <div className="relative flex-1 min-w-0 flex items-center">
+                        <input
+                          type="text"
+                          value={tempGoalText}
+                          onChange={(e) => setTempGoalText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleConfirmGoal();
+                            }
+                          }}
+                          placeholder="목표 내용 입력 (예: 커피 쏘기, 통과 등)"
+                          className="w-full min-h-[40px] px-2.5 pr-8 text-xs font-bold bg-transparent text-slate-900 dark:text-zinc-100 outline-none placeholder:text-slate-400"
+                        />
+                        {tempGoalText && (
+                          <button
+                            type="button"
+                            onClick={() => setTempGoalText('')}
+                            className="absolute right-1 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-700"
+                            title="내용 지우기"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 확인 버튼 */}
+                      <button
+                        type="button"
+                        onClick={handleConfirmGoal}
+                        className="min-h-[40px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 shrink-0 cursor-pointer"
+                      >
+                        확인
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* [요구사항 5-3] 목록을 선택하면 입력창에 선택되고 동기화되는 프리셋 목록 */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                        자주 쓰는 목표 프리셋 (탭하여 선택)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsGoalPresetsModalOpen(true)}
+                        className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Settings className="w-3 h-3" />
+                        <span>프리셋 관리</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {goalPresets.map((preset) => {
+                        const isSelected = tempGoalText === preset.text && tempGoalIcon === preset.icon;
+                        return (
+                          <button
+                            key={preset.id || preset.text}
+                            type="button"
+                            onClick={() => {
+                              setTempGoalText(preset.text);
+                              setTempGoalIcon(preset.icon);
+                            }}
+                            className={`min-h-[42px] px-2.5 py-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30'
+                                : 'bg-white dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700/80 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                            }`}
+                          >
+                            <span className="text-lg leading-none shrink-0">{preset.icon}</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate flex-1 min-w-0">
+                              {preset.text}
+                            </span>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-3 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between text-xs shrink-0">
+                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    💡 텍스트 편집 후 [확인]을 누르면 사다리에 즉시 적용됩니다.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingGoalIdx(null);
+                      setIsGoalIconPickerOpen(false);
+                    }}
+                    className="min-h-[38px] px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              3. 사다리 목표 프리셋 목록 관리 모달 (사용자 설정 & localStorage 영속화)
+              ----------------------------------------------------------------- */}
+          {isGoalPresetsModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+              <div className="w-full max-w-lg max-h-[85vh] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden">
+                {/* Modal Header */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
+                      <Settings className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-zinc-100">
+                        사다리 목표 선택 목록 관리
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        사다리 하단 목표 선택 목록에 노출될 목표 항목을 직접 추가, 삭제, 관리합니다.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsGoalPresetsModalOpen(false)}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Add New Goal Form */}
+                <form
+                  onSubmit={handleAddGoalPreset}
+                  className="p-4 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 shrink-0 space-y-2.5"
+                >
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                    + 새 목표 항목 추가
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {/* Icon Select */}
+                    <select
+                      value={newPresetIcon}
+                      onChange={(e) => setNewPresetIcon(e.target.value)}
+                      className="text-base rounded-xl px-2 py-2 border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 cursor-pointer shrink-0 min-h-[40px]"
+                      title="목표 아이콘 선택"
+                    >
+                      {TARGET_ICONS.map((ic) => (
+                        <option key={ic} value={ic}>
+                          {ic}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Text Input */}
+                    <input
+                      type="text"
+                      value={newPresetText}
+                      onChange={(e) => setNewPresetText(e.target.value)}
+                      placeholder="목표명 입력 (예: 커피 쏘기, 설거지 당번)"
+                      className="flex-1 min-w-0 min-h-[40px] px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 outline-none focus:border-indigo-500"
+                    />
+
+                    {/* Add Button */}
+                    <button
+                      type="submit"
+                      disabled={!newPresetText.trim()}
+                      className="min-h-[40px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold cursor-pointer shrink-0 transition-colors shadow-2xs"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                </form>
+
+                {/* Presets List */}
+                <div className="p-4 overflow-y-auto space-y-2 flex-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 mb-1">
+                    <span className="font-bold">현재 등록된 목표 ({goalPresets.length}개)</span>
+                    <span className="text-[11px]">* 사다리 하단 목표 선택창에 즉시 반영됩니다.</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {goalPresets.map((preset) => (
+                      <div
+                        key={preset.id || preset.text}
+                        className="p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#172239] flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xl p-1 rounded-lg bg-slate-100 dark:bg-zinc-800 shrink-0">
+                            {preset.icon}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
+                            {preset.text}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGoalPreset(preset.id)}
+                          className="min-h-[32px] min-w-[32px] rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                          title="목표 삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-3 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleResetGoalPresets}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-semibold hover:bg-slate-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    기본값 복원
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsGoalPresetsModalOpen(false)}
+                    className="min-h-[38px] px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    저장 완료
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              2.2 롱프레스(모바일) & 호버(PC) 메뉴 풀텍스트 팝오버 툴팁
+              ----------------------------------------------------------------- */}
+          {menuTooltip && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xs animate-in fade-in"
+              onClick={() => setMenuTooltip(null)}
+            >
+              <div
+                className="w-full max-w-xs p-4 rounded-2xl bg-white dark:bg-[#1a1a1e] border-2 border-emerald-500 shadow-2xl text-left space-y-3 animate-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-2">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      {menuTooltip.menu.categoryName}
+                    </span>
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-zinc-100 leading-snug">
+                      ☕ {menuTooltip.menu.name}
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTooltip(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500 dark:text-zinc-400">메뉴 가격</span>
+                  <span className="font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                    {menuTooltip.menu.price.toLocaleString()}원
+                  </span>
+                </div>
+
+                {menuTooltip.menu.description && (
+                  <p className="text-xs text-slate-600 dark:text-zinc-300 bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 leading-relaxed">
+                    {menuTooltip.menu.description}
+                  </p>
+                )}
+
+                <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>롱프레스 확인 완료</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const memberId = menuTooltip.memberId;
+                      setMenuTooltip(null);
+                      handleOpenMenuModalForMember(memberId);
+                    }}
+                    className="font-bold text-indigo-600 dark:text-indigo-400 underline cursor-pointer"
+                  >
+                    메뉴 변경하기
+                  </button>
+                </div>
               </div>
             </div>
           )}
