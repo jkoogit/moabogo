@@ -522,13 +522,20 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     const el = presetScrollRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      const rawDelta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+      if (rawDelta === 0) return;
+
+      const isAtStart = el.scrollLeft <= 1;
+      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
+
+      // 첫/끝 아이템 도달 시 상하 스크롤 이벤트 통과
+      if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
-      if (e.deltaY !== 0) {
-        el.scrollLeft += e.deltaY;
-      } else if (e.deltaX !== 0) {
-        el.scrollLeft += e.deltaX;
-      }
+      el.scrollLeft += rawDelta;
     };
     el.addEventListener('wheel', onWheel, { passive: false, capture: true });
     return () => {

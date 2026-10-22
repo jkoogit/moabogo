@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
-import { ElmNav01, ElmOff01 } from './sample/elements/Tokens';
+import { ElmNav01, ElmOff01, ElmQck01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
 import { CommandPalette } from './components/CommandPalette';
 import { Ledger } from './types';
@@ -447,6 +447,14 @@ export default function App() {
           setCurrentScreen('SCR-SMP-01');
         }}
       />
+
+      {/* 6. Global Movable Quick Action Dock (로그인한 모든 메뉴 화면 공통 표시) */}
+      {(isLoggedIn || !['SCR-GNT-01', 'SCR-AUT-01', 'SCR-AUT-02'].includes(currentScreen)) && (
+        <ElmQck01
+          onOpenMoney={() => setCurrentScreen('SCR-QCK-01')}
+          onOpenDuty={() => setCurrentScreen('SCR-QCK-02')}
+        />
+      )}
     </div>
   );
 }
