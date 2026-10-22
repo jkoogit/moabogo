@@ -971,14 +971,12 @@ async function startServer() {
   // Dev & Static Serving Setup
   // -------------------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
-    const allowedHosts = process.env.ALLOWED_HOSTS
-    ? process.env.ALLOWED_HOSTS.split(',').map((host) => host.trim())
-    : ['dev.moabogo.com','stg.moabogo.com','www.moabogo.com', 'moabogo.com','localhost'];
-
     const vite = await createViteServer({
       cacheDir: '/tmp/.vite', // 🔑 [핵심] EACCES 권한 에러 영구 해결
-      server: { middlewareMode: true,
-      allowedHosts: allowedHosts },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true, // 🔑 [핵심] AI Studio Cloud Run 및 임의 도메인 호스트 허용
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
