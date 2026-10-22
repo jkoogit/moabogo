@@ -77,10 +77,20 @@ stateDiagram-v2
   - **1단계(실시간)**: 매 대화 응답 시 로컬 하네스 스토어 및 트레이스 상태 기록.
   - **2단계(정합성 보정 & 승급 전수 보완)**: `#태스크승급` 및 `#세션정리` 시점에 세션 내 누적된 모든 미반영 대화 턴을 검증하고 원격 저장소 및 DB 상태와 100% 동기화.
 - **원격 Git 제어 기술 원칙 (Git Commit & Push Mandate)**:
-  - **[필수 원칙] 세션시작 시 원격 `dev` 브랜치 자동 Pull 선행 의무**:
+  - **[필수 원칙 0] 샌드박스 Git 초기화 및 환경 보장 의무**:
+    에이전트 샌드박스 환경은 재시작 시 `.git` 및 git config가 없을 수 있으므로, Git 명령 실행 전 반드시 다음 초기화 블록을 선행 실행하여 git 명령 실패(`fatal: not a git repository`)를 원천 방지한다:
+    ```bash
+    [ ! -d .git ] && git init -b dev
+    git config user.name "MoaBogo AI Agent"
+    git config user.email "agent@moabogo.internal"
+    git remote get-url origin >/dev/null 2>&1 || git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
+    ```
+  - **[필수 원칙 1] 세션시작 시 원격 `dev` 브랜치 자동 Pull 선행 의무**:
     새 세션 또는 환경 전환 시 과거 로컬 스냅샷 불일치를 방지하기 위해 `#세션시작` 시 원격 `dev` 최신 트리를 로컬 작업공간에 100% 동기화(`git fetch origin dev && git checkout -B dev origin/dev`).
-  - **[필수 원칙] 태스크정리 시 원격 커밋 푸시 및 PR 머지 의무**:
+  - **[필수 원칙 2] 태스크정리 시 원격 커밋 푸시 및 PR 머지 의무**:
     파일 변경 사항이 원격에 누락되는 것을 원천 방지하기 위해 기능 브랜치 생성 ➔ 커밋 ➔ 원격 Push ➔ GitHub REST API로 Pull Request 생성 및 `dev` 머지를 완결해야 함.
+  - **[필수 원칙 3] 태스크승급 시 `stg`, `main` 패스트포워드 푸시 의무**:
+    `dev`에 머지된 최신 커밋을 `git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main`을 통해 `stg`와 `main`에 즉시 반영하고 `git ls-remote`로 3개 브랜치 일치 여부를 검증해야 함.
 
 ---
 
@@ -166,24 +176,35 @@ stateDiagram-v2
     6. **루프 연계**: 복합 반복 작업 필요 시 `#루프분석` ➔ `#루프시작` ➔ `#루프처리` ➔ `#루프정리` 순서로 안전하게 격리 처리.
     7. 대화 턴 영속화.
 
-### [규칙 2.3] `#태스크정리` 인입 시: READ-ONLY (리뷰문서 작성 및 Git/하네스 동기화)
-- 소스 코드(`src/`) 임의 수정은 금지되며, 오직 리뷰 문서 발행과 Git/하네스 동기화만 수행합니다.
+### [규칙 2.3] `#태스크정리` 인입 시: 소스코드 수정 금지 (리뷰문서 발행 및 Git PR/dev머지 필수 실행)
+- 소스 코드(`src/`)의 임의 기능 수정은 금지되며, 오직 리뷰 문서(`docs/08.리뷰/`) 발행과 Git 커밋, 원격 푸시, PR 생성 및 `dev` 머지 API/CLI 작업을 완결해야 합니다.
+- **절대 주의**: 'READ-ONLY'라는 명칭으로 인해 Git 커밋·푸시·머지 CLI 명령 실행을 생략하고 말로만 완료 보고를 해서는 안 되며, 실제 쉘 명령어와 API 호출을 반드시 실행해야 합니다.
   - **수행 사항**:
     1. 테스트 및 정적 검증(`lint_applet`, `compile_applet`) 최종 확인.
     2. `docs/08.리뷰/`에 완료 코드리뷰 문서를 발행하고 인덱스 현행화.
     3. 작업한 태스크 정보를 하네스 스토어에 반영.
     4. **원격 커밋 생성 및 푸시 (Git Push Mandate)**:
-       - 변경 파일을 로컬 기능 브랜치(`feature/...`)에 커밋.
-       - 원격 저장소(`origin`)에 해당 기능 브랜치로 푸시.
+       ```bash
+       git checkout -B task/세션번호_태스크순번_작업명
+       git add docs/08.리뷰/ src/ ...
+       git commit -m "docs(review): [세션-태스크] 코드리뷰 문서 발행 및 동기화"
+       git push -u origin task/세션번호_태스크순번_작업명
+       ```
     5. **Pull Request 생성 및 dev 머지**: GitHub REST API(`POST /repos/:owner/:repo/pulls` 및 `POST /repos/:owner/:repo/merges`)를 호출하여 `dev` 브랜치에 머지 완료.
     6. `#태스크정리` 이후 입력되는 프롬프트는 `#태스크승급`으로 제한.
-    7. 완료 후 원격 dev브랜치에 반영이 되었는지 확인.
+    7. 완료 후 원격 `dev` 브랜치에 반영이 되었는지 `git ls-remote origin dev`로 확인.
 
-### [규칙 2.4] `#태스크승급` 명시 시: READ-ONLY (원격 브랜치 배포 승급 및 상태 마감)
+### [규칙 2.4] `#태스크승급` 명시 시: 소스/문서 수정 금지 (원격 stg/main 패스트포워드 배포 승급 및 상태 마감)
 - 소스 및 문서 수정을 엄격히 제한하고 상태 승급 및 원격 브랜치 배포를 처리합니다.
+- **절대 주의**: 원격 브랜치 배포 승급은 실제 Git 명령을 실행하여 완결해야 합니다. `dev` 브랜치에 머지된 내용을 `stg` 및 `main` 브랜치에 패스트포워드 푸시하여 3개 브랜치를 100% 동기화합니다.
   - **수행 사항**:
     1. **미반영 대화턴 전수 보정 및 영속화**: 세션 내 누적된 모든 대화턴을 최종 검증하고 영속화 완료.
-    2. **원격 브랜치 배포 승급**: GitHub REST API(`POST /repos/:owner/:repo/merges`)를 호출하여 최신 커밋이 반영된 `dev` 브랜치를 `stg` 및 `main` 브랜치에 승급 머지하고 커밋 SHA 일치 여부 확인.
+    2. **원격 브랜치 배포 승급 (Fast-Forward Push Mandate)**:
+       ```bash
+       git fetch origin dev
+       git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main
+       git ls-remote origin dev stg main  # 3개 브랜치의 SHA가 동일한지 반드시 확인
+       ```
     3. **하네스 스토어 동기화**: 작업 태스크 상태를 `완료`로 최종 마감.
     4. **태스크 작업 결과 리뷰**:
        - 문서작성 : 인프라, 기획, 설계, 리뷰 등 그룹별 문서명과 한줄설명
@@ -193,7 +214,7 @@ stateDiagram-v2
     5. 승급 이후 입력되는 프롬프트는 `#태스크시작` 또는 `#세션정리`로 제한:
        - 잔여 태스크 목록 제시 및 다음 실행 프롬프트 코드블록 제공.
     6. 대화 턴 영속화.
-    7. 완료 후 원격 stg, main 브랜치에 반영되었는지 확인
+    7. 완료 후 원격 `stg`, `main` 브랜치에 반영되었는지 확인.
 
 ---
 
@@ -203,11 +224,18 @@ stateDiagram-v2
 - **수행 사항**:
   1. **세션명 현행화**: `[0000]세션작업요약명` 형식으로 채팅 이름 최종 반영.
   2. **원격 레포 이슈 및 PR 종결 확인**: GitHub API로 모든 이슈/PR이 Closed 되었는지 확인.
-  3. **원격 브랜치 동기화 확인**: `dev`, `stg`, `main` 커밋 상태 점검.
+  3. **원격 브랜치 동기화 확인**: `dev`, `stg`, `main` 커밋 상태 점검 (`git ls-remote origin dev stg main`).
   4. **세션 상태 완료 승급**: 하네스 스토어에 세션 상태를 `완료`로 수정 및 현행화.
   5. **미해결 백로그 정리**: 세션 내 누적된 백로그 항목 검토 및 분류.
   6. **회고 문서 작성**: `docs/07.회고/`에 이번 세션 회고 문서 작성 (회고 템플릿 준수).
-  7. **원격 최종 커밋 푸시 및 배포 승급**: 회고 문서를 커밋/푸시하고 `dev` ➔ `stg` ➔ `main` 최종 동기화 완료.
+  7. **원격 최종 커밋 푸시 및 배포 승급**:
+     ```bash
+     git add docs/07.회고/ AGENTS.md
+     git commit -m "docs(retrospective): [세션번호] 세션 회고 및 세션 정리"
+     git push origin dev
+     git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main
+     git ls-remote origin dev stg main
+     ```
   8. 대화 턴 영속화.
 
 ### [규칙 3.2] `#세션프롬프트` 인입 시
