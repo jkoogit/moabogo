@@ -1223,13 +1223,20 @@ export const ElmSld03: React.FC<{
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
+      // 1. 수평 스크롤 필요성 검사: 전체 노드가 한 화면에 다 보여서 좌우 스크롤할 여지가 없는 경우 (PC 와이드 모드 등)
+      // 브라우저 기본 화면 상하 스크롤이 자연스럽게 동작하도록 즉시 통과
+      const canScrollHorizontally = el.scrollWidth > el.clientWidth + 4;
+      if (!canScrollHorizontally) {
+        return;
+      }
+
       const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
       if (rawDelta === 0) return;
 
-      const isAtStart = el.scrollLeft <= 1;
-      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
+      const isAtStart = el.scrollLeft <= 3;
+      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 4;
 
-      // 첫 아이템 도달 후 좌측 스크롤이거나, 끝 아이템 도달 후 우측 스크롤 시 화면 상하 스크롤 허용
+      // 2. 첫 번째 항목 도달 후 좌측/위로 스크롤하거나, 끝 항목 도달 후 우측/아래로 스크롤 시 화면 상하 스크롤 허용
       if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
         return;
       }

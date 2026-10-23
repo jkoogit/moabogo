@@ -13,6 +13,7 @@ export interface StoreMenuItem {
   temperature?: 'HOT' | 'ICE' | 'BOTH';
   description?: string;
   iconName?: string;
+  imageUrl?: string;
 }
 
 export interface StorePreset {
@@ -88,6 +89,84 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
   },
 ];
 
+// 룰렛 프리셋 및 항목 인터페이스
+export interface RoulettePresetItem {
+  id: string;
+  name: string;
+  icon?: string;
+  weight: number;
+}
+
+export interface RoulettePreset {
+  id: string;
+  category: 'LUNCH' | 'DUTY' | 'PENALTY' | 'COFFEE' | 'CUSTOM';
+  title: string;
+  description: string;
+  icon: string;
+  items: RoulettePresetItem[];
+}
+
+// 룰렛 추천 퀵 프리셋 묶음
+export const ROULETTE_PRESETS: RoulettePreset[] = [
+  {
+    id: 'roulette_preset_lunch',
+    category: 'LUNCH',
+    title: '🍱 오늘 점심 메뉴 뭐 먹지?',
+    description: '선택 장애 해결! 가장 인기 있는 6가지 점심 메뉴',
+    icon: '🍱',
+    items: [
+      { id: 'r_item_1', name: '김치찌개 / 제육볶음 (한식)', icon: '🍲', weight: 1 },
+      { id: 'r_item_2', name: '돈까스 / 일식 라멘', icon: '🍛', weight: 1 },
+      { id: 'r_item_3', name: '짜장면 / 짬뽕 (중식)', icon: '🍜', weight: 1 },
+      { id: 'r_item_4', name: '파스타 / 버거 (양식)', icon: '🍔', weight: 1 },
+      { id: 'r_item_5', name: '샐러드 / 샌드위치 (가볍게)', icon: '🥗', weight: 1 },
+      { id: 'r_item_6', name: '떡볶이 / 튀김 (분식)', icon: '🍢', weight: 1 },
+    ],
+  },
+  {
+    id: 'roulette_preset_duty',
+    category: 'DUTY',
+    title: '🧹 오늘 당번 & 청소 정하기',
+    description: '회의실, 탕비실, 분리수거 등 공정한 당번 배정',
+    icon: '🧹',
+    items: [
+      { id: 'r_duty_1', name: '회의실 정리 & 화이트보드 지우기', icon: '📝', weight: 1 },
+      { id: 'r_duty_2', name: '탕비실 싱크대 정리 & 컵 씻기', icon: '☕', weight: 1 },
+      { id: 'r_duty_3', name: '재활용 분리수거 배출', icon: '♻️', weight: 1 },
+      { id: 'r_duty_4', name: '간식 & 원두 채워넣기', icon: '🍪', weight: 1 },
+      { id: 'r_duty_5', name: '저녁 퇴근 시 환기 & 소등 점검', icon: '💡', weight: 1 },
+    ],
+  },
+  {
+    id: 'roulette_preset_penalty',
+    category: 'PENALTY',
+    title: '🎯 흥미진진한 벌칙 룰렛',
+    description: '모임 분위기를 띄우는 가벼운 미션 & 벌칙',
+    icon: '🎯',
+    items: [
+      { id: 'r_pen_1', name: '다음 회식/모임 커피 쏘기', icon: '☕', weight: 1 },
+      { id: 'r_pen_2', name: '시원한 아이스크림 사오기', icon: '🍦', weight: 1 },
+      { id: 'r_pen_3', name: '팀원 전원에게 진심 어린 칭찬 1마디', icon: '💖', weight: 1 },
+      { id: 'r_pen_4', name: '단체방에 셀카 투척', icon: '📸', weight: 1 },
+      { id: 'r_pen_5', name: '노래 1소절 부르기', icon: '🎤', weight: 1 },
+      { id: 'r_pen_6', name: '🎉 축 통과! (벌칙 면제)', icon: '🍀', weight: 1 },
+    ],
+  },
+  {
+    id: 'roulette_preset_coffee',
+    category: 'COFFEE',
+    title: '☕ 커피 쏘기 독박 & 픽업 내기',
+    description: '결제자 1명, 픽업자 1명, 면제자 선정',
+    icon: '☕',
+    items: [
+      { id: 'r_cof_1', name: '💳 오늘 커피 전액 결제 (독박)', icon: '💳', weight: 1 },
+      { id: 'r_cof_2', name: '🏃 카페 다녀오기 (픽업 심부름)', icon: '🏃', weight: 1 },
+      { id: 'r_cof_3', name: '🎉 축 통과 (편안한 휴식)', icon: '🎉', weight: 1 },
+      { id: 'r_cof_4', name: '🎉 축 통과 (편안한 휴식)', icon: '🎉', weight: 1 },
+    ],
+  },
+];
+
 // PLUS CAFE 45층 (WPS 스타벅스 공식 파트너 / 여의도 63빌딩 45층 사내카페)
 // 실전 전 메뉴 34종 전수 수집 데이터셋
 export const SYSTEM_STORE_POOL: StorePreset[] = [
@@ -123,6 +202,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'HOT',
         description: 'WPS 스타벅스 에스프레소 원두의 깊고 진한 풍미',
+        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_02',
@@ -133,6 +213,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'ICE',
         description: '얼음 가득 깔끔하고 시원한 부동의 1위 메뉴',
+        imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_03',
@@ -141,6 +222,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'HOT',
         description: '농밀한 크레마와 바디감의 정통 에스프레소 더블샷',
+        imageUrl: 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_04',
@@ -151,6 +233,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'BOTH',
         description: '부드러운 스팀우유와 에스프레소의 고소한 조화',
+        imageUrl: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_05',
@@ -160,6 +243,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '추천',
         temperature: 'BOTH',
         description: '천연 바닐라빈 시럽이 은은하게 퍼지는 달콤함',
+        imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_06',
@@ -168,6 +252,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'BOTH',
         description: '달콤한 바닐라 시럽, 벨벳 우유 거품, 진한 카라멜 드리즐',
+        imageUrl: 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_07',
@@ -204,6 +289,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'ICE',
         description: '장시간 저온 추출하여 깔끔하고 초콜릿 풍미가 감도는 커피',
+        imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_11',
@@ -213,6 +299,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'ICE',
         description: '부드러운 연유 돌체 시럽과 콜드브루의 깔끔한 만남',
+        imageUrl: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_12',
@@ -221,6 +308,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '콜드브루 & 디카페인',
         temperature: 'ICE',
         description: '카페인 부담 없이 가볍게 즐기는 100% 디카페인 원두',
+        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_13',
@@ -229,6 +317,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '콜드브루 & 디카페인',
         temperature: 'BOTH',
         description: '늦은 오후에도 부담 없는 편안하고 고소한 디카페인 라떼',
+        imageUrl: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=200&auto=format&fit=crop&q=80',
       },
 
       // 3. 티 & 프리미엄 블렌딩
@@ -241,6 +330,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'BOTH',
         description: '상큼한 생자몽 퓨레와 달콤한 아카시아 꿀, 블랙티의 완벽한 밸런스',
+        imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_15',
@@ -250,6 +340,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '상큼',
         temperature: 'BOTH',
         description: '달콤한 고흥 유자청과 시원하고 청량한 스피아민트 허브',
+        imageUrl: 'https://images.unsplash.com/photo-1597481499750-3e6b22637e12?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_16',
@@ -259,6 +350,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'ICE',
         description: '리치와 레몬그라스, 캐모마일이 주는 힐링 블렌딩 음료',
+        imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=200&auto=format&fit=crop&q=80',
       },
       {
         id: 'menu_pc_17',
@@ -432,11 +524,11 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['대표 식사', '곁들임/전류'],
     menus: [
-      { id: 'menu_jj_01', name: '손만두 떡국', price: 13000, categoryName: '대표 식사', isSignature: true, badge: '대표' },
-      { id: 'menu_jj_02', name: '칼만두국', price: 13000, categoryName: '대표 식사', badge: '인기' },
-      { id: 'menu_jj_03', name: '접시만두 (6알)', price: 12000, categoryName: '곁들임/전류', isSignature: true },
-      { id: 'menu_jj_04', name: '부추전', price: 15000, categoryName: '곁들임/전류' },
-      { id: 'menu_jj_05', name: '어복쟁반 (중)', price: 68000, categoryName: '대표 식사', badge: '회식추천' },
+      { id: 'menu_jj_01', name: '손만두 떡국', price: 13000, categoryName: '대표 식사', isSignature: true, badge: '대표', imageUrl: 'https://images.unsplash.com/photo-1541696432-82c6da8ce7bf?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_jj_02', name: '칼만두국', price: 13000, categoryName: '대표 식사', badge: '인기', imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_jj_03', name: '접시만두 (6알)', price: 12000, categoryName: '곁들임/전류', isSignature: true, imageUrl: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_jj_04', name: '부추전', price: 15000, categoryName: '곁들임/전류', imageUrl: 'https://images.unsplash.com/photo-1628294895950-9805252327bc?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_jj_05', name: '어복쟁반 (중)', price: 68000, categoryName: '대표 식사', badge: '회식추천', imageUrl: 'https://images.unsplash.com/photo-1547496502-affa22d38842?w=200&auto=format&fit=crop&q=80' },
     ],
   },
   {
@@ -451,13 +543,13 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['시그니처 샐러디', '든든 웜볼', '간편 샌드/랩'],
     menus: [
-      { id: 'menu_sal_01', name: '탄단지 샐러디', price: 8900, categoryName: '시그니처 샐러디', isSignature: true, badge: 'BEST', description: '치킨, 고구마무스, 견과류와 크랜베리의 완벽한 영양 밸런스' },
-      { id: 'menu_sal_02', name: '로스트닭다리살 샐러디', price: 10900, categoryName: '시그니처 샐러디', badge: '인기', description: '육즙 가득 구워낸 부드러운 닭다리살' },
-      { id: 'menu_sal_03', name: '칠리베이컨 웜볼', price: 8600, categoryName: '든든 웜볼', isSignature: true, badge: 'BEST', description: '베이컨, 에그, 옥수수와 매콤달콤 크리미칠리 드레싱의 따뜻한 곡물볼' },
-      { id: 'menu_sal_04', name: '우삼겹 웜볼', price: 9300, categoryName: '든든 웜볼', badge: '든든', description: '달콤 짭조름한 우삼겹과 오리엔탈 드레싱' },
-      { id: 'menu_sal_05', name: '멕시칸 랩', price: 7200, categoryName: '간편 샌드/랩', badge: '간편', description: '그라운드비프, 나쵸칩의 바삭한 식감' },
-      { id: 'menu_sal_06', name: '바질치킨 웜랩', price: 7900, categoryName: '간편 샌드/랩', description: '향긋한 바질페스토와 담백한 닭가슴살' },
-      { id: 'menu_sal_07', name: '착즙주스 (그린밀싹/옐로우)', price: 4500, categoryName: '시그니처 샐러디', description: '100% 무가당 신선 과채 착즙 주스' },
+      { id: 'menu_sal_01', name: '탄단지 샐러디', price: 8900, categoryName: '시그니처 샐러디', isSignature: true, badge: 'BEST', description: '치킨, 고구마무스, 견과류와 크랜베리의 완벽한 영양 밸런스', imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_02', name: '로스트닭다리살 샐러디', price: 10900, categoryName: '시그니처 샐러디', badge: '인기', description: '육즙 가득 구워낸 부드러운 닭다리살', imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_03', name: '칠리베이컨 웜볼', price: 8600, categoryName: '든든 웜볼', isSignature: true, badge: 'BEST', description: '베이컨, 에그, 옥수수와 매콤달콤 크리미칠리 드레싱의 따뜻한 곡물볼', imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_04', name: '우삼겹 웜볼', price: 9300, categoryName: '든든 웜볼', badge: '든든', description: '달콤 짭조름한 우삼겹과 오리엔탈 드레싱', imageUrl: 'https://images.unsplash.com/photo-1543339308-43e59d6b73a6?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_05', name: '멕시칸 랩', price: 7200, categoryName: '간편 샌드/랩', badge: '간편', description: '그라운드비프, 나쵸칩의 바삭한 식감', imageUrl: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_06', name: '바질치킨 웜랩', price: 7900, categoryName: '간편 샌드/랩', description: '향긋한 바질페스토와 담백한 닭가슴살', imageUrl: 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_07', name: '착즙주스 (그린밀싹/옐로우)', price: 4500, categoryName: '시그니처 샐러디', description: '100% 무가당 신선 과채 착즙 주스', imageUrl: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=200&auto=format&fit=crop&q=80' },
     ],
   },
   {
@@ -472,13 +564,13 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['김밥류', '분식/떡볶이류', '식사/면류'],
     menus: [
-      { id: 'menu_sd_01', name: '싸다김밥 (기본)', price: 4000, categoryName: '김밥류', isSignature: true, badge: '기본' },
-      { id: 'menu_sd_02', name: '참치샐러드김밥', price: 5500, categoryName: '김밥류', badge: '인기' },
-      { id: 'menu_sd_03', name: '매운오징어김밥', price: 5500, categoryName: '김밥류', badge: '매콤' },
-      { id: 'menu_sd_04', name: '국물떡볶이 (치즈추가)', price: 7500, categoryName: '분식/떡볶이류', isSignature: true, badge: 'BEST' },
-      { id: 'menu_sd_05', name: '모둠튀김 (5종)', price: 6000, categoryName: '분식/떡볶이류' },
-      { id: 'menu_sd_06', name: '치즈돈까스', price: 9500, categoryName: '식사/면류', badge: '든든' },
-      { id: 'menu_sd_07', name: '얼큰해장라면', price: 5000, categoryName: '식사/면류' },
+      { id: 'menu_sd_01', name: '싸다김밥 (기본)', price: 4000, categoryName: '김밥류', isSignature: true, badge: '기본', imageUrl: 'https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_02', name: '참치샐러드김밥', price: 5500, categoryName: '김밥류', badge: '인기', imageUrl: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_03', name: '매운오징어김밥', price: 5500, categoryName: '김밥류', badge: '매콤', imageUrl: 'https://images.unsplash.com/photo-1617196034096-74dbb8a7f9a1?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_04', name: '국물떡볶이 (치즈추가)', price: 7500, categoryName: '분식/떡볶이류', isSignature: true, badge: 'BEST', imageUrl: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_05', name: '모둠튀김 (5종)', price: 6000, categoryName: '분식/떡볶이류', imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_06', name: '치즈돈까스', price: 9500, categoryName: '식사/면류', badge: '든든', imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_07', name: '얼큰해장라면', price: 5000, categoryName: '식사/면류', imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80' },
     ],
   },
 ];

@@ -38,14 +38,29 @@ import {
   Bookmark,
   Settings,
   Trash2,
+  Camera,
+  Download,
+  SlidersHorizontal,
+  Dices,
+  HelpCircle,
 } from 'lucide-react';
 import {
   SYSTEM_STORE_POOL,
   loadUserStorePreference,
   LADDER_ROLE_PRESETS,
+  ROULETTE_PRESETS,
+  RoulettePreset,
+  RoulettePresetItem,
   StorePreset,
   StoreMenuItem,
 } from '../data/systemStorePool';
+import {
+  generateLadderResultCardBlob,
+  generateRouletteResultCardBlob,
+  copyBlobToClipboard,
+  downloadBlobAsFile,
+  shareImageBlob,
+} from '../utils/gameResultCardCanvas';
 
 // Character avatar presets
 interface Participant {
@@ -76,6 +91,14 @@ const PRESET_CHARACTERS = [
 ];
 
 const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑', '🏃', '🧹', '✨', '🍫', '🏪', '🥇', '💀'];
+const ROULETTE_ICONS = ['🍱', '🍲', '🍛', '🍜', '🍔', '🍕', '🥗', '🍢', '☕', '🍦', '🍰', '🧹', '♻️', '📝', '💡', '🎯', '👑', '💸', '🏃', '🎤', '💖', '🍀', '💀', '🎁'];
+
+export interface RouletteSliceItem {
+  id: string;
+  name: string;
+  avatar: string;
+  weight: number;
+}
 
 export interface GoalPresetItem {
   id: string;
@@ -603,6 +626,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [ladderResult, setLadderResult] = useState<{
     [memberId: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean };
   } | null>(null);
+  const [savedLadderResult, setSavedLadderResult] = useState<{
+    [memberId: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean };
+  } | null>(null);
+  const [isStoreHelpOpen, setIsStoreHelpOpen] = useState<boolean>(false);
+  const [memberNameTooltip, setMemberNameTooltip] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
 
 
   // 사다리 결과 기반 주문 취합서 및 카톡 텍스트 자동 계산
@@ -653,6 +681,119 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       kakaoText,
     };
   }, [ladderResult, members, selectedStore]);
+
+  // 일반 사다리 및 매장 주문 전체를 아우르는 통합 공유 텍스트
+  const ladderGeneralShareText = useMemo(() => {
+    if (!ladderResult) return '';
+    if (selectedStore && orderSummaryData?.kakaoText) {
+      return orderSummaryData.kakaoText;
+    }
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    const winnerMembers = members.filter((m) => ladderResult[m.id]?.isWinner);
+    const otherMembers = members.filter((m) => !ladderResult[m.id]?.isWinner);
+
+    let text = `[모아보고 사다리타기 최종 결과]\n📅 일시: ${dateStr} | 참여 ${members.length}명\n\n`;
+    if (winnerMembers.length > 0) {
+      text += `🎉 당첨자 명단 (${winnerMembers.length}명):\n`;
+      winnerMembers.forEach((m) => {
+        const res = ladderResult[m.id];
+        text += `• ${m.name}: ${res.icon} ${res.text}\n`;
+      });
+      text += '\n';
+    }
+    if (otherMembers.length > 0) {
+      text += `🍀 통과 및 일반 결과 (${otherMembers.length}명):\n`;
+      otherMembers.forEach((m) => {
+        const res = ladderResult[m.id];
+        text += `• ${m.name}: ${res.icon} ${res.text}\n`;
+      });
+    }
+    text += `\n스마트 가계부 & 모임 정산 • 모아보고`;
+    return text;
+  }, [ladderResult, members, selectedStore, orderSummaryData]);
+
+  // 사다리 결과 카드 이미지 복사 및 다운로드 상태
+  const [copiedLadderImage, setCopiedLadderImage] = useState<boolean>(false);
+  const [isGeneratingLadderCard, setIsGeneratingLadderCard] = useState<boolean>(false);
+
+  const handleCopyLadderImageCard = async () => {
+    if (!ladderResult) return;
+    setIsGeneratingLadderCard(true);
+    try {
+      const participants = members.map((m) => {
+        const res = ladderResult[m.id];
+        return {
+          id: m.id,
+          name: m.name,
+          avatar: m.avatar,
+          goalText: res ? res.text : '',
+          goalIcon: res ? res.icon : '',
+          isWinner: !!res?.isWinner,
+          orderItemName: selectedStore ? m.selectedMenu?.name : undefined,
+          orderItemPrice: selectedStore ? m.selectedMenu?.price : undefined,
+        };
+      });
+
+      const blob = await generateLadderResultCardBlob({
+        title: selectedStore ? `${selectedStore.name} 주문 사다리타기` : '당첨자 & 결과 매칭',
+        storeName: selectedStore?.name,
+        totalAmount: selectedStore ? orderSummaryData?.totalAmount : undefined,
+        totalCount: selectedStore ? orderSummaryData?.totalCount : undefined,
+        participants,
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+
+      const res = await copyBlobToClipboard(blob);
+      if (res.success) {
+        setCopiedLadderImage(true);
+        setTimeout(() => setCopiedLadderImage(false), 3000);
+      } else {
+        downloadBlobAsFile(blob, `moabogo_ladder_${Date.now()}.png`);
+        alert('클립보드 이미지 복사 권한이 없어 이미지 파일로 다운로드되었습니다.');
+      }
+    } catch (e) {
+      console.error('Failed to generate ladder card:', e);
+      alert('카드 이미지 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsGeneratingLadderCard(false);
+    }
+  };
+
+  const handleDownloadLadderImageCard = async () => {
+    if (!ladderResult) return;
+    setIsGeneratingLadderCard(true);
+    try {
+      const participants = members.map((m) => {
+        const res = ladderResult[m.id];
+        return {
+          id: m.id,
+          name: m.name,
+          avatar: m.avatar,
+          goalText: res ? res.text : '',
+          goalIcon: res ? res.icon : '',
+          isWinner: !!res?.isWinner,
+          orderItemName: selectedStore ? m.selectedMenu?.name : undefined,
+          orderItemPrice: selectedStore ? m.selectedMenu?.price : undefined,
+        };
+      });
+
+      const blob = await generateLadderResultCardBlob({
+        title: selectedStore ? `${selectedStore.name} 주문 사다리타기` : '당첨자 & 결과 매칭',
+        storeName: selectedStore?.name,
+        totalAmount: selectedStore ? orderSummaryData?.totalAmount : undefined,
+        totalCount: selectedStore ? orderSummaryData?.totalCount : undefined,
+        participants,
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+
+      downloadBlobAsFile(blob, `moabogo_ladder_${Date.now()}.png`);
+    } catch (e) {
+      console.error('Failed to download ladder card:', e);
+    } finally {
+      setIsGeneratingLadderCard(false);
+    }
+  };
 
   // 4. 하나씩 순차 이동 애니메이션 상태
   const [isLadderTracing, setIsLadderTracing] = useState<boolean>(false);
@@ -708,16 +849,21 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     }
   }, [members.length, winnerCount]);
 
-  // 가중치 업데이트 함수
+  // 가중치 업데이트 함수 (음수 허용: -5 ~ +10, 한 명을 마이너스하면 상대적으로 타인 비율 상승)
   const updateMemberWeight = (id: string, delta: number, isAbsolute = false) => {
     setMembers((prev) =>
       prev.map((m) => {
         if (m.id !== id) return m;
-        const currentW = m.weight || 1;
+        const currentW = m.weight !== undefined ? m.weight : 1;
         const target = isAbsolute ? delta : currentW + delta;
-        return { ...m, weight: Math.max(1, Math.min(10, target)) };
+        return { ...m, weight: Math.max(-5, Math.min(10, target)) };
       })
     );
+  };
+
+  // 가중치 일괄 균등 초기화 핸들러 (모든 참가자 1로 리셋)
+  const handleResetWeights = () => {
+    setMembers((prev) => prev.map((m) => ({ ...m, weight: 1 })));
   };
 
   // 3-1. 사다리 주사위 셔플 시드 및 알림 상태
@@ -891,6 +1037,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     setRevealedGoals(allRev);
     setRevealedGoalCols(allGoalCols);
     setLadderResult(results);
+    setSavedLadderResult(results);
   };
 
   // 기존 호환용 alias
@@ -934,6 +1081,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         setCurrentTracerPosition(null);
         setCurrentTracedTrail([]);
         setLadderResult(results);
+        setSavedLadderResult(results);
         return;
       }
 
@@ -1018,6 +1166,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               setActiveTracingMemberIndex(null);
               setCurrentTracerPosition(null);
               setLadderResult(results);
+              setSavedLadderResult(results);
             } else {
               animateMember(nextIdx);
             }
@@ -1082,17 +1231,111 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   };
 
   // ---------------------------------------------------------------------------
-  // 4. [룰렛] 상태 및 로직
+  // 4. [룰렛] 전면 개편 상태 및 로직 (프리셋, 가중치, 2x 카드 이미지 복사)
   // ---------------------------------------------------------------------------
+  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState<boolean>(false);
+  const [roulettePresetTitle, setRoulettePresetTitle] = useState<string>('🍱 오늘 점심 메뉴 뭐 먹지?');
+  const [rouletteItems, setRouletteItems] = useState<RouletteSliceItem[]>(() => [
+    { id: 'r_item_1', name: '김치찌개 / 제육볶음 (한식)', avatar: '🍲', weight: 1 },
+    { id: 'r_item_2', name: '돈까스 / 일식 라멘', avatar: '🍛', weight: 1 },
+    { id: 'r_item_3', name: '짜장면 / 짬뽕 (중식)', avatar: '🍜', weight: 1 },
+    { id: 'r_item_4', name: '파스타 / 버거 (양식)', avatar: '🍔', weight: 1 },
+    { id: 'r_item_5', name: '샐러드 / 샌드위치 (가볍게)', avatar: '🥗', weight: 1 },
+    { id: 'r_item_6', name: '떡볶이 / 튀김 (분식)', avatar: '🍢', weight: 1 },
+  ]);
+  const [newRouletteName, setNewRouletteName] = useState<string>('');
+  const [newRouletteIcon, setNewRouletteIcon] = useState<string>('🎯');
+  const [selectedRouletteWinner, setSelectedRouletteWinner] = useState<RouletteSliceItem | null>(null);
+
   const [useRouletteWeight, setUseRouletteWeight] = useState<boolean>(false);
   const [rouletteRotation, setRouletteRotation] = useState<number>(0);
-  const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3000);
+  const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3500);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [selectedTagger, setSelectedTagger] = useState<Participant | null>(null);
-  
-  // [중복제거 튜닝 1] 당첨자 제외 모드 & 제외된 인원 보관함
+
+  // [중복제거 튜닝 1] 당첨자 제외 모드 & 제외된 항목 보관함
   const [excludeWinnerMode, setExcludeWinnerMode] = useState<boolean>(false);
   const [excludedWinners, setExcludedWinners] = useState<Participant[]>([]);
+  const [excludedRouletteItems, setExcludedRouletteItems] = useState<RouletteSliceItem[]>([]);
+
+  // 룰렛 결과 복사 및 이미지 생성 상태
+  const [copiedRouletteText, setCopiedRouletteText] = useState<boolean>(false);
+  const [copiedRouletteImage, setCopiedRouletteImage] = useState<boolean>(false);
+  const [isGeneratingRouletteCard, setIsGeneratingRouletteCard] = useState<boolean>(false);
+
+  // 프리셋 적용 핸들러
+  const handleApplyRoulettePreset = (preset: RoulettePreset) => {
+    setRoulettePresetTitle(preset.title);
+    setRouletteItems(
+      preset.items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        avatar: it.icon || '🎯',
+        weight: it.weight || 1,
+      }))
+    );
+    setSelectedRouletteWinner(null);
+    setSelectedTagger(null);
+    setExcludedRouletteItems([]);
+  };
+
+  // 현재 참여 멤버로 룰렛 채우기
+  const handleApplyMembersToRoulette = () => {
+    setRoulettePresetTitle(`👥 참여 멤버 1인 독박 추첨 (${members.length}명)`);
+    setRouletteItems(
+      members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        avatar: m.avatar,
+        weight: m.weight || 1,
+      }))
+    );
+    setSelectedRouletteWinner(null);
+    setSelectedTagger(null);
+    setExcludedRouletteItems([]);
+  };
+
+  // 새 룰렛 항목 추가
+  const handleAddRouletteItem = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newRouletteName.trim();
+    if (!trimmed) return;
+    const newItem: RouletteSliceItem = {
+      id: 'r_custom_' + Date.now(),
+      name: trimmed,
+      avatar: newRouletteIcon,
+      weight: 1,
+    };
+    setRouletteItems((prev) => [...prev, newItem]);
+    setNewRouletteName('');
+  };
+
+  // 룰렛 항목 삭제
+  const handleDeleteRouletteItem = (id: string) => {
+    if (rouletteItems.length <= 2) {
+      alert('룰렛은 최소 2개 이상의 항목이 필요합니다.');
+      return;
+    }
+    setRouletteItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  // 룰렛 항목 가중치 조절
+  const handleUpdateRouletteItemWeight = (id: string, delta: number) => {
+    setRouletteItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const next = Math.max(1, Math.min(10, (it.weight || 1) + delta));
+        return { ...it, weight: next };
+      })
+    );
+  };
+
+  // 룰렛 항목 이름 변경
+  const handleUpdateRouletteItemName = (id: string, newName: string) => {
+    setRouletteItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, name: newName } : it))
+    );
+  };
 
   // [중복제거 튜닝 2] 중복 참가자 이름 감지
   const duplicateNameCount = useMemo(() => {
@@ -1119,25 +1362,30 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   // 제외된 당첨자 복원
   const handleRestoreExcludedWinners = () => {
-    if (excludedWinners.length === 0) return;
-    setMembers((prev) => [...prev, ...excludedWinners]);
-    setMemberCount((prev) => prev + excludedWinners.length);
-    setExcludedWinners([]);
+    if (excludedRouletteItems.length > 0) {
+      setRouletteItems((prev) => [...prev, ...excludedRouletteItems]);
+      setExcludedRouletteItems([]);
+    }
+    if (excludedWinners.length > 0) {
+      setMembers((prev) => [...prev, ...excludedWinners]);
+      setMemberCount((prev) => prev + excludedWinners.length);
+      setExcludedWinners([]);
+    }
     setSelectedTagger(null);
+    setSelectedRouletteWinner(null);
   };
 
   const totalRouletteWeight = useMemo(() => {
-    if (!useRouletteWeight) return members.length;
-    return members.reduce((sum, m) => sum + (m.weight || 1), 0);
-  }, [members, useRouletteWeight]);
+    return rouletteItems.reduce((sum, item) => sum + Math.max(1, item.weight || 1), 0);
+  }, [rouletteItems]);
 
   const rouletteSlices = useMemo(() => {
     let currentAngle = 0;
-    const slices = members.map((member) => {
-      const weight = useRouletteWeight ? (member.weight || 1) : 1;
+    const slices = rouletteItems.map((item) => {
+      const weight = Math.max(1, item.weight || 1);
       const angle = (weight / Math.max(1, totalRouletteWeight)) * 360;
       const slice = {
-        member,
+        item,
         startAngle: currentAngle,
         endAngle: currentAngle + angle,
         angle,
@@ -1146,20 +1394,21 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       return slice;
     });
     return slices;
-  }, [members, useRouletteWeight, totalRouletteWeight]);
+  }, [rouletteItems, totalRouletteWeight]);
 
   // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수
-  const handleSpinRoulette = (skip = false, overrideChosen?: Participant) => {
-    if (isSpinning || members.length === 0) return;
+  const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem) => {
+    if (isSpinning || rouletteItems.length === 0) return;
+    setSelectedRouletteWinner(null);
     setSelectedTagger(null);
 
-    let chosen = overrideChosen || members[0];
+    let chosen = overrideChosen || rouletteItems[0];
     if (!overrideChosen) {
       let rand = Math.random() * totalRouletteWeight;
-      for (const m of members) {
-        const w = useRouletteWeight ? (m.weight || 1) : 1;
+      for (const item of rouletteItems) {
+        const w = Math.max(1, item.weight || 1);
         if (rand <= w) {
-          chosen = m;
+          chosen = item;
           break;
         }
         rand -= w;
@@ -1168,8 +1417,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
     if (skip) {
       setIsSpinning(true);
-      setRouletteTransitionDuration(500);
-      const chosenSlice = rouletteSlices.find((s) => s.member.id === chosen.id);
+      setRouletteTransitionDuration(400);
+      const chosenSlice = rouletteSlices.find((s) => s.item.id === chosen.id);
       const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
       
       const targetBase = 270 - sliceMidAngle;
@@ -1183,52 +1432,145 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
       setTimeout(() => {
         setIsSpinning(false);
-        setSelectedTagger(chosen);
+        setSelectedRouletteWinner(chosen);
+        const matchedMember = members.find((m) => m.id === chosen.id || m.name === chosen.name);
+        if (matchedMember) setSelectedTagger(matchedMember);
 
-        // 당첨자 자동 제외 모드가 켜져 있는 경우 (2명 초과 시만 안전 자동 제외)
-        if (excludeWinnerMode && members.length > 2) {
-          setExcludedWinners((prev) => [...prev, chosen]);
-          setMembers((prev) => prev.filter((m) => m.id !== chosen.id));
-          setMemberCount((prev) => Math.max(2, prev - 1));
+        if (excludeWinnerMode && rouletteItems.length > 2) {
+          setExcludedRouletteItems((prev) => [...prev, chosen]);
+          setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
         }
-      }, 500);
+      }, 400);
       return;
     }
 
     setIsSpinning(true);
-    setRouletteTransitionDuration(3000);
-    const chosenSlice = rouletteSlices.find((s) => s.member.id === chosen.id);
+    setRouletteTransitionDuration(3600);
+    const chosenSlice = rouletteSlices.find((s) => s.item.id === chosen.id);
     const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
-    const targetDeg = 360 * 6 + (270 - sliceMidAngle);
+    const targetDeg = 360 * 7 + (270 - sliceMidAngle);
 
     setRouletteRotation((prev) => prev + targetDeg);
 
     setTimeout(() => {
       setIsSpinning(false);
-      setSelectedTagger(chosen);
+      setSelectedRouletteWinner(chosen);
+      const matchedMember = members.find((m) => m.id === chosen.id || m.name === chosen.name);
+      if (matchedMember) setSelectedTagger(matchedMember);
 
-      // 당첨자 자동 제외 모드가 켜져 있는 경우 (2명 초과 시만 안전 자동 제외)
-      if (excludeWinnerMode && members.length > 2) {
-        setExcludedWinners((prev) => [...prev, chosen]);
-        setMembers((prev) => prev.filter((m) => m.id !== chosen.id));
-        setMemberCount((prev) => Math.max(2, prev - 1));
+      if (excludeWinnerMode && rouletteItems.length > 2) {
+        setExcludedRouletteItems((prev) => [...prev, chosen]);
+        setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
       }
-    }, 3000);
+    }, 3600);
   };
 
+  // 룰렛 결과 텍스트 복사 (카톡 형식)
+  const handleCopyRouletteText = () => {
+    if (!selectedRouletteWinner) return;
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    let text = `[모아보고 룰렛 추첨 결과]\n`;
+    text += `📅 일시: ${dateStr}\n`;
+    text += `📌 주제: ${roulettePresetTitle}\n\n`;
+    text += `🎯 오늘의 당첨: ${selectedRouletteWinner.avatar} ${selectedRouletteWinner.name} (축하합니다! 🎉)\n\n`;
+    text += `📋 전체 후보 항목:\n`;
+    rouletteItems.forEach((it) => {
+      const pct = Math.round((Math.max(1, it.weight || 1) / totalRouletteWeight) * 100);
+      text += `• ${it.avatar} ${it.name} (${pct}%)\n`;
+    });
+    text += `\n스마트 가계부 & 모임 정산 • 모아보고`;
+
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedRouletteText(true);
+      setTimeout(() => setCopiedRouletteText(false), 2500);
+    });
+  };
+
+  // 룰렛 결과 카드 이미지 복사 (Ctrl+V)
+  const handleCopyRouletteImageCard = async () => {
+    if (!selectedRouletteWinner) return;
+    setIsGeneratingRouletteCard(true);
+    try {
+      const candidates = rouletteItems.map((it) => ({
+        name: it.name,
+        avatar: it.avatar,
+        weight: it.weight || 1,
+        pct: Math.round((Math.max(1, it.weight || 1) / totalRouletteWeight) * 100),
+      }));
+
+      const blob = await generateRouletteResultCardBlob({
+        title: '룰렛 추첨 결과',
+        presetTitle: roulettePresetTitle,
+        winner: {
+          name: selectedRouletteWinner.name,
+          avatar: selectedRouletteWinner.avatar,
+          weight: selectedRouletteWinner.weight,
+        },
+        candidates,
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+
+      const res = await copyBlobToClipboard(blob);
+      if (res.success) {
+        setCopiedRouletteImage(true);
+        setTimeout(() => setCopiedRouletteImage(false), 3000);
+      } else {
+        downloadBlobAsFile(blob, `moabogo_roulette_${Date.now()}.png`);
+        alert('클립보드 이미지 복사 권한이 없어 이미지 파일로 다운로드되었습니다.');
+      }
+    } catch (e) {
+      console.error('Failed to generate roulette card:', e);
+      alert('카드 이미지 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsGeneratingRouletteCard(false);
+    }
+  };
+
+  // 룰렛 결과 이미지 파일 다운로드
+  const handleDownloadRouletteImageCard = async () => {
+    if (!selectedRouletteWinner) return;
+    setIsGeneratingRouletteCard(true);
+    try {
+      const candidates = rouletteItems.map((it) => ({
+        name: it.name,
+        avatar: it.avatar,
+        weight: it.weight || 1,
+        pct: Math.round((Math.max(1, it.weight || 1) / totalRouletteWeight) * 100),
+      }));
+
+      const blob = await generateRouletteResultCardBlob({
+        title: '룰렛 추첨 결과',
+        presetTitle: roulettePresetTitle,
+        winner: {
+          name: selectedRouletteWinner.name,
+          avatar: selectedRouletteWinner.avatar,
+          weight: selectedRouletteWinner.weight,
+        },
+        candidates,
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+
+      downloadBlobAsFile(blob, `moabogo_roulette_${Date.now()}.png`);
+    } catch (e) {
+      console.error('Failed to download roulette card:', e);
+    } finally {
+      setIsGeneratingRouletteCard(false);
+    }
+  };
 
   // [중복제거 튜닝 3] 당첨자 수동 제외 후 즉시 다음 룰렛 돌리기
   const handleExcludeWinnerAndSpinAgain = () => {
-    if (!selectedTagger) return;
-    const winner = selectedTagger;
-    if (members.length <= 2) {
-      alert('룰렛 최소 참여 인원은 2명입니다. 더 이상 제외할 수 없습니다.');
+    const winner = selectedRouletteWinner;
+    if (!winner) return;
+    if (rouletteItems.length <= 2) {
+      alert('룰렛 최소 참여 항목은 2개입니다. 더 이상 제외할 수 없습니다.');
       return;
     }
-    const remaining = members.filter((m) => m.id !== winner.id);
-    setExcludedWinners((prev) => [...prev, winner]);
-    setMembers(remaining);
-    setMemberCount(remaining.length);
+    const remaining = rouletteItems.filter((it) => it.id !== winner.id);
+    setExcludedRouletteItems((prev) => [...prev, winner]);
+    setRouletteItems(remaining);
+    setSelectedRouletteWinner(null);
     setSelectedTagger(null);
   };
 
@@ -1735,100 +2077,121 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 }`}
               >
                 {!isRoomMode ? (
-                  // 방 생성 전 인트로 배너
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {selectedStore ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStoreSelectTab('MY');
-                                setIsStoreSelectModalOpen(true);
-                              }}
-                              className="min-h-[36px] px-2.5 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-300 dark:border-emerald-800 shadow-2xs"
-                              title="클릭하여 이번 사다리 게임에 적용할 매장 변경"
-                            >
-                              <Store className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                              <span>🏪 {selectedStore.name}</span>
-                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-extrabold underline ml-0.5">▾ 매장변경</span>
-                            </button>
+                  // 방 생성 전 인트로 배너: 한 줄로 표시 후 매장 선택 시 게임공유, ? 는 맨 뒤
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
+                    {selectedStore ? (
+                      <>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStoreSelectTab('MY');
+                              setIsStoreSelectModalOpen(true);
+                            }}
+                            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-300 dark:border-emerald-800 shadow-2xs"
+                            title="클릭하여 이번 사다리 게임에 적용할 매장 변경"
+                          >
+                            <Store className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                            <span>🏪 {selectedStore.name}</span>
+                            <ChevronDown className="w-4.5 h-4.5 text-emerald-700 dark:text-emerald-300 stroke-[2.5] shrink-0 ml-0.5" />
+                          </button>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedStore(null);
-                                setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
-                              }}
-                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
-                              title="매장 선택 취소"
-                              aria-label="매장 선택 취소"
-                            >
-                              <X className="w-4 h-4 text-rose-500" />
-                            </button>
+                          {/* 1.1: 메뉴판 버튼 */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectingTargetMemberId(null);
+                              setIsMenuModalOpen(true);
+                            }}
+                            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 hover:border-emerald-500 cursor-pointer shadow-2xs"
+                          >
+                            <Coffee className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>메뉴판 ({selectedStore.menus.length}종)</span>
+                          </button>
 
-                            <span className="text-xs text-slate-500 dark:text-zinc-400">
-                              ({selectedStore.categoryLabel} • 메뉴 {selectedStore.menus.length}종 연동)
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStoreSelectTab('MY');
-                                setIsStoreSelectModalOpen(true);
-                              }}
-                              className="min-h-[36px] px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs"
-                              title="매장을 선택하면 메뉴 취합 및 주문서가 연동됩니다"
-                            >
-                              <Store className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                              <span>+ 매장 선택</span>
-                            </button>
-                            <span className="text-xs text-slate-500 dark:text-zinc-400">
-                              (매장을 선택하면 참가자별 음료/메뉴를 고르고 정산할 수 있습니다)
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-zinc-300 font-medium">
-                        {selectedStore
-                          ? '카카오톡 공유 링크를 생성하여 팀원들과 각자 원하는 음료를 고르고 커피내기 사다리를 즐겨보세요!'
-                          : '단순 사다리 타기 또는 매장을 연동하여 음료 내기 및 주문서 취합을 함께 진행해보세요!'}
-                      </p>
-                    </div>
+                          {/* 1.1: 매장닫기 버튼 (메뉴판 뒤로 배치) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStore(null);
+                              setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+                            }}
+                            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
+                            title="매장 닫기"
+                            aria-label="매장 닫기"
+                          >
+                            <X className="w-4 h-4 text-rose-500" />
+                          </button>
+                        </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      {selectedStore && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectingTargetMemberId(null);
-                            setIsMenuModalOpen(true);
-                          }}
-                          className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 hover:border-emerald-500 cursor-pointer shadow-2xs"
-                        >
-                          <Coffee className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>메뉴판 ({selectedStore.menus.length}종)</span>
-                        </button>
-                      )}
+                        {/* 1.2: 매장 선택 시: 게임공유, ? 는 맨 뒤(우측) 정렬 */}
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                          <button
+                            type="button"
+                            onClick={handleCreateRoom}
+                            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>게임공유</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={handleCreateRoom}
-                        className="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold flex items-center gap-2 shadow-sm cursor-pointer transition-all"
-                      >
-                        <Share2 className="w-4 h-4" />
-                        <span>게임공유</span>
-                      </button>
-                    </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsStoreHelpOpen(true)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0"
+                            title="사다리 및 매장 연동 주문서 안내"
+                            aria-label="사다리 및 매장 연동 주문서 안내"
+                          >
+                            <HelpCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      /* 매장 미선택 시: [+ 매장 선택]은 좌측, [게임공유], [?]는 우측(ml-auto) 정렬 */
+                      <>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStoreSelectTab('MY');
+                              setIsStoreSelectModalOpen(true);
+                            }}
+                            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                            title="매장을 선택하면 메뉴 취합 및 주문서가 연동됩니다"
+                          >
+                            <Store className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                            <span>+ 매장 선택</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                          <button
+                            type="button"
+                            onClick={handleCreateRoom}
+                            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>게임공유</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsStoreHelpOpen(true)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0"
+                            title="사다리 및 매장 연동 주문서 안내"
+                            aria-label="사다리 및 매장 연동 주문서 안내"
+                          >
+                            <HelpCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   // 실시간 공유방 활성화 상태
                   <div className="space-y-3.5">
                     <div className="flex flex-col gap-3 border-b border-indigo-200/60 dark:border-indigo-900/40 pb-3">
-                      {/* 상단 행: 방 코드 & 초대링크 복사 + 게임공유 끄기 버튼 (매장선택 위 배치) */}
+                      {/* 상단 행: 방 코드 & 초대링크 복사 + 게임공유 끄기 버튼 + 안내 버튼 */}
                       <div className="flex flex-wrap items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2">
                           <span className="px-2.5 py-1 rounded-full bg-indigo-600 text-white font-mono font-bold text-xs flex items-center gap-1 shadow-xs">
@@ -1836,7 +2199,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                           </span>
                         </div>
 
-                        {/* 초대 링크 복사 & 게임공유 끄기 버튼 */}
+                        {/* 초대 링크 복사 & 게임공유 끄기 버튼 & 안내 버튼 */}
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1856,6 +2219,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                           >
                             게임공유 끄기
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsStoreHelpOpen(true)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0"
+                            title="사다리 및 매장 연동 주문서 안내"
+                            aria-label="사다리 및 매장 연동 주문서 안내"
+                          >
+                            <HelpCircle className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
@@ -1874,20 +2247,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             >
                               <Store className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{selectedStore.name}</span>
-                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold underline">▾ 변경</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedStore(null);
-                                setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
-                              }}
-                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
-                              title="매장 선택 취소"
-                              aria-label="매장 선택 취소"
-                            >
-                              <X className="w-4 h-4 text-rose-500" />
+                              <ChevronDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.5] ml-0.5" />
                             </button>
 
                             <button
@@ -1900,9 +2260,22 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             >
                               📋 메뉴판 ({selectedStore.menus.length}종)
                             </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedStore(null);
+                                setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined })));
+                              }}
+                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-400 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs shrink-0"
+                              title="매장 닫기"
+                              aria-label="매장 닫기"
+                            >
+                              <X className="w-4 h-4 text-rose-500" />
+                            </button>
                           </>
                         ) : (
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
                               type="button"
                               onClick={() => {
@@ -1915,9 +2288,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               <Store className="w-3.5 h-3.5 text-indigo-600" />
                               <span>+ 매장 선택</span>
                             </button>
-                            <span className="text-xs text-slate-500 dark:text-zinc-400">
-                              (매장을 선택하면 메뉴 취합 및 주문서가 연동됩니다)
-                            </span>
                           </div>
                         )}
                       </div>
@@ -2067,14 +2437,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     resolvedTheme === 'dawn' ? 'border-[#bfdbfe]' : isDark ? 'border-[#27272a]' : 'border-slate-200/80'
                   }`}
                 >
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <label className="flex items-center gap-2 cursor-pointer select-text">
                     <input
                       type="checkbox"
                       checked={useLadderWeight}
                       onChange={(e) => setUseLadderWeight(e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded-sm"
+                      className="w-4 h-4 text-indigo-600 rounded-sm cursor-pointer"
                     />
-                    <span className="text-xs font-bold">확률 가중치 및 참가자 이름 설정</span>
+                    <span className="text-xs font-bold select-text cursor-pointer">확률 가중치 설정</span>
                   </label>
 
                   {useLadderWeight && (
@@ -2083,53 +2453,84 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#151518] border-[#27272a]' : 'bg-white border-indigo-100'
                       }`}
                     >
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>참가자 이름 수정 & 가중치 증감</span>
-                        <span className="text-indigo-400 font-semibold">가중치 비율</span>
+                      <div className="flex items-center justify-between text-xs text-slate-400 select-text">
+                        <span className="font-semibold select-text">참가자 가중치 증감</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-indigo-400 font-semibold select-text">가중치 비율</span>
+                          <button
+                            type="button"
+                            onClick={handleResetWeights}
+                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                            title="모든 참가자 가중치 균등 초기화 (1:1 리셋)"
+                            aria-label="가중치 초기화"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
                         {members.map((m) => {
-                          const totalW = members.reduce((s, x) => s + (x.weight || 1), 0);
-                          const pct = Math.round(((m.weight || 1) / totalW) * 100);
+                          const minW = Math.min(...members.map((x) => (x.weight !== undefined ? x.weight : 1)));
+                          const baseOffset = minW <= 0 ? (1 - minW) : 0;
+                          const currentW = m.weight !== undefined ? m.weight : 1;
+                          const effW = currentW + baseOffset;
+                          const totalEffW = members.reduce((s, x) => s + ((x.weight !== undefined ? x.weight : 1) + baseOffset), 0);
+                          const pct = totalEffW > 0 ? Math.round((effW / totalEffW) * 100) : 0;
                           return (
                             <div
                               key={m.id}
-                              className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10"
+                              className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10 dark:bg-zinc-800/40 border-slate-200 dark:border-zinc-700/80"
                             >
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span className="text-base">{m.avatar}</span>
-                                <input
-                                  type="text"
-                                  lang="ko"
-                                  inputMode="text"
-                                  autoCapitalize="none"
-                                  autoCorrect="off"
-                                  value={m.name}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                                  className="w-20 sm:w-24 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
-                                />
+                              {/* 4. 이름변경 input 제거, 말줄임 & 롱프레스 전체텍스트 확인 */}
+                              <div
+                                className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer select-text"
+                                title={`${m.name} (길게 누르거나 탭하면 전체 이름 확인)`}
+                                onTouchStart={(e) => {
+                                  const touch = e.touches[0];
+                                  const x = touch.clientX;
+                                  const y = touch.clientY;
+                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = setTimeout(() => {
+                                    navigator.vibrate?.(40);
+                                    setMemberNameTooltip({ id: m.id, name: m.name, x, y });
+                                  }, 400);
+                                }}
+                                onTouchEnd={() => {
+                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                }}
+                                onClick={() => {
+                                  setMemberNameTooltip((prev) => (prev?.id === m.id ? null : { id: m.id, name: m.name, x: 0, y: 0 }));
+                                }}
+                              >
+                                <span className="text-base shrink-0">{m.avatar}</span>
+                                <span className="text-xs font-bold truncate max-w-[80px] sm:max-w-[110px] text-slate-800 dark:text-zinc-200 select-text">
+                                  {m.name}
+                                </span>
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => updateMemberWeight(m.id, -1)}
-                                  disabled={(m.weight || 1) <= 1}
-                                  className="p-1 rounded border disabled:opacity-30 bg-black/20"
+                                  disabled={currentW <= -5}
+                                  className="w-6 h-6 rounded border flex items-center justify-center disabled:opacity-30 bg-black/5 dark:bg-zinc-700/60 hover:bg-black/10 cursor-pointer text-slate-700 dark:text-zinc-200"
+                                  title="가중치 감소 (음수 허용 시 다른 사람 당첨 비율 상승)"
                                 >
                                   <Minus className="w-3 h-3" />
                                 </button>
-                                <span className="text-xs font-bold w-4 text-center">{m.weight || 1}</span>
+                                <span className={`text-xs font-bold w-6 text-center select-text ${currentW < 0 ? 'text-rose-500 font-extrabold' : ''}`}>
+                                  {currentW}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => updateMemberWeight(m.id, 1)}
-                                  disabled={(m.weight || 1) >= 10}
-                                  className="p-1 rounded border disabled:opacity-30 bg-black/20"
+                                  disabled={currentW >= 10}
+                                  className="w-6 h-6 rounded border flex items-center justify-center disabled:opacity-30 bg-black/5 dark:bg-zinc-700/60 hover:bg-black/10 cursor-pointer text-slate-700 dark:text-zinc-200"
+                                  title="가중치 증가"
                                 >
                                   <Plus className="w-3 h-3" />
                                 </button>
-                                <span className="text-xs font-extrabold text-indigo-400 w-9 text-right">
+                                <span className="text-xs font-extrabold text-indigo-400 w-9 text-right select-text">
                                   {pct}%
                                 </span>
                               </div>
@@ -2191,7 +2592,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 <div className="w-full">
                   <ElmSld03 showNavButtons={false} stepWidth={LADDER_COL_WIDTH} externalRef={ladderSliderRef} className="w-full cursor-grab active:cursor-grabbing">
                     <div
-                      className={`flex flex-col items-start select-none py-2 px-2 shrink-0 ${
+                      className={`flex flex-col items-start py-2 px-2 shrink-0 ${
                         members.length * LADDER_COL_WIDTH > 480 ? 'mx-0' : 'mx-auto'
                       }`}
                       style={{ width: `${members.length * LADDER_COL_WIDTH}px` }}
@@ -2210,7 +2611,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                           return (
                             <div
                               key={m.id}
-                              className="flex flex-col items-center gap-0.5 shrink-0 transition-transform translate-y-0"
+                              className="flex flex-col items-center shrink-0"
                               style={{ width: `${LADDER_COL_WIDTH}px` }}
                             >
                               {/* 인스턴트 공유방: 자리 찜하기 토글 버튼 */}
@@ -2218,7 +2619,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                 <button
                                   type="button"
                                   onClick={() => handleToggleClaim(m.id)}
-                                  className={`min-h-[24px] px-1.5 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all border mb-0.5 ${
+                                  className={`min-h-[24px] px-1.5 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all border mb-0.5 select-text ${
                                     isMyClaim
                                       ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
                                       : isOtherClaim
@@ -2232,29 +2633,47 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                 </button>
                               )}
 
-                              <span
-                                className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shadow-sm border-2 ${
-                                  m.bgLight
-                                } ${isMyClaim ? 'ring-2 ring-indigo-500 scale-105' : ''} ${
-                                  isCurrentActive ? 'scale-125 ring-4 ring-indigo-500 animate-pulse' : ''
-                                }`}
-                              >
-                                {m.avatar}
-                              </span>
+                              {/* 아바타 + 이름: 홀짝 살짝 위아래 지그재그 (고정 높이 컨테이너로 감싸서 아래 메뉴명/번호 높이에 영향 없음) */}
+                              <div className="h-[74px] flex flex-col justify-end items-center">
+                                <div className={`flex flex-col items-center gap-0.5 transition-transform duration-200 ${isOdd ? 'translate-y-1.5' : '-translate-y-1.5'}`}>
+                                  <div
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shadow-sm border-2 overflow-hidden relative ${
+                                      m.bgLight
+                                    } ${isMyClaim ? 'ring-2 ring-indigo-500 scale-105' : ''} ${
+                                      isCurrentActive ? 'scale-125 ring-4 ring-indigo-500 animate-pulse' : ''
+                                    }`}
+                                  >
+                                    {selectedStore && m.selectedMenu?.imageUrl ? (
+                                      <>
+                                        <img
+                                          src={m.selectedMenu.imageUrl}
+                                          alt={m.selectedMenu.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute -bottom-0.5 -right-0.5 text-[8px] bg-white/90 dark:bg-zinc-900/90 rounded-full w-3.5 h-3.5 flex items-center justify-center shadow-2xs border border-slate-200 dark:border-zinc-700 pointer-events-none">
+                                          {m.avatar}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      m.avatar
+                                    )}
+                                  </div>
 
-                              {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea (이름-메뉴 공백 축소) */}
-                              <textarea
-                                rows={1}
-                                lang="ko"
-                                value={m.name}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                                className="text-[11px] font-bold text-center w-[76px] bg-transparent outline-none resize-none overflow-hidden leading-tight break-words py-0 border-b border-transparent focus:border-indigo-500 min-h-[18px] max-h-[30px]"
-                              />
+                                  {/* 3. 폭 맞추고 텍스트는 줄바꿈 지원 textarea */}
+                                  <textarea
+                                    rows={1}
+                                    lang="ko"
+                                    value={m.name}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                                    className="text-[11px] font-bold text-center w-[76px] bg-transparent outline-none resize-none overflow-hidden leading-tight break-words py-0 border-b border-transparent focus:border-indigo-500 min-h-[18px] max-h-[30px] select-text"
+                                  />
+                                </div>
+                              </div>
 
-                              {/* 선택한 메뉴 칩 or 메뉴 고르기 버튼 (매장 선택 시에만 표시되며, 매장 미선택 시 노출 안 됨) */}
+                              {/* 선택한 메뉴 칩 or 메뉴 고르기 버튼 (매장 선택 시 모든 기둥에서 완벽하게 동일한 높이 h-7 슬롯) */}
                               {selectedStore && (
-                                <div className="flex flex-col items-center relative mt-0.5 mb-1.5">
+                                <div className="h-7 flex items-center justify-center relative mt-0.5 mb-1">
                                   {m.selectedMenu ? (
                                     <button
                                       type="button"
@@ -2307,7 +2726,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                           handleOpenMenuModalForMember(m.id);
                                         }
                                       }}
-                                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 truncate max-w-[80px] hover:border-emerald-500 cursor-pointer block select-none active:scale-95 transition-all shadow-2xs"
+                                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 truncate max-w-[80px] hover:border-emerald-500 cursor-pointer block select-text active:scale-95 transition-all shadow-2xs"
                                       title="클릭: 메뉴 변경 | 길게 누름(롱프레스): 풀텍스트 확인"
                                     >
                                       {m.selectedMenu.name}
@@ -2316,7 +2735,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                     <button
                                       type="button"
                                       onClick={() => handleOpenMenuModalForMember(m.id)}
-                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-emerald-50 hover:text-emerald-700 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs transition-colors"
+                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-emerald-50 hover:text-emerald-700 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs transition-colors select-text"
                                     >
                                       +메뉴선택
                                     </button>
@@ -2486,29 +2905,32 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
                       {/* 3. 하단 대상 목표 (클릭 시 전폭 레이어 팝업으로 펼쳐져 입력창+목록 선택) */}
                       <div
-                        className="flex items-start pt-2 pb-3 relative"
+                        className="flex items-start pt-2 pb-4 relative min-h-[76px]"
                         style={{ width: `${members.length * LADDER_COL_WIDTH}px` }}
                       >
                         {ladderGoals.slice(0, members.length).map((goal, idx) => {
+                          const isOdd = idx % 2 === 1;
                           const landedMember = revealedGoalCols[idx];
 
                           return (
                             <div
                               key={`goal_${idx}`}
-                              className="flex flex-col items-center shrink-0 transition-transform translate-y-0"
+                              className={`flex flex-col items-center shrink-0 transition-transform duration-200 ${
+                                isOdd ? 'translate-y-2' : '-translate-y-1'
+                              }`}
                               style={{ width: `${LADDER_COL_WIDTH}px` }}
                             >
                               {/* 도착자 실시간 뱃지 */}
                               {landedMember && (
                                 <div
-                                  className={`mb-1 px-1.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-xs animate-in zoom-in-95 duration-150 ${
+                                  className={`mb-1 px-1.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-xs animate-in zoom-in-95 duration-150 select-text ${
                                     landedMember.isWinner
                                       ? 'bg-rose-600 text-white ring-2 ring-rose-400 animate-pulse'
                                       : 'bg-indigo-600 text-white'
                                   }`}
                                 >
                                   <span>{landedMember.avatar}</span>
-                                  <span className="truncate max-w-[45px]">{landedMember.memberName}</span>
+                                  <span className="truncate max-w-[45px] select-text">{landedMember.memberName}</span>
                                 </div>
                               )}
 
@@ -2516,7 +2938,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               <button
                                 type="button"
                                 onClick={() => handleOpenGoalModal(idx)}
-                                className={`w-[76px] py-1.5 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-center transition-all group cursor-pointer shadow-2xs select-none ${
+                                className={`w-[76px] py-1.5 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-center transition-all group cursor-pointer shadow-2xs select-text ${
                                   landedMember
                                     ? landedMember.isWinner
                                       ? 'ring-2 ring-rose-500 scale-105 bg-rose-50/90 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700'
@@ -2533,7 +2955,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                   {goal.icon}
                                 </span>
                                 <div className="flex items-center justify-center gap-0.5 w-full px-0.5">
-                                  <span className="text-[11px] font-bold truncate max-w-[54px] leading-tight">
+                                  <span className="text-[11px] font-bold truncate max-w-[54px] leading-tight select-text">
                                     {goal.text}
                                   </span>
                                   <ChevronDown className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-500 shrink-0 transition-colors" />
@@ -2627,6 +3049,17 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                           {isLadderTracing ? '⚡ 즉시 결과 보기 (생략)' : '그래프 타기 생략'}
                         </span>
                       </button>
+                      {savedLadderResult && !ladderResult && !isLadderTracing && (
+                        <button
+                          type="button"
+                          onClick={() => setLadderResult(savedLadderResult)}
+                          className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 animate-in fade-in"
+                          title="이전에 완료된 사다리 최종 결과를 다시 확인합니다"
+                        >
+                          <Trophy className="w-4 h-4 shrink-0 text-amber-300" />
+                          <span className="whitespace-nowrap">최종결과</span>
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -2765,226 +3198,271 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </div>
                 )}
 
-                {/* 사다리 결과 오버레이 */}
+                {/* 사다리 결과 오버레이 (반투명 백드롭 + 명확한 모달 카드 테두리 + 우상단 닫기버튼) */}
                 {ladderResult && (
-                  <div
-                    className={`absolute inset-0 z-30 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200 ${
-                      resolvedTheme === 'dawn'
-                        ? 'bg-[#f0f7ff]/95 text-[#0d2746] border border-[#aed2f8]'
-                        : isDark
-                        ? 'bg-[#121214]/95 text-white'
-                        : 'bg-white/95 text-slate-900'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setLadderResult(null)}
-                      className="absolute top-4 right-4 p-2 rounded-full bg-black/20 text-slate-400 hover:text-white"
+                  <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+                    <div
+                      className={`relative w-full max-w-2xl max-h-[92%] overflow-y-auto rounded-3xl p-5 sm:p-6 border-2 shadow-2xl flex flex-col items-center text-center transition-all ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-[#f0f7ff] border-[#8ec0f5] text-[#0d2746]'
+                          : isDark
+                          ? 'bg-[#14151a] border-zinc-700 text-white shadow-black/80'
+                          : 'bg-white border-indigo-300 text-slate-900 shadow-xl'
+                      }`}
                     >
-                      <X className="w-5 h-5" />
-                    </button>
+                      {/* 2. 우상단 닫기 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => setLadderResult(null)}
+                        className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700 shadow-2xs z-10"
+                        title="결과 닫기"
+                        aria-label="결과 닫기"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
 
-                    <div className="text-center space-y-2 mb-4">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-xs font-extrabold border border-amber-500/30">
-                        <Trophy className="w-4 h-4" />
-                        <span>사다리타기 최종 결과</span>
+                      <div className="text-center space-y-1.5 mb-4 pr-8">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-xs font-extrabold border border-amber-500/30">
+                          <Trophy className="w-4 h-4" />
+                          <span>사다리타기 최종 결과</span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-extrabold">
+                          당첨자 & 결과 매칭
+                        </h3>
                       </div>
-                      <h3 className="text-lg sm:text-xl font-extrabold">
-                        행운의 당첨자 & 결과 매칭
-                      </h3>
-                    </div>
 
-                    {/* 2. 사다리 실행완료 화면 팝업: 가로 목록 및 너비 초과 시 줄바꿈 (1열 당첨자 / 2열 나머지) */}
-                    <div className="w-full max-w-xl max-h-72 sm:max-h-80 overflow-y-auto space-y-4 px-1 py-1">
-                      {(() => {
-                        const winnerMembers = members.filter((m) => ladderResult[m.id]?.isWinner);
-                        const otherMembers = members.filter((m) => !ladderResult[m.id]?.isWinner);
+                      {/* 2. 사다리 실행완료 화면 팝업: 가로 목록 및 너비 초과 시 줄바꿈 (1열 당첨자 / 2열 나머지) */}
+                      <div className="w-full max-w-xl max-h-64 sm:max-h-72 overflow-y-auto space-y-4 px-1 py-1">
+                        {(() => {
+                          const winnerMembers = members.filter((m) => ladderResult[m.id]?.isWinner);
+                          const otherMembers = members.filter((m) => !ladderResult[m.id]?.isWinner);
 
-                        return (
-                          <>
-                            {/* 1열: 상단 당첨 이름표시된 아이콘 목록 */}
-                            {winnerMembers.length > 0 && (
-                              <div className="space-y-1.5 text-left">
-                                <div className="flex items-center justify-between px-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-black text-rose-600 dark:text-rose-400">
-                                      🎉 당첨자 명단
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-black">
-                                      {winnerMembers.length}명
-                                    </span>
+                          return (
+                            <>
+                              {/* 1열: 상단 당첨 이름표시된 아이콘 목록 */}
+                              {winnerMembers.length > 0 && (
+                                <div className="space-y-1.5 text-left">
+                                  <div className="flex items-center justify-between px-1 flex-wrap gap-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-black text-rose-600 dark:text-rose-400">
+                                        🎉 당첨자 명단
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-black">
+                                        {winnerMembers.length}명
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-medium">당첨 대상</span>
                                   </div>
-                                  <span className="text-[10px] text-slate-400 font-medium">당첨 / 벌칙 대상</span>
-                                </div>
 
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {winnerMembers.map((m) => {
-                                    const res = ladderResult[m.id];
-                                    if (!res) return null;
-                                    return (
-                                      <div
-                                        key={m.id}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700/80 text-rose-800 dark:text-rose-200 shadow-xs ring-1 ring-rose-400/30 shrink-0"
-                                      >
-                                        <span className="text-xl p-1 rounded-lg bg-rose-100 dark:bg-rose-900/50 shadow-xs shrink-0">
-                                          {m.avatar}
-                                        </span>
-                                        <div className="text-left min-w-0">
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-xs font-black truncate max-w-[90px]">{m.name}</span>
-                                            <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black shrink-0">
-                                              당첨
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">
-                                            <span>{res.icon}</span>
-                                            <span className="truncate max-w-[100px]">{res.text}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* 2열: 나머지 이름표시된 아이콘 목록 */}
-                            {otherMembers.length > 0 && (
-                              <div className="space-y-1.5 text-left">
-                                <div className="flex items-center justify-between px-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                                      🍀 나머지 참가자
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500 text-[10px] font-bold">
-                                      {otherMembers.length}명
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-medium">통과 / 일반 결과</span>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {otherMembers.map((m) => {
-                                    const res = ladderResult[m.id];
-                                    if (!res) return null;
-                                    return (
-                                      <div
-                                        key={m.id}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border shadow-xs transition-all shrink-0 ${
-                                          resolvedTheme === 'dawn'
-                                            ? 'bg-blue-50/70 border-blue-200 text-slate-700'
-                                            : isDark
-                                            ? 'bg-white/5 border-white/10 text-slate-200'
-                                            : 'bg-slate-50 border-slate-200 text-slate-700'
-                                        }`}
-                                      >
-                                        <span className="text-xl p-1 rounded-lg bg-black/5 dark:bg-white/5 shadow-xs shrink-0">
-                                          {m.avatar}
-                                        </span>
-                                        <div className="text-left min-w-0">
-                                          <span className="text-xs font-bold truncate max-w-[90px] block text-slate-800 dark:text-slate-200">
-                                            {m.name}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {winnerMembers.map((m) => {
+                                      const res = ladderResult[m.id];
+                                      if (!res) return null;
+                                      return (
+                                        <div
+                                          key={m.id}
+                                          className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700/80 text-rose-800 dark:text-rose-200 shadow-xs ring-1 ring-rose-400/30 shrink-0"
+                                        >
+                                          <span className="text-xl p-1 rounded-lg bg-rose-100 dark:bg-rose-900/50 shadow-xs shrink-0">
+                                            {m.avatar}
                                           </span>
-                                          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                                            <span>{res.icon}</span>
-                                            <span className="truncate max-w-[100px]">{res.text}</span>
+                                          <div className="text-left min-w-0">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-xs font-black truncate max-w-[90px]">{m.name}</span>
+                                              <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black shrink-0">
+                                                당첨
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">
+                                              <span>{res.icon}</span>
+                                              <span className="truncate max-w-[100px]">{res.text}</span>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
+                              )}
 
-                    {/* 실시간 매장 메뉴 주문 취합표 (Order Summary Card) */}
-                    {orderSummaryData && (
-                      <div className="w-full max-w-xl p-4 mt-3 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-zinc-800 text-left space-y-3">
-                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
-                          <div className="flex items-center gap-1.5">
-                            <Coffee className="w-4 h-4 text-emerald-600" />
-                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
-                              📋 {selectedStore ? selectedStore.name : '사다리'} 주문 취합 내역서
+                              {/* 2열: 나머지 이름표시된 아이콘 목록 */}
+                              {otherMembers.length > 0 && (
+                                <div className="space-y-1.5 text-left">
+                                  <div className="flex items-center justify-between px-1 flex-wrap gap-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                        🍀 나머지 참가자
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500 text-[10px] font-bold">
+                                        {otherMembers.length}명
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-medium">통과 대상</span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {otherMembers.map((m) => {
+                                      const res = ladderResult[m.id];
+                                      if (!res) return null;
+                                      return (
+                                        <div
+                                          key={m.id}
+                                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border shadow-xs transition-all shrink-0 ${
+                                            resolvedTheme === 'dawn'
+                                              ? 'bg-blue-50/70 border-blue-200 text-slate-700'
+                                              : isDark
+                                              ? 'bg-white/5 border-white/10 text-slate-200'
+                                              : 'bg-slate-50 border-slate-200 text-slate-700'
+                                          }`}
+                                        >
+                                          <span className="text-xl p-1 rounded-lg bg-black/5 dark:bg-white/5 shadow-xs shrink-0">
+                                            {m.avatar}
+                                          </span>
+                                          <div className="text-left min-w-0">
+                                            <span className="text-xs font-bold truncate max-w-[90px] block text-slate-800 dark:text-slate-200">
+                                              {m.name}
+                                            </span>
+                                            <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                                              <span>{res.icon}</span>
+                                              <span className="truncate max-w-[100px]">{res.text}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 1.2, 1.4 매장 연동 시에만 간결하게 노출되는 주문 취합표 (요소 간 줄바꿈 유연 배치) */}
+                      {selectedStore && orderSummaryData && (
+                        <div className="w-full max-w-xl p-3.5 mt-2 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-zinc-800 text-left space-y-2.5">
+                          {/* 1.2 주문 취합 내역서 헤더 & 총액 */}
+                          <div className="flex items-center justify-between gap-1.5 border-b border-slate-200 dark:border-zinc-800 pb-2 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <Coffee className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                                📋 {selectedStore.name} 주문 취합 내역
+                              </span>
+                            </div>
+                            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              총 {orderSummaryData.totalCount}잔 • {orderSummaryData.totalAmount.toLocaleString()}원
                             </span>
                           </div>
-                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            총 {orderSummaryData.totalCount}잔 / {orderSummaryData.totalAmount.toLocaleString()}원
-                          </span>
-                        </div>
 
-                        {/* 결제 당첨자 하이라이트 박스 */}
-                        <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between">
-                          <span className="font-bold">
-                            💳 오늘 결제 당첨자: {orderSummaryData.payerMember ? orderSummaryData.payerMember.name : '당첨자'}님!
-                          </span>
-                          <span className="text-[11px] text-rose-600 dark:text-rose-400">
-                            (카페 카운터에서 결제)
-                          </span>
-                        </div>
-
-                        {/* 메뉴별 수량 집계 */}
-                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                          {Object.entries(orderSummaryData.menuCounts).map(([name, item]) => (
-                            <div
-                              key={name}
-                              className="flex items-center justify-between text-xs py-1 border-b border-slate-100 dark:border-zinc-800/60"
-                            >
-                              <span className="text-slate-700 dark:text-zinc-300 truncate max-w-[200px]">
-                                {name}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 dark:text-white">
-                                  {item.count}잔
+                          {/* 1.4 & 2.3 메뉴별 수량 집계: 요소 간 유연한 줄바꿈 */}
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            {Object.entries(orderSummaryData.menuCounts).map(([name, item]) => (
+                              <div
+                                key={name}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1.5 border-b border-slate-100 dark:border-zinc-800/60 gap-1 sm:gap-2"
+                              >
+                                <span className="text-slate-700 dark:text-zinc-300 font-medium break-words leading-tight">
+                                  {name}
                                 </span>
-                                <span className="text-slate-500 font-mono">
-                                  {item.subtotal.toLocaleString()}원
-                                </span>
+                                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                                  <span className="font-bold text-slate-900 dark:text-white">
+                                    {item.count}잔
+                                  </span>
+                                  <span className="text-slate-500 font-mono">
+                                    {item.subtotal.toLocaleString()}원
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
+                      )}
 
-                        {/* 카카오톡 결과 복사 버튼 */}
-                        <div className="pt-1 flex items-center justify-end">
+                      {/* 결과 복사 아이콘 버튼 바 (줄바꿈 시 '결과 복사:' 뒤에서 줄바꿈되고 버튼들은 한 줄로 나열) */}
+                      <div className="w-full max-w-xl mt-3 p-2.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+                        <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 shrink-0 max-sm:w-full max-sm:text-center">
+                          결과 복사:
+                        </span>
+
+                        <div className="flex items-center justify-center gap-2 shrink-0">
+                          {/* 1. 텍스트 복사 아이콘 버튼 */}
                           <button
                             type="button"
                             onClick={() => {
-                              navigator.clipboard.writeText(orderSummaryData.kakaoText).then(() => {
+                              navigator.clipboard.writeText(ladderGeneralShareText).then(() => {
                                 setCopiedResultText(true);
                                 setTimeout(() => setCopiedResultText(false), 3000);
                               });
                             }}
-                            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                            className="w-9 h-9 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                            title={copiedResultText ? '✓ 텍스트 복사완료!' : (selectedStore ? '주문서 및 결과 텍스트 복사' : '결과 텍스트 복사')}
+                            aria-label="결과 텍스트 복사"
                           >
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>{copiedResultText ? '✓ 카톡 결과 복사완료!' : '카톡으로 결과 & 주문서 복사'}</span>
+                            <Copy className="w-4 h-4" />
+                          </button>
+
+                          {/* 2. 카드 이미지 복사 (Ctrl+V) 아이콘 버튼 */}
+                          <button
+                            type="button"
+                            onClick={handleCopyLadderImageCard}
+                            disabled={isGeneratingLadderCard}
+                            className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                            title={copiedLadderImage ? '✓ 카드 이미지 복사됨!' : '카드 이미지 복사 (Ctrl+V)'}
+                            aria-label="카드 이미지 복사"
+                          >
+                            <Camera className="w-4 h-4" />
+                          </button>
+
+                          {/* 3. 이미지 다운로드 아이콘 버튼 */}
+                          <button
+                            type="button"
+                            onClick={handleDownloadLadderImageCard}
+                            disabled={isGeneratingLadderCard}
+                            className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0"
+                            title="카드 이미지 파일 저장 (다운로드)"
+                            aria-label="카드 이미지 저장"
+                          >
+                            <Download className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                    )}
 
-                    {/* 1 & 2. 다시 사다리 타기 (주 액션 전방 배치) 및 결과 닫기 (후방 배치) */}
-                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
-                      <button
-                        type="button"
-                        onClick={handlePlayAgain}
-                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-                        <span className="whitespace-nowrap">다시 사다리 타기</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLadderResult(null)}
-                        className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
-                      >
-                        <X className="w-3.5 h-3.5 shrink-0" />
-                        <span className="whitespace-nowrap">결과 닫기</span>
-                      </button>
+                      {/* 4. 액션 아이콘 버튼 바: 새 사다리 재추첨(확대된 반복원 + 선명한 주사위), 동일 사다리(삼각형두개), 결과 닫기(X) 나란히 */}
+                      <div className="mt-4 flex items-center justify-center gap-3">
+                        {/* 새 사다리로 재추첨 (키운 반복원 + 확실하게 식별되는 주사위 아이콘) */}
+                        <button
+                          type="button"
+                          onClick={handlePlayAgain}
+                          className="h-11 px-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0"
+                          title="새 사다리로 재추첨"
+                          aria-label="새 사다리로 재추첨"
+                        >
+                          <RotateCcw className="w-5 h-5 stroke-[2.2] text-indigo-100" />
+                          <Dices className="w-5 h-5 stroke-[2.2] text-white" />
+                        </button>
+
+                        {/* 동일 사다리 다시 타기 (삼각형 두개 아이콘 - FastForward) */}
+                        <button
+                          type="button"
+                          onClick={() => handlePlayLadder(false, ladderRungs)}
+                          className="w-11 h-11 rounded-2xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 shadow-xs flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
+                          title="동일 사다리 다시 타기"
+                          aria-label="동일 사다리 다시 타기"
+                        >
+                          <FastForward className="w-5 h-5" />
+                        </button>
+
+                        {/* 결과 닫기 (X 아이콘) */}
+                        <button
+                          type="button"
+                          onClick={() => setLadderResult(null)}
+                          className="w-11 h-11 rounded-2xl bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-zinc-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-600 dark:text-zinc-300 shadow-xs flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 border border-slate-200 dark:border-zinc-700"
+                          title="결과 닫기"
+                          aria-label="결과 닫기"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3019,11 +3497,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         href={selectedStore.naverBookingUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
+                        className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
                         title="네이버 주문/예약 페이지 열기"
+                        aria-label="네이버 주문"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">네이버 주문</span>
+                        <ExternalLink className="w-4 h-4" />
                       </a>
                     )}
                     <button
@@ -3098,33 +3576,47 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             : ''
                         } bg-slate-50 dark:bg-[#0B0F17] border-slate-200/80 dark:border-zinc-800`}
                       >
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
-                              {menu.name}
-                            </span>
-                            {menu.badge && (
-                              <span
-                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                                  menu.badge === 'BEST'
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
-                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
-                                }`}
-                              >
-                                {menu.badge}
+                        <div className="flex items-center gap-3 min-w-0">
+                          {menu.imageUrl ? (
+                            <img
+                              src={menu.imageUrl}
+                              alt={menu.name}
+                              className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200/80 dark:border-zinc-700/80 shadow-2xs"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-xl bg-slate-200/70 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-xl border border-slate-200/50 dark:border-zinc-700/50">
+                              🍽️
+                            </div>
+                          )}
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
+                                {menu.name}
                               </span>
-                            )}
-                            {menu.temperature && (
-                              <span className="text-[10px] text-slate-400">
-                                [{menu.temperature}]
-                              </span>
+                              {menu.badge && (
+                                <span
+                                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                    menu.badge === 'BEST'
+                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
+                                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                  }`}
+                                >
+                                  {menu.badge}
+                                </span>
+                              )}
+                              {menu.temperature && (
+                                <span className="text-[10px] text-slate-400">
+                                  [{menu.temperature}]
+                                </span>
+                              )}
+                            </div>
+                            {menu.description && (
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                                {menu.description}
+                              </p>
                             )}
                           </div>
-                          {menu.description && (
-                            <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
-                              {menu.description}
-                            </p>
-                          )}
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0">
@@ -3328,6 +3820,74 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     className="min-h-[40px] px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
                   >
                     닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              2.1.B 매장 연동 및 사다리 주문서 취합 안내 레이어 팝업
+              ----------------------------------------------------------------- */}
+          {isStoreHelpOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+              onClick={() => setIsStoreHelpOpen(false)}
+            >
+              <div
+                className="w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl border-2 border-indigo-300 dark:border-indigo-800 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800 text-lg">
+                      ☕
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-zinc-100">
+                        매장 연동 & 사다리 주문서 안내
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        단순 사다리 타기 또는 음료 주문서 자동 연동
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreHelpOpen(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-500 dark:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
+                    title="닫기"
+                    aria-label="닫기"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-4 sm:p-5 space-y-3 text-xs leading-relaxed text-slate-600 dark:text-zinc-300">
+                  <p className="font-semibold text-slate-800 dark:text-zinc-100">
+                    단순 사다리 타기 또는 매장을 연동하여 음료 내기 및 주문서 취합을 함께 진행해보세요!
+                  </p>
+                  <div className="space-y-2 p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60">
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">1.</span>
+                      <span><strong>+ 매장 선택</strong>을 눌러 자주 가는 카페나 식당 메뉴판을 사다리에 연결합니다.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">2.</span>
+                      <span>참가자별로 원하는 음료를 지정하거나 카카오톡 공유 링크로 동료들이 직접 선택할 수 있습니다.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">3.</span>
+                      <span>사다리 완료 시 당첨 결제자가 지정되고, 총 잔수와 금액이 정리된 <strong>주문서</strong>를 카톡으로 원클릭 복사합니다.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreHelpOpen(false)}
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shadow-sm transition-colors"
+                  >
+                    확인
                   </button>
                 </div>
               </div>
@@ -3674,6 +4234,212 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           )}
 
           {/* -----------------------------------------------------------------
+              5. 룰렛 항목 & 퀵 프리셋 관리 전폭 레이어 모달
+              ----------------------------------------------------------------- */}
+          {isRouletteModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+              <div className="w-full max-w-xl max-h-[88vh] bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-zinc-800 shadow-2xl flex flex-col overscroll-contain overflow-hidden">
+                {/* Modal Header */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
+                      <SlidersHorizontal className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-zinc-100">
+                        룰렛 항목 & 퀵 프리셋 관리
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        룰렛에 회전될 항목과 당첨 확률(가중치 1~10)을 자유롭게 구성합니다.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRouletteModalOpen(false)}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Preset Fast Selector Bar */}
+                <div className="p-3.5 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 shrink-0 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                      📌 추천 프리셋 불러오기:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleApplyMembersToRoulette}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>👥</span>
+                      <span>현재 참여 멤버 전원 ({members.length}명) 반영</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {ROULETTE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handleApplyRoulettePreset(preset)}
+                        className={`p-2 rounded-xl border text-left flex items-center gap-1.5 transition-all cursor-pointer ${
+                          roulettePresetTitle === preset.title
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 hover:border-indigo-400 text-slate-800 dark:text-zinc-200'
+                        }`}
+                      >
+                        <span className="text-base">{preset.icon}</span>
+                        <div className="min-w-0 flex-1 truncate">
+                          <p className="text-xs font-bold truncate">
+                            {preset.title.replace(/^[^\s]+\s*/, '')}
+                          </p>
+                          <p className={`text-[10px] truncate ${roulettePresetTitle === preset.title ? 'text-indigo-100' : 'text-slate-400'}`}>
+                            {preset.items.length}개 항목
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Add New Item Form */}
+                <form
+                  onSubmit={handleAddRouletteItem}
+                  className="p-3.5 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-[#131B2E] shrink-0 space-y-1.5"
+                >
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                    + 새 룰렛 항목 추가
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={newRouletteIcon}
+                      onChange={(e) => setNewRouletteIcon(e.target.value)}
+                      className="text-base rounded-xl px-2 py-2 border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 cursor-pointer shrink-0 min-h-[40px]"
+                      title="항목 아이콘 선택"
+                    >
+                      {ROULETTE_ICONS.map((ic) => (
+                        <option key={ic} value={ic}>
+                          {ic}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="text"
+                      value={newRouletteName}
+                      onChange={(e) => setNewRouletteName(e.target.value)}
+                      placeholder="항목명 입력 (예: 제육볶음, 설거지 당번)"
+                      className="flex-1 min-w-0 min-h-[40px] px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 outline-none focus:border-indigo-500"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={!newRouletteName.trim()}
+                      className="min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold cursor-pointer shrink-0 transition-colors shadow-2xs"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                </form>
+
+                {/* Items List */}
+                <div className="p-4 overflow-y-auto space-y-2 flex-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 mb-1">
+                    <span className="font-bold">현재 룰렛 항목 ({rouletteItems.length}개)</span>
+                    <span className="text-[11px]">* 가중치(1~10)에 따라 확률이 자동 계산됩니다.</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {rouletteItems.map((item) => {
+                      const pct = Math.round((Math.max(1, item.weight || 1) / totalRouletteWeight) * 100);
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-2.5 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#172239] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shadow-2xs"
+                        >
+                          {/* 항목 이름 편집 영역 */}
+                          <div className="flex items-center gap-2 min-w-[140px] flex-1">
+                            <span className="text-xl p-1 rounded-xl bg-slate-100 dark:bg-zinc-800 shrink-0">
+                              {item.avatar}
+                            </span>
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => handleUpdateRouletteItemName(item.id, e.target.value)}
+                              placeholder="항목 또는 참가자 이름"
+                              className="flex-1 min-w-[100px] px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200/80 dark:border-zinc-700/80 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-indigo-500 bg-transparent text-slate-800 dark:text-zinc-200 outline-none"
+                            />
+                          </div>
+
+                          {/* Weight Stepper & Percentage: 가로가 좁으면 이름 다음 줄로 자연스럽게 줄바꿈 */}
+                          <div className="flex items-center justify-end gap-1.5 shrink-0 ml-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateRouletteItemWeight(item.id, -1)}
+                              disabled={(item.weight || 1) <= 1}
+                              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
+                              title="가중치 감소"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+
+                            <span className="text-xs font-extrabold w-4 text-center text-slate-800 dark:text-zinc-200">
+                              {item.weight || 1}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateRouletteItemWeight(item.id, 1)}
+                              disabled={(item.weight || 1) >= 10}
+                              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
+                              title="가중치 증가"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+
+                            <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 w-10 text-right">
+                              {pct}%
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRouletteItem(item.id)}
+                              disabled={rouletteItems.length <= 2}
+                              className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer ml-1"
+                              title="항목 삭제"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">
+                      총 가중치 합계: <span className="text-indigo-600 font-extrabold">{totalRouletteWeight}</span>
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsRouletteModalOpen(false)}
+                    className="min-h-[40px] px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-sm"
+                  >
+                    ✓ 설정 완료
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
               2.2 롱프레스(모바일) & 호버(PC) 메뉴 풀텍스트 팝오버 툴팁
               ----------------------------------------------------------------- */}
           {menuTooltip && (
@@ -3735,223 +4501,220 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           )}
 
           {/* -----------------------------------------------------------------
-              룰렛
+              2.3 참가자 이름 롱프레스 & 탭 풀텍스트 팝오버
+              ----------------------------------------------------------------- */}
+          {memberNameTooltip && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xs animate-in fade-in"
+              onClick={() => setMemberNameTooltip(null)}
+            >
+              <div
+                className="w-full max-w-xs p-4 rounded-2xl bg-white dark:bg-[#1a1a1e] border-2 border-indigo-500 shadow-2xl text-left space-y-2.5 animate-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400">
+                    👥 참가자 전체 이름 확인
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMemberNameTooltip(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-zinc-100 break-words select-text px-1 py-1 bg-slate-50 dark:bg-zinc-900/60 rounded-xl">
+                  {memberNameTooltip.name}
+                </p>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setMemberNameTooltip(null)}
+                    className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-700"
+                  >
+                    확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* -----------------------------------------------------------------
+              4. 룰렛 (ROULETTE) 전면 개편 (퀵 프리셋, 고화질 캔버스, 2x 이미지 복사, 전폭 모달)
               ----------------------------------------------------------------- */}
           {gameType === 'ROULETTE' && (
             <div className="space-y-6">
+              {/* 상단 프리셋 및 설정 헤더 바 */}
               <div
-                className={`p-4 rounded-xl border space-y-4 ${
-                  resolvedTheme === 'dawn' ? 'bg-[#f0f7ff] border-[#bfdbfe]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-slate-50 border-slate-200/80'
+                className={`p-4 rounded-2xl border space-y-3 ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#f0f7ff] border-[#bfdbfe]'
+                    : isDark
+                    ? 'bg-[#1a1a1e] border-[#27272a]'
+                    : 'bg-slate-50 border-slate-200/80'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold">인원수 설정</span>
-                      <span className="text-xs text-indigo-400 font-extrabold">{memberCount}명</span>
-                      {excludedWinners.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                        현재 룰렛 주제:
+                      </span>
+                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                        {roulettePresetTitle}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                        총 {rouletteItems.length}개 항목
+                      </span>
+                      {excludedRouletteItems.length > 0 && (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                          {excludedWinners.length}명 당첨 제외 중
+                          {excludedRouletteItems.length}개 항목 제외 중
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      참가자 중 오늘의 당첨자 1명을 공정하게 선정합니다.
+                      퀵 프리셋을 누르거나 [항목 & 프리셋 설정]에서 나만의 룰렛을 자유롭게 꾸며보세요.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMemberCount(memberCount - 1)}
-                      disabled={memberCount <= 2}
-                      className="p-2 rounded-lg border disabled:opacity-40 bg-black/20 hover:bg-black/30 cursor-pointer"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs font-bold px-2">{memberCount}명</span>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMemberCount(memberCount + 1)}
-                      className="p-2 rounded-lg border bg-black/20 hover:bg-black/30 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRouletteModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto shrink-0"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span>항목 & 프리셋 설정</span>
+                  </button>
                 </div>
 
-                {/* [중복제거 튜닝] 중복 이름 감지 및 클린업 바 */}
-                {duplicateNameCount > 0 && (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs">
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <span className="text-base">⚠️</span>
-                      <span>중복된 참가자 이름이 {duplicateNameCount}건 있습니다.</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDeduplicateNames}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] transition-all cursor-pointer shadow-xs"
-                    >
-                      자동 번호 정리
-                    </button>
-                  </div>
-                )}
+                {/* 퀵 프리셋 원터치 칩 목록 */}
+                <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1">
+                    추천 프리셋:
+                  </span>
+                  {ROULETTE_PRESETS.map((preset) => {
+                    const isCurrent = roulettePresetTitle === preset.title;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handleApplyRoulettePreset(preset)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
+                          isCurrent
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
+                        }`}
+                      >
+                        <span>{preset.icon}</span>
+                        <span>{preset.title.replace(/^[^\s]+\s*/, '')}</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={handleApplyMembersToRoulette}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
+                      roulettePresetTitle.includes('참여 멤버')
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
+                    }`}
+                  >
+                    <span>👥</span>
+                    <span>참여 멤버 ({members.length}명)</span>
+                  </button>
+                </div>
 
-                {/* 룰렛 옵션: 가중치 설정 & [중복제거 튜닝] 당첨자 제외 모드 */}
+                {/* 룰렛 옵션 체크박스 */}
                 <div
-                  className={`pt-3 border-t flex flex-wrap items-center justify-between gap-3 ${
+                  className={`pt-2.5 border-t flex flex-wrap items-center justify-between gap-3 text-xs ${
                     resolvedTheme === 'dawn' ? 'border-[#bfdbfe]' : isDark ? 'border-[#27272a]' : 'border-slate-200/80'
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={useRouletteWeight}
-                        onChange={(e) => setUseRouletteWeight(e.target.checked)}
-                        className="w-4 h-4 text-indigo-600 rounded-sm cursor-pointer"
-                      />
-                      <span className="text-xs font-bold">확률 가중치 설정</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <label className="flex items-center gap-2 cursor-pointer select-text">
                       <input
                         type="checkbox"
                         checked={excludeWinnerMode}
                         onChange={(e) => setExcludeWinnerMode(e.target.checked)}
                         className="w-4 h-4 text-rose-600 rounded-sm cursor-pointer"
                       />
-                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
-                        당첨자 자동 제외 모드 (중복 당첨 방지)
+                      <span className="font-bold text-rose-600 dark:text-rose-400 select-text cursor-pointer">
+                        당첨 항목 자동 제외 모드 (중복 당첨 방지)
                       </span>
                     </label>
                   </div>
 
-                  {excludedWinners.length > 0 && (
+                  {excludedRouletteItems.length > 0 && (
                     <button
                       type="button"
                       onClick={handleRestoreExcludedWinners}
                       className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 underline cursor-pointer"
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>제외된 {excludedWinners.length}명 전체 복원</span>
+                      <span>제외된 {excludedRouletteItems.length}개 항목 전체 복원</span>
                     </button>
                   )}
                 </div>
-
-                {useRouletteWeight && (
-                  <div
-                    className={`mt-2 p-3 rounded-lg border space-y-2.5 ${
-                      resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#151518] border-[#27272a]' : 'bg-white border-indigo-100'
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
-                      {members.map((m) => {
-                        const pct = Math.round(((m.weight || 1) / totalRouletteWeight) * 100);
-                        return (
-                          <div
-                            key={m.id}
-                            className="flex items-center justify-between p-2 rounded-lg border gap-2 bg-black/10"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <span className="text-base">{m.avatar}</span>
-                              <input
-                                type="text"
-                                lang="ko"
-                                inputMode="text"
-                                autoCapitalize="none"
-                                autoCorrect="off"
-                                value={m.name}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                                className="w-20 sm:w-28 px-1.5 py-0.5 text-xs font-bold rounded border outline-none bg-transparent"
-                              />
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => updateMemberWeight(m.id, -1)}
-                                disabled={(m.weight || 1) <= 1}
-                                className="p-1 rounded border bg-black/20 hover:bg-black/30 cursor-pointer"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span className="text-xs font-bold w-4 text-center">{m.weight || 1}</span>
-                              <button
-                                type="button"
-                                onClick={() => updateMemberWeight(m.id, 1)}
-                                disabled={(m.weight || 1) >= 10}
-                                className="p-1 rounded border bg-black/20 hover:bg-black/30 cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                              <span className="text-xs font-extrabold text-indigo-400 w-8 text-right">
-                                {pct}%
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* 룰렛 캔버스 */}
+              {/* 룰렛 캔버스 & 인터랙션 휠 */}
               <div
-                className={`p-6 rounded-2xl border-2 flex flex-col items-center space-y-5 transition-all ${
-                  resolvedTheme === 'dawn' ? 'bg-white border-[#bfdbfe]' : isDark ? 'bg-[#1a1a1e] border-[#27272a]' : 'bg-white border-indigo-100'
+                className={`p-6 sm:p-8 rounded-3xl border-2 flex flex-col items-center space-y-6 transition-all ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-white border-[#bfdbfe] shadow-md shadow-blue-50'
+                    : isDark
+                    ? 'bg-[#1a1a1e] border-[#27272a] shadow-md shadow-black/40'
+                    : 'bg-white border-indigo-100 shadow-lg shadow-indigo-50/50'
                 }`}
-                title="버튼을 눌러 룰렛을 회전시키세요"
               >
-                {/* 참가자 영역 및 당첨자 가리키는 화살표 인디케이터 */}
-                <div
-                  id="roulette-participants-area"
-                  className="w-full flex flex-col items-center justify-center space-y-2 py-1 scroll-mt-6"
-                >
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {members.map((m) => {
-                      const isChosen = selectedTagger?.id === m.id;
-                      return (
-                        <div key={m.id} className="relative flex flex-col items-center">
-                          {isChosen && (
-                            <div className="absolute -top-4 z-20 flex flex-col items-center animate-bounce">
-                              <span className="text-[10px] font-black text-rose-600 bg-rose-100 dark:bg-rose-950 px-1.5 py-0.2 rounded-full border border-rose-300 shadow-xs">
-                                당첨!
-                              </span>
-                              <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-rose-500" />
-                            </div>
-                          )}
-                          <span
-                            id={`roulette-member-${m.id}`}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs transition-all duration-300 ${
-                              isChosen
-                                ? 'bg-rose-500 text-white border-rose-600 scale-110 ring-4 ring-rose-400/40 shadow-lg mt-1.5 font-black'
-                                : `${m.bgLight} ${m.color}`
-                            }`}
-                          >
-                            <span>{m.avatar}</span>
-                            <input
-                              type="text"
-                              lang="ko"
-                              value={m.name}
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                              className="w-16 sm:w-20 bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500 text-center"
-                            />
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* 룰렛 상단 칩 목록 (현재 활성 슬라이스들) */}
+                <div className="w-full flex flex-wrap items-center justify-center gap-2 py-1 max-w-xl">
+                  {rouletteItems.map((item, idx) => {
+                    const isWinner = selectedRouletteWinner?.id === item.id;
+                    const pct = Math.round((Math.max(1, item.weight || 1) / totalRouletteWeight) * 100);
+                    const colors = [
+                      'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800',
+                      'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800',
+                      'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                      'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+                      'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+                      'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
+                      'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800',
+                      'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                    ];
+                    const colorCls = colors[idx % colors.length];
+
+                    return (
+                      <span
+                        key={item.id}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                          isWinner
+                            ? 'bg-rose-600 text-white border-rose-600 scale-105 ring-4 ring-rose-400/40 shadow-md font-black'
+                            : colorCls
+                        }`}
+                      >
+                        <span>{item.avatar}</span>
+                        <span className="truncate max-w-[120px]">{item.name}</span>
+                        <span className="text-[10px] opacity-75 font-mono">{pct}%</span>
+                      </span>
+                    );
+                  })}
                 </div>
 
-                <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center select-none">
-                  {/* [휠 튜닝] 포인터 화살표의 틱 튕김 인터랙션 */}
-                  <div className={`absolute -top-3 z-20 text-rose-600 filter drop-shadow transition-transform ${isSpinning ? 'animate-bounce scale-110' : ''}`}>
-                    <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[18px] border-t-rose-600" />
+                {/* 룰렛 휠 본체 & 고정 인디케이터 핀 */}
+                <div className="relative w-64 h-64 sm:w-80 sm:h-80 flex items-center justify-center select-none my-2">
+                  {/* 상단 핀 인디케이터 (틱 튕김 애니메이션) */}
+                  <div
+                    className={`absolute -top-4 z-30 filter drop-shadow-md transition-transform ${
+                      isSpinning ? 'animate-bounce scale-110' : ''
+                    }`}
+                  >
+                    <div className="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[22px] border-t-rose-600" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-white shadow-xs mx-auto -mt-6 border border-rose-600" />
                   </div>
 
+                  {/* 룰렛 회전 SVG 휠 */}
                   <svg
                     viewBox="-100 -100 200 200"
                     className="w-full h-full rounded-full shadow-2xl transition-transform"
@@ -3971,9 +4734,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       const largeArc = slice.angle > 180 ? 1 : 0;
                       const pathData = `M 0 0 L ${x1} ${y1} A 100 100 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
-                      const midRad = ((slice.startAngle + slice.endAngle) / 2 * Math.PI) / 180;
-                      const textX = 65 * Math.cos(midRad);
-                      const textY = 65 * Math.sin(midRad);
+                      const midAngle = (slice.startAngle + slice.endAngle) / 2;
+                      const midRad = (midAngle * Math.PI) / 180;
+                      const textX = 64 * Math.cos(midRad);
+                      const textY = 64 * Math.sin(midRad);
 
                       const colors = [
                         '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -3982,88 +4746,157 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       const fill = colors[i % colors.length];
 
                       return (
-                        <g key={slice.member.id}>
-                          <path d={pathData} fill={fill} stroke="#ffffff" strokeWidth="2" />
+                        <g key={slice.item.id}>
+                          <path
+                            d={pathData}
+                            fill={fill}
+                            stroke="#ffffff"
+                            strokeWidth="2.5"
+                            className="transition-colors"
+                          />
+                          {/* 슬라이스 텍스트 및 이모지 */}
                           <text
                             x={textX}
                             y={textY}
                             fill="#ffffff"
-                            fontSize="13"
+                            fontSize={slice.angle < 30 ? '11' : '13'}
                             fontWeight="bold"
                             textAnchor="middle"
                             dominantBaseline="central"
+                            transform={`rotate(${midAngle + 90}, ${textX}, ${textY})`}
                           >
-                            {slice.member.avatar}
+                            {slice.item.avatar} {slice.angle >= 35 ? slice.item.name.slice(0, 5) : ''}
                           </text>
                         </g>
                       );
                     })}
-                    <circle cx="0" cy="0" r="18" fill="#1e293b" stroke="#ffffff" strokeWidth="3" />
-                    <circle cx="0" cy="0" r="6" fill="#f8fafc" />
+
+                    {/* 중앙 허브 (모아보고 볼스아이) */}
+                    <circle cx="0" cy="0" r="22" fill="#0f172a" stroke="#ffffff" strokeWidth="3" />
+                    <circle cx="0" cy="0" r="8" fill="#f43f5e" />
                   </svg>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 pt-2 w-full">
+                {/* 컨트롤 버튼 그룹 */}
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2 w-full">
                   <button
                     type="button"
                     onClick={() => handleSpinRoulette(false)}
-                    disabled={isSpinning}
-                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95"
+                    disabled={isSpinning || rouletteItems.length === 0}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/30 disabled:opacity-50 transition-all cursor-pointer active:scale-95"
                   >
-                    <RotateCcw className={`w-4 h-4 shrink-0 ${isSpinning ? 'animate-spin' : ''}`} />
-                    <span className="whitespace-nowrap">{isSpinning ? '룰렛 회전 중...' : '룰렛 돌리기'}</span>
+                    <RotateCcw className={`w-4 h-4 ${isSpinning ? 'animate-spin' : ''}`} />
+                    <span>{isSpinning ? '룰렛 회전 중...' : '🎯 룰렛 돌리기'}</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => handleSpinRoulette(true)}
-                    disabled={isSpinning}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 font-bold text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                    disabled={isSpinning || rouletteItems.length === 0}
+                    className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 font-bold text-xs transition-all cursor-pointer"
                   >
-                    <FastForward className="w-4 h-4 shrink-0" />
-                    <span className="whitespace-nowrap">즉시 결과</span>
+                    <FastForward className="w-4 h-4" />
+                    <span>즉시 결과</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsRouletteModalOpen(true)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs transition-all cursor-pointer hover:border-indigo-400"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                    <span>항목/가중치 편집</span>
                   </button>
                 </div>
               </div>
 
-              {/* 당첨자 결과 카드 & [중복제거 튜닝 3] 원터치 제외 후 다음 룰렛 돌리기 */}
-              {selectedTagger && (
+              {/* 당첨자 결과 카드 & 텍스트/이미지 복사 인터랙션 */}
+              {selectedRouletteWinner && (
                 <div
                   id="roulette-winner-card"
-                  className={`p-5 rounded-2xl border-2 shadow-md text-center space-y-3 animate-in fade-in ${
+                  className={`p-6 rounded-3xl border-2 shadow-xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200 ${
                     resolvedTheme === 'dawn'
-                      ? 'bg-white border-rose-300 text-rose-900 shadow-rose-100/50'
+                      ? 'bg-white border-rose-300 text-rose-950 shadow-rose-100/60'
                       : isDark
-                      ? 'bg-rose-950/40 border-rose-800 text-rose-200'
+                      ? 'bg-rose-950/40 border-rose-800 text-rose-200 shadow-rose-950/20'
                       : 'bg-gradient-to-r from-rose-50 via-pink-50 to-indigo-50 border-rose-300 text-rose-950'
                   }`}
                 >
-                  <span className="text-3xl inline-block p-2 rounded-2xl bg-black/10 dark:bg-black/20 shadow-xs">
-                    {selectedTagger.avatar}
+                  <span className="text-4xl sm:text-5xl inline-block p-3 rounded-3xl bg-white dark:bg-black/40 shadow-sm border border-rose-200 dark:border-rose-800/60">
+                    {selectedRouletteWinner.avatar}
                   </span>
+
                   <div className="space-y-1">
-                    <h3 className="text-base sm:text-lg font-extrabold">
-                      🎯 오늘의 룰렛 당첨: [{selectedTagger.name}] 님!
+                    <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-xs">
+                      당첨 확정
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-black mt-2">
+                      🎯 오늘의 룰렛 당첨: [{selectedRouletteWinner.name}]!
                     </h3>
-                    <p className="text-xs text-rose-500 font-medium">
-                      축하합니다! 오늘의 주인공입니다.
+                    <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
+                      축하합니다! 오늘의 주인공으로 공정하게 선정되었습니다.
                     </p>
                   </div>
 
-                  {/* 중복 제거 액션 버튼 */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  {/* 결과 공유 & 이미지 복사 바 */}
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                    {/* 카톡 텍스트 복사 */}
+                    <button
+                      type="button"
+                      onClick={handleCopyRouletteText}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                      title="카카오톡 메신저 공유용 텍스트 복사"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedRouletteText ? '✓ 카톡 텍스트 복사됨!' : '카톡 텍스트 복사'}</span>
+                    </button>
+
+                    {/* 카드 이미지 복사 (Ctrl+V) */}
+                    <button
+                      type="button"
+                      onClick={handleCopyRouletteImageCard}
+                      disabled={isGeneratingRouletteCard}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
+                      title="고해상도 카드 이미지를 클립보드에 복사하여 바로 붙여넣기(Ctrl+V)"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>
+                        {isGeneratingRouletteCard
+                          ? '카드 생성 중...'
+                          : copiedRouletteImage
+                          ? '✓ 카드 이미지 복사됨!'
+                          : '📷 카드 이미지 복사'}
+                      </span>
+                    </button>
+
+                    {/* 이미지 파일 다운로드 */}
+                    <button
+                      type="button"
+                      onClick={handleDownloadRouletteImageCard}
+                      disabled={isGeneratingRouletteCard}
+                      className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="PNG 이미지 파일로 다운로드"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>저장</span>
+                    </button>
+                  </div>
+
+                  {/* 하단 당첨자 제외 후 다음 룰렛 돌리기 & 다시 돌리기 */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2 border-t border-rose-200/60 dark:border-rose-900/60">
                     <button
                       type="button"
                       onClick={handleExcludeWinnerAndSpinAgain}
-                      disabled={members.length <= 2}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40"
+                      disabled={rouletteItems.length <= 2}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40"
                     >
                       <span>🎯</span>
-                      <span>이 당첨자 제외하기 ({members.length - 1}명 남음)</span>
+                      <span>이 항목 제외하기 ({rouletteItems.length - 1}개 남음)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleSpinRoulette(false)}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>다시 돌리기</span>
