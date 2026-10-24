@@ -21,6 +21,8 @@ import {
   Zap,
   GripHorizontal,
   Coins,
+  Info,
+  AlertCircle,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -1210,60 +1212,59 @@ export const ElmSld03: React.FC<{
   externalRef,
 }) => {
   const localContainerRef = useRef<HTMLDivElement>(null);
-  const containerRef = externalRef || localContainerRef;
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+
+  const setRef = (el: HTMLDivElement | null) => {
+    (localContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    if (externalRef && 'current' in externalRef) {
+      (externalRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    }
+    setNode(el);
+  };
+
   const [isDragging, setIsDragging] = useState(false);
   const isDown = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
   const hasDraggedRef = useRef(false);
 
-  // 휠 이벤트: DOM 레벨에서 { passive: false }로 리스너를 바인딩하여 브라우저 배경 스크롤 전파 100% 원천 차단
+  // 휠 이벤트: DOM 레벨에서 { passive: false }로 리스너를 바인딩하여 정밀 제어
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!node) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // 1. 수평 스크롤 필요성 검사: 전체 노드가 한 화면에 다 보여서 좌우 스크롤할 여지가 없는 경우 (PC 와이드 모드 등)
+      // 1. 수평 스크롤 필요성 검사: 전체 노드가 한 화면에 다 보여서 좌우 스크롤할 여지가 없는 경우
       // 브라우저 기본 화면 상하 스크롤이 자연스럽게 동작하도록 즉시 통과
-      const canScrollHorizontally = el.scrollWidth > el.clientWidth + 4;
-      if (!canScrollHorizontally) {
+      const canScroll = node.scrollWidth > node.clientWidth + 2;
+      if (!canScroll) {
         return;
       }
 
-      const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (rawDelta === 0) return;
 
-      const isAtStart = el.scrollLeft <= 3;
-      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 4;
+      const isAtStart = node.scrollLeft <= 2;
+      const isAtEnd = node.scrollLeft >= Math.floor(node.scrollWidth - node.clientWidth) - 2;
 
-      // 2. 첫 번째 항목 도달 후 좌측/위로 스크롤하거나, 끝 항목 도달 후 우측/아래로 스크롤 시 화면 상하 스크롤 허용
+      // 2. 휠 이벤트 시 첫 항목(위/좌측) 또는 마지막 항목(아래/우측) 도달한 경우 화면 스크롤 이벤트로 통과
       if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
         return;
       }
 
-      // 상위 윈도우 스크롤 체이닝 및 배경 덜컹거림 원천 차단
+      // 3. 첫 항목, 마지막 항목에 도달하지 않은 슬라이드 구간에서는 화면 스크롤 차단 및 수평 슬라이드 수행
       e.preventDefault();
       e.stopPropagation();
 
-      // 휠 델타 정규화 (부드럽고 직관적인 가로 슬라이드)
       const multiplier = e.deltaMode === 1 ? 24 : 1;
-      const delta = rawDelta * multiplier;
-      el.scrollLeft += delta;
+      node.scrollLeft += rawDelta * multiplier;
     };
 
-    const handleNativeTouchMove = (e: TouchEvent) => {
-      // 터치 시 수평 슬라이드인 경우 상위 스크롤로 전파되지 않도록 차단
-      e.stopPropagation();
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    node.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
-      el.removeEventListener('wheel', handleWheel);
-      el.removeEventListener('touchmove', handleNativeTouchMove);
+      node.removeEventListener('wheel', handleWheel);
     };
-  }, [containerRef]);
+  }, [node]);
 
   // 전역 마우스 업 감지 (컨테이너 밖에서 마우스 뗄 때 안전 복원)
   useEffect(() => {
@@ -1282,21 +1283,18 @@ export const ElmSld03: React.FC<{
     isDown.current = true;
     hasDraggedRef.current = false;
     setIsDragging(true);
-    const el = containerRef.current;
-    if (!el) return;
-    startXRef.current = e.pageX - el.offsetLeft;
-    scrollLeftRef.current = el.scrollLeft;
+    if (!node) return;
+    startXRef.current = e.pageX - node.offsetLeft;
+    scrollLeftRef.current = node.scrollLeft;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDown.current) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const x = e.pageX - el.offsetLeft;
+    if (!isDown.current || !node) return;
+    const x = e.pageX - node.offsetLeft;
     const walk = (x - startXRef.current) * 1.5;
     if (Math.abs(walk) > 4) {
       hasDraggedRef.current = true;
-      el.scrollLeft = scrollLeftRef.current - walk;
+      node.scrollLeft = scrollLeftRef.current - walk;
     }
   };
 
@@ -1320,18 +1318,16 @@ export const ElmSld03: React.FC<{
   const isHorizontalTouch = useRef<boolean | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!node) return;
     touchStartX.current = e.touches[0].pageX;
     touchStartY.current = e.touches[0].pageY;
-    touchScrollLeft.current = el.scrollLeft;
+    touchScrollLeft.current = node.scrollLeft;
     hasDraggedRef.current = false;
     isHorizontalTouch.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!node) return;
     const x = e.touches[0].pageX;
     const y = e.touches[0].pageY;
     const diffX = x - touchStartX.current;
@@ -1342,9 +1338,8 @@ export const ElmSld03: React.FC<{
     }
 
     if (isHorizontalTouch.current) {
-      e.stopPropagation();
       hasDraggedRef.current = true;
-      el.scrollLeft = touchScrollLeft.current - diffX * 1.2;
+      node.scrollLeft = touchScrollLeft.current - diffX * 1.2;
     }
   };
 
@@ -1355,22 +1350,21 @@ export const ElmSld03: React.FC<{
   // 버튼 명시적 클릭 이동 (한 개 요소/stepWidth 단위)
   const handleNavPrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (containerRef.current) {
-      containerRef.current.scrollBy({ left: -stepWidth, behavior: 'smooth' });
+    if (node) {
+      node.scrollBy({ left: -stepWidth, behavior: 'smooth' });
     }
   };
 
   const handleNavNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (containerRef.current) {
-      containerRef.current.scrollBy({ left: stepWidth, behavior: 'smooth' });
+    if (node) {
+      node.scrollBy({ left: stepWidth, behavior: 'smooth' });
     }
   };
 
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      onWheelCapture={(e) => e.stopPropagation()}
       className={`relative w-full group select-none ${className}`}
     >
       {showNavButtons && (
@@ -1394,17 +1388,9 @@ export const ElmSld03: React.FC<{
         </>
       )}
 
-      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 완전 해제, 드래그 & 휠 즉각 반영, overscroll-contain 전파차단 */}
+      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 해제, 드래그 & 휠 즉각 반영, 경계 도달 시 상하 스크롤 연동 */}
       <div
-        ref={containerRef}
-        onWheel={(e) => {
-          e.stopPropagation();
-          const rawDelta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY;
-          if (rawDelta === 0) return;
-          const multiplier = e.deltaMode === 1 ? 24 : 1;
-          const delta = rawDelta * multiplier;
-          e.currentTarget.scrollLeft += delta;
-        }}
+        ref={setRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1419,15 +1405,12 @@ export const ElmSld03: React.FC<{
             hasDraggedRef.current = false;
           }
         }}
-        className={`w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none overscroll-contain overscroll-x-contain touch-pan-x ${
+        className={`w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none touch-pan-x ${
           isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
         } ${innerClassName}`}
         style={{
           scrollBehavior: 'auto',
           scrollSnapType: 'none',
-          overscrollBehavior: 'contain',
-          overscrollBehaviorX: 'contain',
-          overscrollBehaviorY: 'contain',
         }}
       >
         {children}
@@ -1453,6 +1436,7 @@ export const ElmRng01: React.FC<{
   onChange: (val: number) => void;
   colorScheme?: 'indigo' | 'rose' | 'emerald' | 'sky';
   label?: string;
+  labelExtra?: React.ReactNode;
   showInput?: boolean;
   className?: string;
   disabled?: boolean;
@@ -1466,6 +1450,7 @@ export const ElmRng01: React.FC<{
   onChange,
   colorScheme = 'indigo',
   label,
+  labelExtra,
   showInput = true,
   className = '',
   disabled = false,
@@ -1526,7 +1511,10 @@ export const ElmRng01: React.FC<{
     <div className={`space-y-1.5 ${className}`}>
       {label && (
         <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
+            {labelExtra}
+          </div>
           {showInput && (
             <div className="flex items-center gap-1.5 shrink-0">
               <input
@@ -2088,5 +2076,75 @@ export const ElmQck01: React.FC<{
     </aside>
   );
 };
+/* =========================================================================
+   ELM-TOST-01 : 화면 하단 플로팅 상태메시지 레이어 (스낵바 / 토스트 토큰)
+   - 모바일 & 데스크톱 통일: 화면 하단 중앙에 부드럽게 노출되는 플로팅 피드백 레이어
+   - 버튼 내 '복사됨!' 텍스트 변경 대신 일관된 비침습적 피드백 제공
+   - 성공(success), 안내(info), 경고(warning), 에러(error) 스타일 지원
+   - 자동 닫힘 타이머 및 수동 닫기 지원
+   ========================================================================= */
+export const ElmToast01: React.FC<{
+  message: string | null;
+  type?: 'success' | 'info' | 'warning' | 'error';
+  onClose?: () => void;
+  duration?: number;
+  className?: string;
+}> = ({ message, type = 'success', onClose, duration = 2800, className = '' }) => {
+  useEffect(() => {
+    if (!message || !onClose) return;
+    const timer = setTimeout(() => {
+      onClose();
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [message, onClose, duration]);
 
+  if (!message) return null;
 
+  const styleConfig = {
+    success: {
+      bg: 'bg-slate-900/95 dark:bg-zinc-800/95 border-emerald-500/40 text-white',
+      badge: 'bg-emerald-500/20 text-emerald-400',
+      icon: <Check className="w-4 h-4 text-emerald-400 shrink-0" />,
+    },
+    info: {
+      bg: 'bg-slate-900/95 dark:bg-zinc-800/95 border-indigo-500/40 text-white',
+      badge: 'bg-indigo-500/20 text-indigo-400',
+      icon: <Info className="w-4 h-4 text-indigo-400 shrink-0" />,
+    },
+    warning: {
+      bg: 'bg-slate-900/95 dark:bg-zinc-800/95 border-amber-500/40 text-white',
+      badge: 'bg-amber-500/20 text-amber-400',
+      icon: <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />,
+    },
+    error: {
+      bg: 'bg-slate-900/95 dark:bg-zinc-800/95 border-rose-500/40 text-white',
+      badge: 'bg-rose-500/20 text-rose-400',
+      icon: <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />,
+    },
+  }[type];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-full border shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200 select-none max-w-[94vw] sm:max-w-none w-auto ${styleConfig.bg} ${className}`}
+    >
+      <div className={`p-1 rounded-full ${styleConfig.badge}`}>
+        {styleConfig.icon}
+      </div>
+      <span className="text-xs sm:text-sm font-semibold tracking-tight text-white whitespace-normal sm:whitespace-nowrap">
+        {message}
+      </span>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-1 p-0.5 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+          title="닫기"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+};

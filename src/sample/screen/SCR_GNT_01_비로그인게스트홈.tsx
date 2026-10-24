@@ -5,6 +5,7 @@ import {
   ElmSld03,
   ElmRng01,
   ElmCmb01,
+  ElmToast01,
 } from '../elements/Tokens';
 import {
   Gamepad2,
@@ -57,6 +58,7 @@ import {
 import {
   generateLadderResultCardBlob,
   generateRouletteResultCardBlob,
+  generateSettlementResultCardBlob,
   copyBlobToClipboard,
   downloadBlobAsFile,
   shareImageBlob,
@@ -90,8 +92,14 @@ const PRESET_CHARACTERS = [
   { avatar: '🐸', color: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-100 border-green-300 dark:bg-green-950/40 dark:border-green-800' },
 ];
 
-const TARGET_ICONS = ['🎁', '💨', '☕', '❌', '🍗', '🍜', '🍰', '💸', '👑', '🏃', '🧹', '✨', '🍫', '🏪', '🥇', '💀'];
-const ROULETTE_ICONS = ['🍱', '🍲', '🍛', '🍜', '🍔', '🍕', '🥗', '🍢', '☕', '🍦', '🍰', '🧹', '♻️', '📝', '💡', '🎯', '👑', '💸', '🏃', '🎤', '💖', '🍀', '💀', '🎁'];
+const ROULETTE_ICONS = [
+  '🍱', '🍲', '🍛', '🍜', '🍔', '🍕', '🥗', '🍢', '☕', '🍦', '🍰', '🧹', '♻️', '📝', '💡', '🎯', '👑', '💸', '🏃', '🎤', '💖', '🍀', '💀', '🎁',
+  '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟',
+];
+
+const TARGET_ICONS = [
+  '🎁', '💨', '☕', '🍰', '🏃', '🧹', '✨', '🍜', '🍫', '🏪', '🥇', '💀', '💸', '👑', '🍔', '🍕', '🍻', '🥤', '🎯', '🍀', '💡', '📝', '⚽', '🎤',
+];
 
 export interface RouletteSliceItem {
   id: string;
@@ -407,7 +415,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             return {
               ...m,
               claimedBy: undefined,
-              name: `참가자 ${idx + 1}`,
+              name: `참가자${idx + 1}`,
               avatar: defaultPreset.avatar,
               selectedMenu: undefined,
             };
@@ -427,7 +435,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           return {
             ...m,
             claimedBy: undefined,
-            name: `참가자 ${idx + 1}`,
+            name: `참가자${idx + 1}`,
             avatar: defaultPreset.avatar,
           };
         }
@@ -463,13 +471,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // ---------------------------------------------------------------------------
   // 1. 공통 참가자 상태 관리
   // ---------------------------------------------------------------------------
-  const [memberCount, setMemberCount] = useState<number>(5);
+  const [memberCount, setMemberCount] = useState<number>(6);
   const [members, setMembers] = useState<Participant[]>(() => {
-    return Array.from({ length: 5 }).map((_, i) => {
+    return Array.from({ length: 6 }).map((_, i) => {
       const preset = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
       return {
         id: `m_${i + 1}`,
-        name: `참가자 ${i + 1}`,
+        name: `참가자${i + 1}`,
         avatar: preset.avatar,
         color: preset.color,
         bgLight: preset.bgLight,
@@ -479,9 +487,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     });
   });
 
-  // 인원수 변경 동기화 (최소 2명 이상, 상한 제한 없음)
+  // 인원수 변경 동기화 (최소 2명, 최대 20명 통일)
   const handleUpdateMemberCount = (newCount: number) => {
-    const validCount = Math.max(2, newCount);
+    const validCount = Math.max(2, Math.min(20, newCount));
     setMemberCount(validCount);
     setMembers((prev) => {
       if (prev.length < validCount) {
@@ -490,7 +498,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           const preset = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
           return {
             id: `m_${Date.now()}_${i}`,
-            name: `참가자 ${i + 1}`,
+            name: `참가자${i + 1}`,
             avatar: preset.avatar,
             color: preset.color,
             bgLight: preset.bgLight,
@@ -513,21 +521,96 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   };
 
   // ---------------------------------------------------------------------------
-  // 2. [인원정산] 상태 및 로직
+  // 2. [정산] 상태 및 가중치(차등) 정산 로직
   // ---------------------------------------------------------------------------
-  const [amount, setAmount] = useState<string>('84000');
+  const [amount, setAmount] = useState<string>('');
   const [copiedNotice, setCopiedNotice] = useState<boolean>(false);
+  const [useSplitWeight, setUseSplitWeight] = useState<boolean>(false);
+
+  // 하단 플로팅 토스트/스낵바 상태 (ElmToast01 연동)
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'info' | 'warning' | 'error'>('success');
+  const showToast = (msg: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    setToastMessage(msg);
+    setToastType(type);
+  };
+
+  // 정산 가중치 업데이트 함수 (0배: 면제 ~ 10배, 0.5단위 증감)
+  const updateSplitMemberWeight = (id: string, delta: number, isAbsolute = false) => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.id !== id) return m;
+        const currentW = m.weight !== undefined ? m.weight : 1;
+        const target = isAbsolute ? delta : Math.round((currentW + delta) * 10) / 10;
+        return { ...m, weight: Math.max(0, Math.min(10, target)) };
+      })
+    );
+  };
 
   const settlementSummary = useMemo(() => {
     const total = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
     const count = members.length;
     if (count === 0 || total === 0) {
-      return { perPerson: 0, remainder: 0, total: 0 };
+      return {
+        perPerson: 0,
+        baseUnitAmount: 0,
+        remainder: 0,
+        total: 0,
+        totalWeight: 0,
+        memberShares: {} as Record<string, { amount: number; weight: number; ratio: number }>,
+      };
     }
-    const perPerson = Math.floor(total / count / 100) * 100; // 100원 단위 절사
-    const remainder = total - perPerson * count;
-    return { perPerson, remainder, total };
-  }, [amount, members.length]);
+
+    if (!useSplitWeight) {
+      const perPerson = Math.floor(total / count / 100) * 100; // 100원 단위 절사
+      const remainder = total - perPerson * count;
+      const memberShares: Record<string, { amount: number; weight: number; ratio: number }> = {};
+      members.forEach((m) => {
+        memberShares[m.id] = { amount: perPerson, weight: 1, ratio: 1 / count };
+      });
+      return { perPerson, baseUnitAmount: perPerson, remainder, total, totalWeight: count, memberShares };
+    }
+
+    // 가중치 정산 모드: 총 가중치 합산 (음수 방어, 0 허용)
+    const rawTotalWeight = members.reduce((sum, m) => sum + Math.max(0, m.weight ?? 1), 0);
+    const totalWeight = Math.round(rawTotalWeight * 10) / 10;
+
+    if (totalWeight <= 0) {
+      const perPerson = Math.floor(total / count / 100) * 100;
+      const remainder = total - perPerson * count;
+      const memberShares: Record<string, { amount: number; weight: number; ratio: number }> = {};
+      members.forEach((m) => {
+        memberShares[m.id] = { amount: perPerson, weight: 1, ratio: 1 / count };
+      });
+      return { perPerson, baseUnitAmount: perPerson, remainder, total, totalWeight: count, memberShares };
+    }
+
+    // 1배당 기준 금액 (100원 절사)
+    const baseUnitAmount = Math.floor((total / totalWeight) / 100) * 100;
+
+    let allocatedTotal = 0;
+    const memberShares: Record<string, { amount: number; weight: number; ratio: number }> = {};
+
+    members.forEach((m) => {
+      const w = Math.max(0, m.weight ?? 1);
+      const ratio = w / totalWeight;
+      // 100원 단위 절사
+      const mAmount = Math.floor((total * ratio) / 100) * 100;
+      memberShares[m.id] = { amount: mAmount, weight: w, ratio };
+      allocatedTotal += mAmount;
+    });
+
+    const remainder = total - allocatedTotal;
+
+    return {
+      perPerson: baseUnitAmount,
+      baseUnitAmount,
+      remainder,
+      total,
+      totalWeight,
+      memberShares,
+    };
+  }, [amount, members, useSplitWeight]);
 
   const toggleSentStatus = (id: string) => {
     setMembers((prev) =>
@@ -545,24 +628,30 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     const el = presetScrollRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      const rawDelta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+      // 1. 수평 스크롤 필요성 검사: 한 화면에 다 보이는 경우 화면 스크롤 허용
+      const canScroll = el.scrollWidth > el.clientWidth + 2;
+      if (!canScroll) return;
+
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (rawDelta === 0) return;
 
-      const isAtStart = el.scrollLeft <= 1;
+      const isAtStart = el.scrollLeft <= 2;
       const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
 
-      // 첫/끝 아이템 도달 시 상하 스크롤 이벤트 통과
+      // 2. 첫/끝 아이템 도달 시 화면 상하 스크롤 이벤트 통과
       if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
         return;
       }
 
+      // 3. 중간 슬라이드 구간에서는 화면 스크롤 차단 및 수평 스크롤 수행
       e.preventDefault();
       e.stopPropagation();
-      el.scrollLeft += rawDelta;
+      const multiplier = e.deltaMode === 1 ? 24 : 1;
+      el.scrollLeft += rawDelta * multiplier;
     };
-    el.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
-      el.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
+      el.removeEventListener('wheel', onWheel);
     };
   }, []);
 
@@ -609,10 +698,105 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   };
 
   const handleCopySettlementText = () => {
-    const text = `[모아보고 인원정산]\n총 금액: ${settlementSummary.total.toLocaleString()}원 (${members.length}명)\n1인당 송금액: ${settlementSummary.perPerson.toLocaleString()}원\n함께 정산해요!`;
+    let text = '';
+    if (!useSplitWeight) {
+      text = `[모아보고 정산]\n총 금액: ${settlementSummary.total.toLocaleString()}원 (${members.length}명)\n1인당 송금액: ${settlementSummary.perPerson.toLocaleString()}원\n\n함께 정산해요!`;
+    } else {
+      text = `[모아보고 가중치 차등 정산]\n총 결제 금액: ${settlementSummary.total.toLocaleString()}원 (${members.length}명 참여, 총 ${settlementSummary.totalWeight}배)\n기준 1배당: ₩${settlementSummary.baseUnitAmount.toLocaleString()}원\n\n👥 참가자별 송금 금액:\n`;
+      members.forEach((m) => {
+        const share = settlementSummary.memberShares[m.id];
+        const amt = share ? share.amount : 0;
+        const w = share ? share.weight : 1;
+        text += `• ${m.name}: ${amt.toLocaleString()}원 (${w === 0 ? '면제' : `${w}배`})\n`;
+      });
+      if (settlementSummary.remainder > 0) {
+        text += `\n(자투리 ${settlementSummary.remainder.toLocaleString()}원 제외)\n`;
+      }
+      text += `\n함께 정산해요!`;
+    }
     navigator.clipboard?.writeText(text);
-    setCopiedNotice(true);
-    setTimeout(() => setCopiedNotice(false), 2000);
+    showToast('정산 결과 텍스트가 클립보드에 복사되었습니다.');
+  };
+
+  const [copiedSettlementImage, setCopiedSettlementImage] = useState<boolean>(false);
+  const [isGeneratingSettlementCard, setIsGeneratingSettlementCard] = useState<boolean>(false);
+
+  // 정산 결과 카드 이미지 복사 (Ctrl+V)
+  const handleCopySettlementImageCard = async () => {
+    setIsGeneratingSettlementCard(true);
+    try {
+      const blob = await generateSettlementResultCardBlob({
+        title: useSplitWeight ? '가중치 차등 정산 결과서' : '모아보고 스마트 정산 결과서',
+        totalAmount: settlementSummary.total,
+        totalCount: members.length,
+        perPerson: useSplitWeight ? settlementSummary.baseUnitAmount : settlementSummary.perPerson,
+        isWeighted: useSplitWeight,
+        totalWeight: settlementSummary.totalWeight,
+        baseUnitAmount: settlementSummary.baseUnitAmount,
+        remainder: settlementSummary.remainder,
+        members: members.map((m) => {
+          const share = settlementSummary.memberShares[m.id];
+          return {
+            id: m.id,
+            name: m.name,
+            avatar: m.avatar,
+            amount: share ? share.amount : settlementSummary.perPerson,
+            weight: share ? share.weight : 1,
+            isSent: m.isSent,
+          };
+        }),
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+
+      const res = await copyBlobToClipboard(blob);
+      if (res.success) {
+        showToast('정산 결과 카드 이미지가 클립보드에 복사되었습니다.');
+      } else {
+        downloadBlobAsFile(blob, `moabogo_settlement_${Date.now()}.png`);
+        showToast('클립보드 권한으로 인해 이미지 파일로 저장되었습니다.', 'info');
+      }
+    } catch (e) {
+      console.error('Failed to generate settlement card:', e);
+      showToast('카드 이미지 생성 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsGeneratingSettlementCard(false);
+    }
+  };
+
+  // 정산 결과 이미지 파일 다운로드
+  const handleDownloadSettlementImageCard = async () => {
+    setIsGeneratingSettlementCard(true);
+    try {
+      const blob = await generateSettlementResultCardBlob({
+        title: useSplitWeight ? '가중치 차등 정산 결과서' : '모아보고 스마트 정산 결과서',
+        totalAmount: settlementSummary.total,
+        totalCount: members.length,
+        perPerson: useSplitWeight ? settlementSummary.baseUnitAmount : settlementSummary.perPerson,
+        isWeighted: useSplitWeight,
+        totalWeight: settlementSummary.totalWeight,
+        baseUnitAmount: settlementSummary.baseUnitAmount,
+        remainder: settlementSummary.remainder,
+        members: members.map((m) => {
+          const share = settlementSummary.memberShares[m.id];
+          return {
+            id: m.id,
+            name: m.name,
+            avatar: m.avatar,
+            amount: share ? share.amount : settlementSummary.perPerson,
+            weight: share ? share.weight : 1,
+            isSent: m.isSent,
+          };
+        }),
+        theme: resolvedTheme as 'light' | 'dark' | 'dawn',
+      });
+      downloadBlobAsFile(blob, `moabogo_settlement_${Date.now()}.png`);
+      showToast('정산 결과 카드 이미지를 다운로드했습니다.');
+    } catch (e) {
+      console.error('Failed to download settlement card:', e);
+      showToast('카드 이미지 다운로드 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsGeneratingSettlementCard(false);
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -621,7 +805,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [useLadderWeight, setUseLadderWeight] = useState<boolean>(false);
   const [winnerCount, setWinnerCount] = useState<number>(1);
   const [ladderGoals, setLadderGoals] = useState<{ text: string; icon: string }[]>(() =>
-    generateDefaultLadderGoals(5, 1)
+    generateDefaultLadderGoals(6, 1)
   );
   const [ladderResult, setLadderResult] = useState<{
     [memberId: string]: { goalIndex: number; text: string; icon: string; isWinner: boolean };
@@ -746,15 +930,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
       const res = await copyBlobToClipboard(blob);
       if (res.success) {
-        setCopiedLadderImage(true);
-        setTimeout(() => setCopiedLadderImage(false), 3000);
+        showToast('사다리 결과 카드 이미지가 클립보드에 복사되었습니다.');
       } else {
         downloadBlobAsFile(blob, `moabogo_ladder_${Date.now()}.png`);
-        alert('클립보드 이미지 복사 권한이 없어 이미지 파일로 다운로드되었습니다.');
+        showToast('클립보드 권한으로 인해 이미지 파일로 저장되었습니다.', 'info');
       }
     } catch (e) {
       console.error('Failed to generate ladder card:', e);
-      alert('카드 이미지 생성 중 오류가 발생했습니다.');
+      showToast('카드 이미지 생성 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsGeneratingLadderCard(false);
     }
@@ -788,8 +971,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       });
 
       downloadBlobAsFile(blob, `moabogo_ladder_${Date.now()}.png`);
+      showToast('사다리 결과 카드 이미지를 다운로드했습니다.');
     } catch (e) {
       console.error('Failed to download ladder card:', e);
+      showToast('카드 이미지 다운로드 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsGeneratingLadderCard(false);
     }
@@ -1231,17 +1416,110 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   };
 
   // ---------------------------------------------------------------------------
-  // 4. [룰렛] 전면 개편 상태 및 로직 (프리셋, 가중치, 2x 카드 이미지 복사)
   // ---------------------------------------------------------------------------
+  // 4. [룰렛] 전면 개편 상태 및 로직 (기본 5개 프리셋, 커스텀 프리셋 저장, 재실행, 2x 카드 이미지 복사)
+  // ---------------------------------------------------------------------------
+  const DEFAULT_FIVE_ITEMS_PRESET: RoulettePreset = {
+    id: 'preset_default_6',
+    category: 'CUSTOM',
+    title: '🎯 기본 룰렛',
+    description: '주제 없이 기본 세팅된 항목 1~6 룰렛 프리셋',
+    icon: '🎯',
+    items: [
+      { id: 'def_1', name: '항목1', icon: '1️⃣', weight: 1 },
+      { id: 'def_2', name: '항목2', icon: '2️⃣', weight: 1 },
+      { id: 'def_3', name: '항목3', icon: '3️⃣', weight: 1 },
+      { id: 'def_4', name: '항목4', icon: '4️⃣', weight: 1 },
+      { id: 'def_5', name: '항목5', icon: '5️⃣', weight: 1 },
+      { id: 'def_6', name: '항목6', icon: '6️⃣', weight: 1 },
+    ],
+  };
+
   const [isRouletteModalOpen, setIsRouletteModalOpen] = useState<boolean>(false);
-  const [roulettePresetTitle, setRoulettePresetTitle] = useState<string>('🍱 오늘 점심 메뉴 뭐 먹지?');
+  const [isRouletteHelpOpen, setIsRouletteHelpOpen] = useState<boolean>(false);
+  const [editingItemIconId, setEditingItemIconId] = useState<string | null>(null);
+  const [savedPresetToast, setSavedPresetToast] = useState<boolean>(false);
+
+  // 5. 프리셋 저장 인앱 모달 상태 (window.prompt 배제)
+  const [isPresetSaveModalOpen, setIsPresetSaveModalOpen] = useState<boolean>(false);
+  const [presetSaveInputTitle, setPresetSaveInputTitle] = useState<string>('');
+
+  const [customRoulettePresets, setCustomRoulettePresets] = useState<RoulettePreset[]>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_custom_roulette_presets');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  // 6. 프리셋 순서 영속화 및 드래그 앤 드롭 상태
+  const [reorderablePresetIds, setReorderablePresetIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_roulette_presets_order');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['preset_default_5', ...ROULETTE_PRESETS.map((p) => p.id)];
+  });
+  const [draggedPresetId, setDraggedPresetId] = useState<string | null>(null);
+  const [dragTargetPresetId, setDragTargetPresetId] = useState<string | null>(null);
+  const [dragDropSide, setDragDropSide] = useState<'left' | 'right'>('left');
+
+  // 추천 및 커스텀 프리셋 통합 목록 (순서 변경 지원)
+  const orderedPresets = useMemo(() => {
+    const map = new Map<string, RoulettePreset>();
+    map.set(DEFAULT_FIVE_ITEMS_PRESET.id, DEFAULT_FIVE_ITEMS_PRESET);
+    ROULETTE_PRESETS.forEach((p) => map.set(p.id, p));
+    customRoulettePresets.forEach((p) => map.set(p.id, p));
+
+    const result: RoulettePreset[] = [];
+    const visited = new Set<string>();
+
+    reorderablePresetIds.forEach((id) => {
+      const found = map.get(id);
+      if (found) {
+        result.push(found);
+        visited.add(id);
+      }
+    });
+
+    map.forEach((p, id) => {
+      if (!visited.has(id)) {
+        result.push(p);
+      }
+    });
+
+    return result;
+  }, [reorderablePresetIds, customRoulettePresets]);
+
+  // 프리셋 드래그 순서 변경 핸들러 (위치 표시 및 영속화)
+  const handleReorderPresets = (sourceId: string | null, targetId: string, side: 'left' | 'right') => {
+    if (!sourceId || sourceId === targetId) return;
+    setReorderablePresetIds((prev) => {
+      const currentList = [...orderedPresets.map((p) => p.id)];
+      const fromIdx = currentList.indexOf(sourceId);
+      const toIdx = currentList.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+
+      currentList.splice(fromIdx, 1);
+      const insertIdx = side === 'left' ? currentList.indexOf(targetId) : currentList.indexOf(targetId) + 1;
+      currentList.splice(insertIdx, 0, sourceId);
+
+      try {
+        localStorage.setItem('moabogo_roulette_presets_order', JSON.stringify(currentList));
+      } catch {}
+
+      return currentList;
+    });
+  };
+
+  const [roulettePresetTitle, setRoulettePresetTitle] = useState<string>('🎯 기본 룰렛');
   const [rouletteItems, setRouletteItems] = useState<RouletteSliceItem[]>(() => [
-    { id: 'r_item_1', name: '김치찌개 / 제육볶음 (한식)', avatar: '🍲', weight: 1 },
-    { id: 'r_item_2', name: '돈까스 / 일식 라멘', avatar: '🍛', weight: 1 },
-    { id: 'r_item_3', name: '짜장면 / 짬뽕 (중식)', avatar: '🍜', weight: 1 },
-    { id: 'r_item_4', name: '파스타 / 버거 (양식)', avatar: '🍔', weight: 1 },
-    { id: 'r_item_5', name: '샐러드 / 샌드위치 (가볍게)', avatar: '🥗', weight: 1 },
-    { id: 'r_item_6', name: '떡볶이 / 튀김 (분식)', avatar: '🍢', weight: 1 },
+    { id: 'def_1', name: '항목1', avatar: '1️⃣', weight: 1 },
+    { id: 'def_2', name: '항목2', avatar: '2️⃣', weight: 1 },
+    { id: 'def_3', name: '항목3', avatar: '3️⃣', weight: 1 },
+    { id: 'def_4', name: '항목4', avatar: '4️⃣', weight: 1 },
+    { id: 'def_5', name: '항목5', avatar: '5️⃣', weight: 1 },
+    { id: 'def_6', name: '항목6', avatar: '6️⃣', weight: 1 },
   ]);
   const [newRouletteName, setNewRouletteName] = useState<string>('');
   const [newRouletteIcon, setNewRouletteIcon] = useState<string>('🎯');
@@ -1253,6 +1531,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [selectedTagger, setSelectedTagger] = useState<Participant | null>(null);
 
+  const spinTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // [중복제거 튜닝 1] 당첨자 제외 모드 & 제외된 항목 보관함
   const [excludeWinnerMode, setExcludeWinnerMode] = useState<boolean>(false);
   const [excludedWinners, setExcludedWinners] = useState<Participant[]>([]);
@@ -1262,6 +1542,72 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [copiedRouletteText, setCopiedRouletteText] = useState<boolean>(false);
   const [copiedRouletteImage, setCopiedRouletteImage] = useState<boolean>(false);
   const [isGeneratingRouletteCard, setIsGeneratingRouletteCard] = useState<boolean>(false);
+
+  // 4. 게임별 초기화 핸들러
+  // 4.1 정산 게임 초기화 (금액 0원, 인원 6명 참가자1~6 초기화)
+  const handleResetSplitGame = () => {
+    setAmount('');
+    setMemberCount(6);
+    setUseSplitWeight(false);
+    setMembers(
+      Array.from({ length: 6 }).map((_, i) => {
+        const preset = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
+        return {
+          id: `m_${i + 1}`,
+          name: `참가자${i + 1}`,
+          avatar: preset.avatar,
+          color: preset.color,
+          bgLight: preset.bgLight,
+          weight: 1,
+          isSent: false,
+        };
+      })
+    );
+    setCopiedNotice(false);
+  };
+
+  // 4.2 사다리 게임 초기화
+  const handleResetLadderGame = () => {
+    if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
+    if (arrivalTimerRef.current) clearTimeout(arrivalTimerRef.current);
+    if (arrivalIntervalRef.current) clearInterval(arrivalIntervalRef.current);
+    nextStepActionRef.current = null;
+
+    setWinnerCount(1);
+    setLadderResult(null);
+    setSavedLadderResult(null);
+    setRevealedGoals({});
+    setRevealedGoalCols({});
+    setArrivalPopup(null);
+    setIsArrivalPaused(false);
+    setIsLadderTracing(false);
+    setActiveTracingMemberIndex(null);
+    setCurrentTracerPosition(null);
+    setCurrentTracedTrail([]);
+    setLadderGoals(generateDefaultLadderGoals(members.length, 1));
+    setLadderSpeed(1.0);
+    setMembers((prev) => prev.map((m) => ({ ...m, selectedMenu: undefined, weight: 1 })));
+  };
+
+  // 4.3 룰렛 게임 초기화 (기본 6개 항목1~6 초기화)
+  const handleResetRouletteGame = () => {
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    setRoulettePresetTitle(DEFAULT_FIVE_ITEMS_PRESET.title);
+    setRouletteItems(
+      DEFAULT_FIVE_ITEMS_PRESET.items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        avatar: it.icon || '🎯',
+        weight: it.weight || 1,
+      }))
+    );
+    setSelectedRouletteWinner(null);
+    setSelectedTagger(null);
+    setExcludedWinners([]);
+    setExcludedRouletteItems([]);
+    setRouletteRotation(0);
+    setIsSpinning(false);
+  };
 
   // 프리셋 적용 핸들러
   const handleApplyRoulettePreset = (preset: RoulettePreset) => {
@@ -1308,6 +1654,93 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     };
     setRouletteItems((prev) => [...prev, newItem]);
     setNewRouletteName('');
+  };
+
+  // 룰렛 항목 수 변경 동기화 (최소 2명, 최대 20명 통일)
+  const handleUpdateRouletteItemCount = (newCount: number) => {
+    const validCount = Math.max(2, Math.min(20, newCount));
+    setRouletteItems((prev) => {
+      if (prev.length < validCount) {
+        const added = Array.from({ length: validCount - prev.length }).map((_, idx) => {
+          const nextIdx = prev.length + idx + 1;
+          const presetChar = PRESET_CHARACTERS[(nextIdx - 1) % PRESET_CHARACTERS.length];
+          return {
+            id: 'r_item_' + Date.now() + '_' + idx,
+            name: `항목${nextIdx}`,
+            avatar: presetChar?.avatar || '🎯',
+            weight: 1,
+          };
+        });
+        return [...prev, ...added];
+      } else {
+        return prev.slice(0, validCount);
+      }
+    });
+    setSelectedRouletteWinner(null);
+  };
+
+  // 룰렛 참가 항목 수 원클릭 증감 인디케이터 핸들러 (2~20명 제한)
+  const handleDecreaseRouletteItemCount = () => {
+    if (rouletteItems.length <= 2) return;
+    handleUpdateRouletteItemCount(rouletteItems.length - 1);
+  };
+
+  const handleIncreaseRouletteItemCount = () => {
+    if (rouletteItems.length >= 20) return;
+    handleUpdateRouletteItemCount(rouletteItems.length + 1);
+  };
+
+  // 5. 내 프리셋 저장 모달 열기
+  const handleOpenPresetSaveModal = () => {
+    const rawTitle = roulettePresetTitle
+      .replace(/^[^\s]+\s*/, '')
+      .replace(/\s*\(\d+.*?\)$/, '')
+      .trim() || '내 룰렛 프리셋';
+    setPresetSaveInputTitle(rawTitle);
+    setIsPresetSaveModalOpen(true);
+  };
+
+  // 5. 내 프리셋 저장 확정 핸들러 (인앱 모달 입력)
+  const handleConfirmSavePreset = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = presetSaveInputTitle.trim();
+    if (!trimmed) return;
+
+    const newPreset: RoulettePreset = {
+      id: 'custom_' + Date.now(),
+      category: 'CUSTOM',
+      title: `⭐ ${trimmed}`,
+      description: '사용자 저장 커스텀 룰렛 프리셋',
+      icon: rouletteItems[0]?.avatar || '🎯',
+      items: rouletteItems.map((it) => ({
+        id: it.id,
+        name: it.name,
+        icon: it.avatar,
+        weight: it.weight || 1,
+      })),
+    };
+
+    const updated = [newPreset, ...customRoulettePresets.filter((p) => p.title !== newPreset.title)];
+    setCustomRoulettePresets(updated);
+    try {
+      localStorage.setItem('moabogo_custom_roulette_presets', JSON.stringify(updated));
+      const nextOrder = [newPreset.id, ...reorderablePresetIds.filter((id) => id !== newPreset.id)];
+      setReorderablePresetIds(nextOrder);
+      localStorage.setItem('moabogo_roulette_presets_order', JSON.stringify(nextOrder));
+      setIsPresetSaveModalOpen(false);
+      setSavedPresetToast(true);
+      setTimeout(() => setSavedPresetToast(false), 2500);
+    } catch {}
+  };
+
+  // 내 프리셋 삭제 핸들러
+  const handleDeleteCustomPreset = (presetId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = customRoulettePresets.filter((p) => p.id !== presetId);
+    setCustomRoulettePresets(updated);
+    try {
+      localStorage.setItem('moabogo_custom_roulette_presets', JSON.stringify(updated));
+    } catch {}
   };
 
   // 룰렛 항목 삭제
@@ -1396,9 +1829,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     return slices;
   }, [rouletteItems, totalRouletteWeight]);
 
-  // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수
-  const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem) => {
-    if (isSpinning || rouletteItems.length === 0) return;
+  // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수 (중앙 허브 즉시 재실행 forceRestart 지원)
+  const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem, forceRestart = false) => {
+    if (rouletteItems.length === 0) return;
+    if (isSpinning && !forceRestart) return;
+
+    if (spinTimerRef.current) {
+      clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = null;
+    }
+
     setSelectedRouletteWinner(null);
     setSelectedTagger(null);
 
@@ -1430,7 +1870,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       const nextRotation = rouletteRotation + diff;
       setRouletteRotation(nextRotation);
 
-      setTimeout(() => {
+      spinTimerRef.current = setTimeout(() => {
         setIsSpinning(false);
         setSelectedRouletteWinner(chosen);
         const matchedMember = members.find((m) => m.id === chosen.id || m.name === chosen.name);
@@ -1452,7 +1892,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
     setRouletteRotation((prev) => prev + targetDeg);
 
-    setTimeout(() => {
+    spinTimerRef.current = setTimeout(() => {
       setIsSpinning(false);
       setSelectedRouletteWinner(chosen);
       const matchedMember = members.find((m) => m.id === chosen.id || m.name === chosen.name);
@@ -1482,8 +1922,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     text += `\n스마트 가계부 & 모임 정산 • 모아보고`;
 
     navigator.clipboard?.writeText(text).then(() => {
-      setCopiedRouletteText(true);
-      setTimeout(() => setCopiedRouletteText(false), 2500);
+      showToast('룰렛 결과 텍스트가 클립보드에 복사되었습니다.');
     });
   };
 
@@ -1513,15 +1952,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
       const res = await copyBlobToClipboard(blob);
       if (res.success) {
-        setCopiedRouletteImage(true);
-        setTimeout(() => setCopiedRouletteImage(false), 3000);
+        showToast('룰렛 결과 카드 이미지가 클립보드에 복사되었습니다.');
       } else {
         downloadBlobAsFile(blob, `moabogo_roulette_${Date.now()}.png`);
-        alert('클립보드 이미지 복사 권한이 없어 이미지 파일로 다운로드되었습니다.');
+        showToast('클립보드 권한으로 인해 이미지 파일로 저장되었습니다.', 'info');
       }
     } catch (e) {
       console.error('Failed to generate roulette card:', e);
-      alert('카드 이미지 생성 중 오류가 발생했습니다.');
+      showToast('카드 이미지 생성 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsGeneratingRouletteCard(false);
     }
@@ -1552,8 +1990,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       });
 
       downloadBlobAsFile(blob, `moabogo_roulette_${Date.now()}.png`);
+      showToast('룰렛 결과 카드 이미지를 다운로드했습니다.');
     } catch (e) {
       console.error('Failed to download roulette card:', e);
+      showToast('카드 이미지 다운로드 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsGeneratingRouletteCard(false);
     }
@@ -1670,7 +2110,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </span>
             <div>
               <h2 className="text-base sm:text-lg font-bold leading-tight">
-                모임 정산 & 파티 게임
+                즐겨보고
               </h2>
               <p className={`text-xs mt-0.5 ${resolvedTheme === 'dawn' ? 'text-blue-600' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 원하는 게임 탭을 선택하고 인원수와 옵션을 설정해 보세요.
@@ -1678,16 +2118,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </div>
           </div>
 
-          {/* 고주목도 세그먼트 탭 */}
+          {/* 고주목도 세그먼트 탭 (텍스트 분리 줄바꿈 차단 & 탭 요소 단위 통합 반응형 레이아웃) */}
           <div
-            className={`flex items-center p-1.5 rounded-2xl border shadow-inner ${
+            className={`grid grid-cols-3 sm:inline-flex items-center p-1 sm:p-1.5 rounded-2xl border shadow-inner w-full sm:w-auto shrink-0 gap-1 sm:gap-1.5 ${
               resolvedTheme === 'dawn' ? 'bg-[#d5e7f9] border-[#aed2f8]' : isDark ? 'bg-[#151518] border-[#27272a]' : 'bg-slate-100 border-slate-200'
             }`}
           >
             <button
               type="button"
               onClick={() => setGameType('SPLIT')}
-              className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'SPLIT'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -1696,16 +2136,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     : 'bg-white text-indigo-700 shadow-md font-extrabold'
                   : resolvedTheme === 'dawn'
                   ? 'text-blue-800 hover:text-blue-950 font-semibold'
-                  : 'text-slate-400 hover:text-white font-semibold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-semibold'
               }`}
             >
-              <span>⚡</span>
-              <span>인원정산</span>
+              <span className="shrink-0 text-sm">⚡</span>
+              <span className="whitespace-nowrap font-bold">정산</span>
             </button>
             <button
               type="button"
               onClick={() => setGameType('LADDER')}
-              className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'LADDER'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -1714,16 +2154,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     : 'bg-white text-indigo-700 shadow-md font-extrabold'
                   : resolvedTheme === 'dawn'
                   ? 'text-blue-800 hover:text-blue-950 font-semibold'
-                  : 'text-slate-400 hover:text-white font-semibold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-semibold'
               }`}
             >
-              <span>🪜</span>
-              <span>사다리</span>
+              <span className="shrink-0 text-sm">🪜</span>
+              <span className="whitespace-nowrap font-bold">사다리</span>
             </button>
             <button
               type="button"
               onClick={() => setGameType('ROULETTE')}
-              className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'ROULETTE'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -1732,11 +2172,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     : 'bg-white text-indigo-700 shadow-md font-extrabold'
                   : resolvedTheme === 'dawn'
                   ? 'text-blue-800 hover:text-blue-950 font-semibold'
-                  : 'text-slate-400 hover:text-white font-semibold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-semibold'
               }`}
             >
-              <span>🎯</span>
-              <span>룰렛</span>
+              <span className="shrink-0 text-sm">🎯</span>
+              <span className="whitespace-nowrap font-bold">룰렛</span>
             </button>
           </div>
         </div>
@@ -1755,13 +2195,32 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 {gameType === 'ROULETTE' && '🎯'}
               </span>
               <h3 className="text-base sm:text-lg font-bold tracking-tight leading-none flex items-center gap-2">
-                {gameType === 'SPLIT' && '인원정산 플레이 존'}
-                {gameType === 'LADDER' && '사다리타기 플레이 존'}
-                {gameType === 'ROULETTE' && '룰렛 플레이 존'}
+                <span>
+                  {gameType === 'SPLIT' && '정산 플레이 존'}
+                  {gameType === 'LADDER' && '사다리 플레이 존'}
+                  {gameType === 'ROULETTE' && '룰렛 플레이 존'}
+                </span>
+                <button
+                  type="button"
+                  onClick={
+                    gameType === 'SPLIT'
+                      ? handleResetSplitGame
+                      : gameType === 'LADDER'
+                      ? handleResetLadderGame
+                      : handleResetRouletteGame
+                  }
+                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition-colors cursor-pointer"
+                  title={`${
+                    gameType === 'SPLIT' ? '정산' : gameType === 'LADDER' ? '사다리' : '룰렛'
+                  } 게임 초기화`}
+                  aria-label="게임 초기화"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
               </h3>
             </div>
             <span className="text-xs font-semibold text-slate-400">
-              참여 인원: {memberCount}명
+              설정 항목: {gameType === 'ROULETTE' ? `${rouletteItems.length}개` : `${memberCount}명`}
             </span>
           </div>
 
@@ -1863,8 +2322,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                         </div>
                       </div>
 
-                      {/* 우측 초기화 버튼 */}
-                      <div className="shrink-0">
+                      {/* 우측 금액 초기화 버튼 */}
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => setAmount('')}
@@ -1921,37 +2380,109 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </div>
                   </div>
                 </div>
-                {/* 정산 인원수 (ElmRng01 표준화) */}
+
+                {/* 정산 인원수 (ElmRng01 표준화) - 금액 옆 1:1 나란히 배치 & 인원수 옆 가중치 스위치 */}
                 <div className="space-y-2">
                   <ElmRng01
-                    label="정산 인원수 (인원 제한 없음)"
+                    label="인원수"
+                    labelExtra={
+                      <label
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-bold cursor-pointer select-none border border-slate-200 dark:border-zinc-700 hover:border-indigo-400 transition-colors"
+                        title="참가자별 차등 가중치 정산 모드 토글"
+                      >
+                        <span className="text-[11px] text-slate-700 dark:text-zinc-300">가중치</span>
+                        <input
+                          type="checkbox"
+                          checked={useSplitWeight}
+                          onChange={(e) => setUseSplitWeight(e.target.checked)}
+                          className="sr-only"
+                        />
+                        <div
+                          role="switch"
+                          aria-checked={useSplitWeight}
+                          className={`w-6 h-3.5 rounded-full transition-colors relative ${
+                            useSplitWeight ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-zinc-600'
+                          }`}
+                        >
+                          <div
+                            className={`w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform absolute top-0.5 left-0.5 ${
+                              useSplitWeight ? 'translate-x-2.5' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </label>
+                    }
                     value={memberCount}
                     min={2}
-                    max={Math.max(20, memberCount)}
+                    max={20}
                     step={1}
                     unit="명"
                     onChange={(val) => handleUpdateMemberCount(val)}
                     colorScheme="indigo"
                   />
 
-                  {/* 배정된 캐릭터 아바타 */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1.5 max-h-28 overflow-y-auto pr-1">
-                    {members.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${m.bgLight} ${m.color}`}
+                  {/* 가중치 모드일 때 안내 툴바 & 일괄 초기화 */}
+                  {useSplitWeight && (
+                    <div className="flex items-center justify-between text-[11px] pt-1 px-1 flex-wrap gap-2">
+                      <span className="font-bold text-slate-500 dark:text-zinc-400">
+                        💡 참가자별 가중치 배율 (0: 면제, 0.5: 절반, 1: 기본, 1.5: 음주, 2배 이상):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMembers((prev) => prev.map((m) => ({ ...m, weight: 1 })))}
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
                       >
-                        <span>{m.avatar}</span>
-                        <input
-                          type="text"
-                          lang="ko"
-                          value={m.name}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
-                          className="w-16 bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500"
-                        />
-                      </div>
-                    ))}
+                        모두 1배(기본)로 초기화
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 배정된 캐릭터 아바타 및 가중치 스텝퍼 */}
+                  <div className="flex items-center gap-2 flex-wrap pt-1.5 max-h-48 overflow-y-auto pr-1">
+                    {members.map((m) => {
+                      const w = m.weight ?? 1;
+                      return (
+                        <div
+                          key={m.id}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border shadow-2xs transition-all ${m.bgLight} ${m.color}`}
+                        >
+                          <span className="text-sm select-none">{m.avatar}</span>
+                          <input
+                            type="text"
+                            lang="ko"
+                            value={m.name}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                            className="w-16 bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500"
+                          />
+                          {useSplitWeight && (
+                            <div className="flex items-center gap-1 pl-1.5 border-l border-current/20 select-none">
+                              <button
+                                type="button"
+                                onClick={() => updateSplitMemberWeight(m.id, -0.5)}
+                                disabled={w <= 0}
+                                className="w-5 h-5 rounded-md flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-25 cursor-pointer font-black text-xs"
+                                title="가중치 0.5배 감소"
+                              >
+                                -
+                              </button>
+                              <span className={`text-[11px] font-black min-w-[30px] text-center font-mono ${w === 0 ? 'text-slate-400' : ''}`}>
+                                {w === 0 ? '면제' : `${w}배`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateSplitMemberWeight(m.id, 0.5)}
+                                disabled={w >= 10}
+                                className="w-5 h-5 rounded-md flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-25 cursor-pointer font-black text-xs"
+                                title="가중치 0.5배 증가"
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1972,31 +2503,75 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   }`}
                 >
                   <div>
-                    <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-                      스마트 정산 결과
-                    </span>
-                    <div className="flex items-baseline gap-2 mt-1">
-                      <span className="text-xs text-slate-400">1인당</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+                        {useSplitWeight ? '가중치 차등 정산 결과' : '스마트 정산 결과'}
+                      </span>
+                      {useSplitWeight && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                          총 가중치 합계: {settlementSummary.totalWeight}배
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+                      <span className="text-xs text-slate-400">
+                        {useSplitWeight ? '기준 1배당' : '1인당'}
+                      </span>
                       <span className="text-2xl sm:text-3xl font-extrabold">
-                        ₩{settlementSummary.perPerson.toLocaleString()}
+                        ₩{useSplitWeight ? settlementSummary.baseUnitAmount.toLocaleString() : settlementSummary.perPerson.toLocaleString()}
                       </span>
                       <span className="text-xs text-slate-400">원</span>
                       {settlementSummary.remainder > 0 && (
                         <span className="text-xs text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                          (자투리 {settlementSummary.remainder}원 제외)
+                          (자투리 {settlementSummary.remainder.toLocaleString()}원 제외)
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCopySettlementText}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all self-start sm:self-auto"
-                  >
-                    {copiedNotice ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedNotice ? '메시지 복사완료!' : '송금 요청문구 복사'}</span>
-                  </button>
+                  {/* 2. 정산 결과복사 액션 바 (텍스트, 카드 이미지 복사, 이미지 저장) */}
+                  {/* 2. 정산 결과복사 액션 바 (텍스트 제거, 아이콘 전용 버튼화) */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 shrink-0">
+                      결과복사:
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 1. 카톡/텍스트 복사 버튼 (아이콘 전용) */}
+                      <button
+                        type="button"
+                        onClick={handleCopySettlementText}
+                        className="w-9 h-9 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                        title="카톡 송금 요청 텍스트 복사"
+                        aria-label="결과 텍스트 복사"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+
+                      {/* 2. 카드 이미지 복사 (아이콘 전용, Ctrl+V) */}
+                      <button
+                        type="button"
+                        onClick={handleCopySettlementImageCard}
+                        disabled={isGeneratingSettlementCard}
+                        className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                        title="카드 이미지 복사 (Ctrl+V)"
+                        aria-label="카드 이미지 복사"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
+
+                      {/* 3. 이미지 다운로드 (아이콘 전용) */}
+                      <button
+                        type="button"
+                        onClick={handleDownloadSettlementImageCard}
+                        disabled={isGeneratingSettlementCard}
+                        className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0"
+                        title="카드 이미지 파일 저장 (다운로드)"
+                        aria-label="카드 이미지 저장"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 참가자별 송금 체크 인터랙티브 카드 그리드 */}
@@ -2005,37 +2580,57 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     참가자별 송금 확인 (클릭하여 완료 토글):
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                    {members.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => toggleSentStatus(m.id)}
-                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
-                          m.isSent
-                            ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
-                            : resolvedTheme === 'dawn'
-                            ? 'bg-white border-[#bfdbfe] hover:border-blue-400 text-slate-800'
-                            : isDark
-                            ? 'bg-[#1a1a1e] border-[#27272a] hover:border-indigo-400 text-slate-200'
-                            : 'bg-white border-slate-200 hover:border-indigo-300 text-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-lg p-1.5 rounded-lg bg-black/20">{m.avatar}</span>
-                          <div className="truncate">
-                            <p className={`text-xs font-bold ${m.isSent ? 'line-through text-slate-500' : ''}`}>
-                              {m.name}
-                            </p>
-                            <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                              ₩{settlementSummary.perPerson.toLocaleString()}원
-                            </p>
+                    {members.map((m) => {
+                      const share = settlementSummary.memberShares[m.id];
+                      const memberAmount = share ? share.amount : settlementSummary.perPerson;
+                      const memberWeight = share ? share.weight : 1;
+                      const isExempt = useSplitWeight && memberWeight === 0;
+
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => toggleSentStatus(m.id)}
+                          className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                            m.isSent
+                              ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
+                              : resolvedTheme === 'dawn'
+                              ? 'bg-white border-[#bfdbfe] hover:border-blue-400 text-slate-800'
+                              : isDark
+                              ? 'bg-[#1a1a1e] border-[#27272a] hover:border-indigo-400 text-slate-200'
+                              : 'bg-white border-slate-200 hover:border-indigo-300 text-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg p-1.5 rounded-lg bg-black/20 shrink-0">{m.avatar}</span>
+                            <div className="truncate min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className={`text-xs font-bold truncate ${m.isSent ? 'line-through text-slate-500' : ''}`}>
+                                  {m.name}
+                                </p>
+                                {useSplitWeight && (
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
+                                      isExempt
+                                        ? 'bg-slate-200 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
+                                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                                    }`}
+                                  >
+                                    {isExempt ? '면제' : `${memberWeight}배`}
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`text-xs font-semibold mt-0.5 ${isExempt ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300 font-mono font-bold'}`}>
+                                ₩{memberAmount.toLocaleString()}원
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        <span className={`p-1 rounded-full text-xs ${m.isSent ? 'bg-emerald-600 text-white' : 'bg-black/20 text-slate-500'}`}>
-                          <Check className="w-3.5 h-3.5" />
-                        </span>
-                      </button>
-                    ))}
+                          <span className={`p-1 rounded-full text-xs shrink-0 ${m.isSent ? 'bg-emerald-600 text-white' : 'bg-black/20 text-slate-500'}`}>
+                            <Check className="w-3.5 h-3.5" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -2403,12 +2998,12 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* 참여 인원수 (ElmRng01 표준화) */}
+                    {/* 인원수 / 설정 항목 (ElmRng01 표준화) */}
                     <ElmRng01
-                      label="참여 인원수 (10인 기본 + 확장가능)"
+                      label="설정 항목"
                       value={memberCount}
                       min={2}
-                      max={Math.max(10, memberCount)}
+                      max={20}
                       step={1}
                       unit="명"
                       disabled={isRoomMode && !isMasterView}
@@ -3390,12 +3985,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                             type="button"
                             onClick={() => {
                               navigator.clipboard.writeText(ladderGeneralShareText).then(() => {
-                                setCopiedResultText(true);
-                                setTimeout(() => setCopiedResultText(false), 3000);
+                                showToast('사다리 결과 텍스트가 클립보드에 복사되었습니다.');
                               });
                             }}
                             className="w-9 h-9 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
-                            title={copiedResultText ? '✓ 텍스트 복사완료!' : (selectedStore ? '주문서 및 결과 텍스트 복사' : '결과 텍스트 복사')}
+                            title={selectedStore ? '주문서 및 결과 텍스트 복사' : '결과 텍스트 복사'}
                             aria-label="결과 텍스트 복사"
                           >
                             <Copy className="w-4 h-4" />
@@ -4263,7 +4857,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </button>
                 </div>
 
-                {/* Preset Fast Selector Bar */}
+                {/* 2.1 추천 프리셋 불러오기 (ElmSld03 슬라이드드래그휠 + 롱프레스/드래그 순서변경) */}
                 <div className="p-3.5 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 shrink-0 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
@@ -4272,36 +4866,105 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     <button
                       type="button"
                       onClick={handleApplyMembersToRoulette}
-                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
                     >
                       <span>👥</span>
                       <span>현재 참여 멤버 전원 ({members.length}명) 반영</span>
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                    {ROULETTE_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => handleApplyRoulettePreset(preset)}
-                        className={`p-2 rounded-xl border text-left flex items-center gap-1.5 transition-all cursor-pointer ${
-                          roulettePresetTitle === preset.title
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                            : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 hover:border-indigo-400 text-slate-800 dark:text-zinc-200'
-                        }`}
-                      >
-                        <span className="text-base">{preset.icon}</span>
-                        <div className="min-w-0 flex-1 truncate">
-                          <p className="text-xs font-bold truncate">
-                            {preset.title.replace(/^[^\s]+\s*/, '')}
-                          </p>
-                          <p className={`text-[10px] truncate ${roulettePresetTitle === preset.title ? 'text-indigo-100' : 'text-slate-400'}`}>
-                            {preset.items.length}개 항목
-                          </p>
+                  <ElmSld03
+                    showNavButtons={true}
+                    stepWidth={180}
+                    className="w-full"
+                    innerClassName="flex items-center gap-2 py-1 px-0.5"
+                  >
+                    {orderedPresets.map((preset) => {
+                      const isCurrent = roulettePresetTitle === preset.title;
+                      const isDefault = preset.id === DEFAULT_FIVE_ITEMS_PRESET.id;
+                      const isCustom = preset.id.startsWith('custom_');
+                      const isDragTarget = dragTargetPresetId === preset.id && draggedPresetId !== preset.id;
+
+                      const displayName = isDefault
+                        ? '기본 룰렛'
+                        : preset.title.replace(/^[^\s]+\s*/, '');
+
+                      return (
+                        <div
+                          key={preset.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', preset.id);
+                            setDraggedPresetId(preset.id);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const side = e.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
+                            setDragTargetPresetId(preset.id);
+                            setDragDropSide(side);
+                          }}
+                          onDragLeave={() => {
+                            if (dragTargetPresetId === preset.id) setDragTargetPresetId(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            handleReorderPresets(draggedPresetId, preset.id, dragDropSide);
+                            setDraggedPresetId(null);
+                            setDragTargetPresetId(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedPresetId(null);
+                            setDragTargetPresetId(null);
+                          }}
+                          onClick={() => handleApplyRoulettePreset(preset)}
+                          className={`relative p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer shrink-0 min-w-[150px] max-w-[200px] select-none ${
+                            isDragTarget
+                              ? dragDropSide === 'left'
+                                ? 'border-l-4 border-l-indigo-600 ring-2 ring-indigo-500 scale-102'
+                                : 'border-r-4 border-r-indigo-600 ring-2 ring-indigo-500 scale-102'
+                              : ''
+                          } ${
+                            isCurrent
+                              ? isCustom
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : isCustom
+                              ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 hover:border-amber-400 text-slate-800 dark:text-zinc-200'
+                              : isDefault
+                              ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 text-indigo-900 dark:text-indigo-200'
+                              : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 hover:border-indigo-400 text-slate-800 dark:text-zinc-200'
+                          }`}
+                          title="클릭하여 적용"
+                        >
+                          <span className="text-lg shrink-0">{preset.icon}</span>
+                          <div className="min-w-0 flex-1 truncate">
+                            <p className="text-xs font-bold truncate">{displayName}</p>
+                            <p
+                              className={`text-[10px] truncate ${
+                                isCurrent
+                                  ? 'text-white/80'
+                                  : isCustom
+                                  ? 'text-amber-700 dark:text-amber-400'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {preset.items.length}개 항목{isCustom ? ' (내 프리셋)' : ''}
+                            </p>
+                          </div>
+                          {isCustom && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCustomPreset(preset.id, e)}
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/60 shrink-0"
+                              title="프리셋 삭제"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
-                      </button>
-                    ))}
-                  </div>
+                      );
+                    })}
+                  </ElmSld03>
                 </div>
 
                 {/* Add New Item Form */}
@@ -4344,97 +5007,292 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   </div>
                 </form>
 
-                {/* Items List */}
-                <div className="p-4 overflow-y-auto space-y-2 flex-1">
-                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 mb-1">
-                    <span className="font-bold">현재 룰렛 항목 ({rouletteItems.length}개)</span>
-                    <span className="text-[11px]">* 가중치(1~10)에 따라 확률이 자동 계산됩니다.</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {rouletteItems.map((item) => {
-                      const pct = Math.round((Math.max(1, item.weight || 1) / totalRouletteWeight) * 100);
-                      return (
-                        <div
-                          key={item.id}
-                          className="p-2.5 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#172239] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shadow-2xs"
-                        >
-                          {/* 항목 이름 편집 영역 */}
-                          <div className="flex items-center gap-2 min-w-[140px] flex-1">
-                            <span className="text-xl p-1 rounded-xl bg-slate-100 dark:bg-zinc-800 shrink-0">
-                              {item.avatar}
-                            </span>
-                            <input
-                              type="text"
-                              value={item.name}
-                              onChange={(e) => handleUpdateRouletteItemName(item.id, e.target.value)}
-                              placeholder="항목 또는 참가자 이름"
-                              className="flex-1 min-w-[100px] px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200/80 dark:border-zinc-700/80 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-indigo-500 bg-transparent text-slate-800 dark:text-zinc-200 outline-none"
-                            />
-                          </div>
-
-                          {/* Weight Stepper & Percentage: 가로가 좁으면 이름 다음 줄로 자연스럽게 줄바꿈 */}
-                          <div className="flex items-center justify-end gap-1.5 shrink-0 ml-auto">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateRouletteItemWeight(item.id, -1)}
-                              disabled={(item.weight || 1) <= 1}
-                              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
-                              title="가중치 감소"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-
-                            <span className="text-xs font-extrabold w-4 text-center text-slate-800 dark:text-zinc-200">
-                              {item.weight || 1}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateRouletteItemWeight(item.id, 1)}
-                              disabled={(item.weight || 1) >= 10}
-                              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
-                              title="가중치 증가"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-
-                            <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 w-10 text-right">
-                              {pct}%
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteRouletteItem(item.id)}
-                              disabled={rouletteItems.length <= 2}
-                              className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer ml-1"
-                              title="항목 삭제"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* 1. 스크롤 영역 개선: 아래 타이틀은 고정하고 카드목록만 스크롤 처리 (스크롤 중에도 건수 상시 확인) */}
+                <div className="px-4 py-2.5 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 shrink-0">
+                  <span className="font-bold text-slate-700 dark:text-zinc-200">
+                    현재 룰렛 항목 (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{rouletteItems.length}</span>개)
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">* 가중치(1~10)에 따라 확률이 자동 계산됩니다.</span>
                 </div>
 
-                {/* Modal Footer */}
-                <div className="p-4 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between shrink-0">
+                {/* 카드목록 독립 스크롤 영역 */}
+                <div className="p-4 overflow-y-auto space-y-1.5 flex-1 overscroll-contain">
+                  {rouletteItems.map((item) => {
+                    const pct = Math.round((Math.max(1, item.weight || 1) / totalRouletteWeight) * 100);
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#172239] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shadow-2xs"
+                      >
+                        {/* 항목 아이콘(클릭 시 변경 가능) & 이름 편집 영역 */}
+                        <div className="flex items-center gap-2 min-w-[140px] flex-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingItemIconId(item.id)}
+                            className="text-xl p-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:scale-105 shrink-0 transition-all cursor-pointer border border-transparent hover:border-indigo-400 flex items-center justify-center min-w-[36px] min-h-[36px]"
+                            title="아이콘 변경 (클릭하여 원하는 아이콘 선택)"
+                          >
+                            {item.avatar}
+                          </button>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => handleUpdateRouletteItemName(item.id, e.target.value)}
+                            placeholder="항목 또는 참가자 이름"
+                            className="flex-1 min-w-[100px] px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200/80 dark:border-zinc-700/80 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-indigo-500 bg-transparent text-slate-800 dark:text-zinc-200 outline-none"
+                          />
+                        </div>
+
+                        {/* Weight Stepper & Percentage: 가로가 좁으면 이름 다음 줄로 자연스럽게 줄바꿈 */}
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 ml-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRouletteItemWeight(item.id, -1)}
+                            disabled={(item.weight || 1) <= 1}
+                            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
+                            title="가중치 감소"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+
+                          <span className="text-xs font-extrabold w-4 text-center text-slate-800 dark:text-zinc-200">
+                            {item.weight || 1}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRouletteItemWeight(item.id, 1)}
+                            disabled={(item.weight || 1) >= 10}
+                            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 flex items-center justify-center cursor-pointer text-slate-700 dark:text-zinc-200"
+                            title="가중치 증가"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+
+                          <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 w-10 text-right">
+                            {pct}%
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRouletteItem(item.id)}
+                            disabled={rouletteItems.length <= 2}
+                            className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer ml-1"
+                            title="항목 삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Modal Footer (설정완료 옆에 설정저장 버튼 추가) */}
+                <div className="p-4 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between shrink-0 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">
                       총 가중치 합계: <span className="text-indigo-600 font-extrabold">{totalRouletteWeight}</span>
                     </span>
                   </div>
 
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenPresetSaveModal}
+                      className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-2xs"
+                      title="현재 구성을 나만의 커스텀 프리셋으로 저장합니다"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>{savedPresetToast ? '✓ 프리셋 저장됨!' : '프리셋 저장'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsRouletteModalOpen(false)}
+                      className="min-h-[40px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-sm"
+                    >
+                      ✓ 설정 완료
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5.1 룰렛 게임 이용 안내 레이어 팝업 (? 아이콘 클릭 시) */}
+          {isRouletteHelpOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+              onClick={() => setIsRouletteHelpOpen(false)}
+            >
+              <div
+                className="w-full max-w-sm bg-white dark:bg-[#131B2E] rounded-2xl border-2 border-indigo-300 dark:border-indigo-800 shadow-2xl p-4 sm:p-5 text-left space-y-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🎯</span>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                      룰렛 게임 이용 안내
+                    </h4>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setIsRouletteModalOpen(false)}
-                    className="min-h-[40px] px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-sm"
+                    onClick={() => setIsRouletteHelpOpen(false)}
+                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer"
                   >
-                    ✓ 설정 완료
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
+                <p className="text-xs text-slate-700 dark:text-zinc-200 leading-relaxed font-medium">
+                  퀵 프리셋을 누르거나 [항목 & 프리셋 설정]에서 나만의 룰렛을 자유롭게 꾸며보세요.
+                </p>
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1.5 text-[11px] text-slate-500 dark:text-zinc-400 leading-normal">
+                  <p>• <strong>직접 수정</strong>: 룰렛 상단 칩을 클릭하여 항목명을 바로 수정할 수 있습니다.</p>
+                  <p>• <strong>인원 조절</strong>: 상단 [+] / [-] 스텝퍼로 1초 만에 항목 수를 변경합니다.</p>
+                  <p>• <strong>중심 원 재실행</strong>: 룰렛 중앙 원을 누르면 회전 중에도 즉시 다시 회전합니다.</p>
+                  <p>• <strong>프리셋 저장</strong>: 설정 팝업에서 [설정저장]을 누르면 내 프리셋으로 영구 보관됩니다.</p>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsRouletteHelpOpen(false)}
+                    className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer"
+                  >
+                    확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5.2 룰렛 항목 아이콘 변경 전용 팝오버 */}
+          {editingItemIconId && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xs animate-in fade-in"
+              onClick={() => setEditingItemIconId(null)}
+            >
+              <div
+                className="w-full max-w-xs p-4 rounded-2xl bg-white dark:bg-[#1a1a1e] border-2 border-indigo-500 shadow-2xl text-left space-y-3 animate-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <span>🎯</span>
+                    <span>항목 아이콘 선택</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingItemIconId(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1">
+                  {ROULETTE_ICONS.map((ic) => (
+                    <button
+                      key={ic}
+                      type="button"
+                      onClick={() => {
+                        setRouletteItems((prev) =>
+                          prev.map((it) => (it.id === editingItemIconId ? { ...it, avatar: ic } : it))
+                        );
+                        setEditingItemIconId(null);
+                      }}
+                      className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:scale-110 flex items-center justify-center text-lg transition-all cursor-pointer border border-transparent hover:border-indigo-400"
+                    >
+                      {ic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. 룰렛 프리셋 저장 전용 인앱 모달 (window.prompt 배제) */}
+          {isPresetSaveModalOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+              onClick={() => setIsPresetSaveModalOpen(false)}
+            >
+              <div
+                className="w-full max-w-sm bg-white dark:bg-[#131B2E] rounded-3xl border-2 border-indigo-500 shadow-2xl p-5 text-left space-y-4 animate-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">⭐</span>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-slate-900 dark:text-zinc-100">
+                        룰렛 프리셋 저장
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        현재 {rouletteItems.length}개 항목 구성을 내 프리셋으로 저장합니다.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPresetSaveModalOpen(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleConfirmSavePreset} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                      프리셋 이름
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={presetSaveInputTitle}
+                      onChange={(e) => setPresetSaveInputTitle(e.target.value)}
+                      placeholder="예: 회식 당번 룰렛, 저녁 메뉴"
+                      className="w-full min-h-[42px] px-3.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+
+                  {/* 저장될 항목 미리보기 */}
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-100 dark:border-zinc-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                      저장 대상 항목 ({rouletteItems.length}개):
+                    </span>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-0.5">
+                      {rouletteItems.map((it) => (
+                        <span
+                          key={it.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200/80 dark:border-zinc-700 text-[11px] font-bold text-slate-700 dark:text-zinc-300"
+                        >
+                          <span>{it.avatar}</span>
+                          <span className="truncate max-w-[80px]">{it.name}</span>
+                          <span className="text-[9px] text-indigo-500 font-mono">x{it.weight || 1}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsPresetSaveModalOpen(false)}
+                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!presetSaveInputTitle.trim()}
+                      className="min-h-[38px] px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer shadow-sm"
+                    >
+                      저장하기
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
@@ -4555,74 +5413,163 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     : 'bg-slate-50 border-slate-200/80'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
-                        현재 룰렛 주제:
+                {/* 상단 룰렛 주제 헤더 */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                      현재 룰렛 주제:
+                    </span>
+                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                      {roulettePresetTitle}
+                    </span>
+                    {excludedRouletteItems.length > 0 && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                        {excludedRouletteItems.length}개 항목 제외 중
                       </span>
-                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                        {roulettePresetTitle}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                        총 {rouletteItems.length}개 항목
-                      </span>
-                      {excludedRouletteItems.length > 0 && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                          {excludedRouletteItems.length}개 항목 제외 중
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      퀵 프리셋을 누르거나 [항목 & 프리셋 설정]에서 나만의 룰렛을 자유롭게 꾸며보세요.
-                    </p>
+                    )}
+                    {/* 안내문구 ? 아이콘으로 레이어팝업 적용 */}
+                    <button
+                      type="button"
+                      onClick={() => setIsRouletteHelpOpen(true)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                      title="룰렛 이용 안내 (클릭하여 확인)"
+                      aria-label="룰렛 이용 안내"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 룰렛 항목 인디케이터 (사다리 인원수와 동일한 ElmRng01 적용, 2~20개) */}
+                <div className="w-full">
+                  <ElmRng01
+                    label="설정 항목"
+                    value={rouletteItems.length}
+                    min={2}
+                    max={20}
+                    step={1}
+                    unit="개"
+                    onChange={(val) => handleUpdateRouletteItemCount(val)}
+                    colorScheme="indigo"
+                  />
+                </div>
+
+                {/* 항목 조정요소 줄바꿔서 표시 고정 */}
+                <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex items-center justify-between gap-2.5 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">
+                      항목 조정:
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      개별 명칭 및 가중치 세부 설정
+                    </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setIsRouletteModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto shrink-0"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5" />
                     <span>항목 & 프리셋 설정</span>
                   </button>
                 </div>
 
-                {/* 퀵 프리셋 원터치 칩 목록 */}
-                <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1">
-                    추천 프리셋:
-                  </span>
-                  {ROULETTE_PRESETS.map((preset) => {
-                    const isCurrent = roulettePresetTitle === preset.title;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => handleApplyRoulettePreset(preset)}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
-                          isCurrent
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                            : 'bg-white dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
-                        }`}
-                      >
-                        <span>{preset.icon}</span>
-                        <span>{preset.title.replace(/^[^\s]+\s*/, '')}</span>
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={handleApplyMembersToRoulette}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
-                      roulettePresetTitle.includes('참여 멤버')
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-white dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
-                    }`}
+                {/* 2.1 퀵 프리셋 원터치 칩 목록 (ElmSld03 슬라이드드래그휠) */}
+                <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400">
+                      📌 추천 프리셋:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleApplyMembersToRoulette}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <span>👥</span>
+                      <span>참여 멤버 ({members.length}명) 반영</span>
+                    </button>
+                  </div>
+                  <ElmSld03
+                    showNavButtons={true}
+                    stepWidth={160}
+                    className="w-full"
+                    innerClassName="flex items-center gap-1.5 py-1 px-0.5"
                   >
-                    <span>👥</span>
-                    <span>참여 멤버 ({members.length}명)</span>
-                  </button>
+                    {orderedPresets.map((preset) => {
+                      const isCurrent = roulettePresetTitle === preset.title;
+                      const isDefault = preset.id === DEFAULT_FIVE_ITEMS_PRESET.id;
+                      const isCustom = preset.id.startsWith('custom_');
+                      const isDragTarget = dragTargetPresetId === preset.id && draggedPresetId !== preset.id;
+
+                      const displayName = isDefault
+                        ? '기본 룰렛'
+                        : preset.title.replace(/^[^\s]+\s*/, '');
+
+                      return (
+                        <div
+                          key={preset.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', preset.id);
+                            setDraggedPresetId(preset.id);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const side = e.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
+                            setDragTargetPresetId(preset.id);
+                            setDragDropSide(side);
+                          }}
+                          onDragLeave={() => {
+                            if (dragTargetPresetId === preset.id) setDragTargetPresetId(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            handleReorderPresets(draggedPresetId, preset.id, dragDropSide);
+                            setDraggedPresetId(null);
+                            setDragTargetPresetId(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedPresetId(null);
+                            setDragTargetPresetId(null);
+                          }}
+                          onClick={() => handleApplyRoulettePreset(preset)}
+                          className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 border select-none ${
+                            isDragTarget
+                              ? dragDropSide === 'left'
+                                ? 'border-l-4 border-l-indigo-600 ring-2 ring-indigo-500 scale-102'
+                                : 'border-r-4 border-r-indigo-600 ring-2 ring-indigo-500 scale-102'
+                              : ''
+                          } ${
+                            isCurrent
+                              ? isCustom
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : isCustom
+                              ? 'bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:border-amber-400'
+                              : isDefault
+                              ? 'bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400'
+                              : 'bg-white dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
+                          }`}
+                          title="클릭하여 적용"
+                        >
+                          <span className="text-base">{preset.icon}</span>
+                          <span>{displayName}</span>
+                          {isCustom && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCustomPreset(preset.id, e)}
+                              className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/20 dark:hover:bg-white/20 text-current ml-0.5"
+                              title="프리셋 삭제"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </ElmSld03>
                 </div>
 
                 {/* 룰렛 옵션 체크박스 */}
@@ -4668,7 +5615,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     : 'bg-white border-indigo-100 shadow-lg shadow-indigo-50/50'
                 }`}
               >
-                {/* 룰렛 상단 칩 목록 (현재 활성 슬라이스들) */}
+                {/* 5. 룰렛 상단 칩 목록: 항목명 직접 인라인 수정 가능하도록 개선 */}
                 <div className="w-full flex flex-wrap items-center justify-center gap-2 py-1 max-w-xl">
                   {rouletteItems.map((item, idx) => {
                     const isWinner = selectedRouletteWinner?.id === item.id;
@@ -4686,18 +5633,32 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     const colorCls = colors[idx % colors.length];
 
                     return (
-                      <span
+                      <div
                         key={item.id}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${
                           isWinner
                             ? 'bg-rose-600 text-white border-rose-600 scale-105 ring-4 ring-rose-400/40 shadow-md font-black'
                             : colorCls
                         }`}
                       >
-                        <span>{item.avatar}</span>
-                        <span className="truncate max-w-[120px]">{item.name}</span>
-                        <span className="text-[10px] opacity-75 font-mono">{pct}%</span>
-                      </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItemIconId(item.id)}
+                          className="hover:scale-125 transition-transform cursor-pointer shrink-0"
+                          title="아이콘 변경"
+                        >
+                          {item.avatar}
+                        </button>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => handleUpdateRouletteItemName(item.id, e.target.value)}
+                          placeholder={`항목${idx + 1}`}
+                          className="bg-transparent border-b border-transparent hover:border-current focus:border-current outline-none text-xs font-bold w-20 sm:w-28 px-0.5 text-center transition-colors truncate"
+                          title="클릭하여 항목명 바로 수정"
+                        />
+                        <span className="text-[10px] opacity-75 font-mono shrink-0">{pct}%</span>
+                      </div>
                     );
                   })}
                 </div>
@@ -4771,13 +5732,46 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                       );
                     })}
 
-                    {/* 중앙 허브 (모아보고 볼스아이) */}
-                    <circle cx="0" cy="0" r="22" fill="#0f172a" stroke="#ffffff" strokeWidth="3" />
-                    <circle cx="0" cy="0" r="8" fill="#f43f5e" />
+                    {/* 4. 룰렛 중심 원: 즉시 재실행 버튼 (회전 중에도 즉시 재실행 가능) */}
+                    <g
+                      onClick={() => handleSpinRoulette(false, undefined, true)}
+                      className="cursor-pointer group select-none"
+                      role="button"
+                      aria-label="룰렛 즉시 재실행 (다시 돌리기)"
+                    >
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="25"
+                        fill="#0f172a"
+                        stroke="#ffffff"
+                        strokeWidth="3"
+                        className="transition-transform group-hover:scale-105 active:scale-95"
+                      />
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="16"
+                        fill="#f43f5e"
+                        className="transition-colors group-hover:fill-rose-500"
+                      />
+                      <text
+                        x="0"
+                        y="3.5"
+                        fill="#ffffff"
+                        fontSize="9"
+                        fontWeight="900"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="select-none pointer-events-none font-sans"
+                      >
+                        다시
+                      </text>
+                    </g>
                   </svg>
                 </div>
 
-                {/* 컨트롤 버튼 그룹 */}
+                {/* 컨트롤 버튼 그룹 (5. 중복된 항목/가중치 편집 버튼 삭제 완료) */}
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2 w-full">
                   <button
                     type="button"
@@ -4797,15 +5791,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   >
                     <FastForward className="w-4 h-4" />
                     <span>즉시 결과</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsRouletteModalOpen(true)}
-                    className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs transition-all cursor-pointer hover:border-indigo-400"
-                  >
-                    <SlidersHorizontal className="w-4 h-4" />
-                    <span>항목/가중치 편집</span>
                   </button>
                 </div>
               </div>
@@ -4838,47 +5823,44 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     </p>
                   </div>
 
-                  {/* 결과 공유 & 이미지 복사 바 */}
-                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                    {/* 카톡 텍스트 복사 */}
+                  {/* 결과 공유 & 이미지 복사 바 (텍스트 제거, 아이콘 전용 버튼화) */}
+                  <div className="pt-2 flex items-center justify-center gap-2">
+                    <span className="text-xs font-bold text-rose-800 dark:text-rose-300 shrink-0">
+                      결과복사:
+                    </span>
+                    {/* 카톡 텍스트 복사 (아이콘 전용) */}
                     <button
                       type="button"
                       onClick={handleCopyRouletteText}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                      className="w-9 h-9 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
                       title="카카오톡 메신저 공유용 텍스트 복사"
+                      aria-label="결과 텍스트 복사"
                     >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>{copiedRouletteText ? '✓ 카톡 텍스트 복사됨!' : '카톡 텍스트 복사'}</span>
+                      <Copy className="w-4 h-4" />
                     </button>
 
-                    {/* 카드 이미지 복사 (Ctrl+V) */}
+                    {/* 카드 이미지 복사 (아이콘 전용, Ctrl+V) */}
                     <button
                       type="button"
                       onClick={handleCopyRouletteImageCard}
                       disabled={isGeneratingRouletteCard}
-                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
-                      title="고해상도 카드 이미지를 클립보드에 복사하여 바로 붙여넣기(Ctrl+V)"
+                      className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                      title="고해상도 카드 이미지 복사 (Ctrl+V)"
+                      aria-label="카드 이미지 복사"
                     >
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>
-                        {isGeneratingRouletteCard
-                          ? '카드 생성 중...'
-                          : copiedRouletteImage
-                          ? '✓ 카드 이미지 복사됨!'
-                          : '📷 카드 이미지 복사'}
-                      </span>
+                      <Camera className="w-4 h-4" />
                     </button>
 
-                    {/* 이미지 파일 다운로드 */}
+                    {/* 이미지 파일 다운로드 (아이콘 전용) */}
                     <button
                       type="button"
                       onClick={handleDownloadRouletteImageCard}
                       disabled={isGeneratingRouletteCard}
-                      className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      className="w-9 h-9 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0"
                       title="PNG 이미지 파일로 다운로드"
+                      aria-label="카드 이미지 저장"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>저장</span>
+                      <Download className="w-4 h-4" />
                     </button>
                   </div>
 
@@ -5054,6 +6036,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           </div>
         </ElmSld03>
       </section>
+
+      {/* 화면 하단 플로팅 상태 피드백 토스트 레이어 (ElmToast01) */}
+      <ElmToast01
+        message={toastMessage}
+        type={toastType}
+        onClose={() => setToastMessage(null)}
+      />
     </div>
   );
 };
