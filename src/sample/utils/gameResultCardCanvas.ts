@@ -40,6 +40,29 @@ export interface RouletteCardData {
   theme?: 'light' | 'dark' | 'dawn';
 }
 
+export interface SettlementResultMember {
+  id: string;
+  name: string;
+  avatar: string;
+  amount: number;
+  weight: number;
+  isSent?: boolean;
+}
+
+export interface SettlementCardData {
+  title?: string;
+  totalAmount: number;
+  totalCount: number;
+  perPerson: number;
+  isWeighted?: boolean;
+  totalWeight?: number;
+  baseUnitAmount?: number;
+  remainder?: number;
+  members: SettlementResultMember[];
+  isDark?: boolean;
+  theme?: 'light' | 'dark' | 'dawn';
+}
+
 /**
  * 활성 테마(라이트 / 다크 / 여명 블루)에 따른 캔버스 2D 팔레트 계산기
  */
@@ -577,6 +600,189 @@ export async function generateRouletteResultCardBlob(data: RouletteCardData): Pr
   ctx.fillStyle = colors.footer;
   ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
   ctx.fillText('공정하고 투명한 모임 가계부 & 게임 • 모아보고 (MoaBogo)', width / 2, height - 16);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Canvas blob generation failed'));
+    }, 'image/png');
+  });
+}
+
+/**
+ * 정산 결과 고해상도(2x Retina) 카드 이미지 Blob 생성 (균등 및 가중치 차등 분배 완벽 지원)
+ */
+export async function generateSettlementResultCardBlob(data: SettlementCardData): Promise<Blob> {
+  const width = 426;
+  const marginX = 20;
+  const colGap = 8;
+  const colW = (width - marginX * 2 - colGap) / 2;
+
+  const colors = getCanvasThemeColors(data.theme);
+  const memberCount = data.members.length;
+  const memberRows = Math.ceil(memberCount / 2);
+
+  // 헤더 110px + 서머리 박스 84px + 참가자 목록 + 푸터 48px
+  const baseHeight = 110 + 84 + 20 + 16;
+  const memberSectionHeight = memberRows * 44 + 16;
+  const footerHeight = 48;
+  const height = baseHeight + memberSectionHeight + footerHeight;
+
+  const canvas = document.createElement('canvas');
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context not available');
+
+  ctx.scale(dpr, dpr);
+
+  // 1. 배경 그라디언트
+  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+  bgGrad.addColorStop(0, colors.bgGrad[0]);
+  bgGrad.addColorStop(0.5, colors.bgGrad[1]);
+  bgGrad.addColorStop(1, colors.bgGrad[2]);
+  ctx.fillStyle = bgGrad;
+  roundRect(ctx, 0, 0, width, height, 24);
+  ctx.fill();
+
+  // 글로우 효과
+  const glow = ctx.createRadialGradient(width / 2, 80, 10, width / 2, 80, 200);
+  glow.addColorStop(0, colors.glow[0]);
+  glow.addColorStop(1, colors.glow[1]);
+  ctx.fillStyle = glow;
+  roundRect(ctx, 0, 0, width, height, 24);
+  ctx.fill();
+
+  // 카드 외곽 테두리
+  ctx.strokeStyle = colors.border;
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, 0.75, 0.75, width - 1.5, height - 1.5, 24);
+  ctx.stroke();
+
+  let currentY = 28;
+
+  // 2. 상단 헤더
+  ctx.fillStyle = colors.headerBrand;
+  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText('MOABOGO SMART SETTLEMENT', marginX, currentY);
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = colors.headerDate;
+  ctx.font = '500 10px monospace';
+  ctx.fillText(dateStr, width - marginX, currentY);
+  ctx.textAlign = 'left';
+
+  currentY += 24;
+
+  ctx.fillStyle = colors.title;
+  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText(data.title || '⚡ 모임 정산 결과 내역서', marginX, currentY);
+
+  currentY += 18;
+
+  // 3. 서머리 박스 (총 결제액 & 1인당/기준1배당 금액)
+  const summaryBoxY = currentY;
+  const summaryBoxH = 80;
+  ctx.fillStyle = colors.storeBoxBg;
+  roundRect(ctx, marginX, summaryBoxY, width - marginX * 2, summaryBoxH, 14);
+  ctx.fill();
+  ctx.strokeStyle = colors.storeBoxBorder;
+  ctx.stroke();
+
+  // 서머리 내용
+  ctx.fillStyle = colors.storeTitle;
+  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText(
+    data.isWeighted
+      ? `⚖️ 가중치 차등 분배 (총 ${data.totalWeight}배, ${data.totalCount}명)`
+      : `👥 1/N 균등 분배 (${data.totalCount}명 균등)`,
+    marginX + 14,
+    summaryBoxY + 22
+  );
+
+  ctx.fillStyle = colors.storeTotal;
+  ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText(`총 ₩${data.totalAmount.toLocaleString()}원`, marginX + 14, summaryBoxY + 44);
+
+  // 우측에 1인당 금액 강조
+  ctx.textAlign = 'right';
+  ctx.fillStyle = colors.headerBrand;
+  ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText(data.isWeighted ? '기준 1배당 금액' : '1인당 송금액', width - marginX - 14, summaryBoxY + 22);
+
+  ctx.fillStyle = colors.title;
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`₩${data.perPerson.toLocaleString()}원`, width - marginX - 14, summaryBoxY + 46);
+
+  if (data.remainder && data.remainder > 0) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '500 9px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+    ctx.fillText(`(자투리 ₩${data.remainder.toLocaleString()}원 제외)`, width - marginX - 14, summaryBoxY + 64);
+  }
+  ctx.textAlign = 'left';
+
+  currentY += summaryBoxH + 20;
+
+  // 4. 참가자별 분담금 그리드
+  ctx.fillStyle = colors.otherSectionTitle;
+  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText(`📋 참가자별 송금 분담금 (${memberCount}명)`, marginX, currentY);
+  currentY += 12;
+
+  for (let i = 0; i < memberCount; i++) {
+    const m = data.members[i];
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const itemX = marginX + col * (colW + colGap);
+    const itemY = currentY + row * 44;
+
+    ctx.fillStyle = m.isSent ? 'rgba(16, 185, 129, 0.12)' : colors.otherBoxBg;
+    roundRect(ctx, itemX, itemY, colW, 38, 10);
+    ctx.fill();
+    ctx.strokeStyle = m.isSent ? 'rgba(16, 185, 129, 0.5)' : colors.otherBoxBorder;
+    ctx.stroke();
+
+    // 아바타
+    ctx.font = '14px sans-serif';
+    ctx.fillText(m.avatar || '👤', itemX + 8, itemY + 24);
+
+    // 이름
+    ctx.fillStyle = m.isSent ? '#059669' : colors.otherName;
+    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+    ctx.fillText(truncateText(ctx, m.name, colW - 95), itemX + 28, itemY + 18);
+
+    // 가중치 뱃지
+    if (data.isWeighted) {
+      ctx.fillStyle = m.weight === 0 ? '#64748b' : colors.headerBrand;
+      ctx.font = 'bold 9px monospace';
+      ctx.fillText(m.weight === 0 ? '면제' : `${m.weight}배`, itemX + 28, itemY + 31);
+    }
+
+    // 금액
+    ctx.textAlign = 'right';
+    ctx.fillStyle = m.isSent ? '#059669' : colors.title;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`₩${m.amount.toLocaleString()}원`, itemX + colW - 8, itemY + 22);
+
+    if (m.isSent) {
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 8px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+      ctx.fillText('✓ 송금완료', itemX + colW - 8, itemY + 32);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  currentY += memberRows * 44 + 20;
+
+  // 5. 푸터
+  ctx.textAlign = 'center';
+  ctx.fillStyle = colors.footer;
+  ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+  ctx.fillText('공정하고 투명한 모임 가계부 & 정산 • 모아보고 (MoaBogo)', width / 2, height - 16);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
