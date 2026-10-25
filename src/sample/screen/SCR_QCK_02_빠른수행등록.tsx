@@ -78,11 +78,11 @@ export const SCR_QCK_02_빠른수행등록: React.FC<{
       {/* Header - 문서ID, 제목, 설명을 flex-wrap 원자 인라인 요소로 구성하여 줄바꿈 최소화 */}
       <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-zinc-800 gap-2">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 font-bold border border-purple-200 dark:border-purple-800 shrink-0">
-            SCR-QCK-02
-          </span>
           <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight break-keep flex items-center gap-1.5">
             <span>빠른 수행등록</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 font-bold border border-purple-200 dark:border-purple-800 shrink-0">
+              SCR-QCK-02
+            </span>
             <span className="text-xs font-semibold text-slate-400 dark:text-zinc-400 hidden sm:inline">(당번 & 목표)</span>
           </h2>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 break-keep hidden md:inline">

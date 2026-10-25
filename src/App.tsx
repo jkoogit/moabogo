@@ -39,6 +39,8 @@ import {
   Tablet,
   Smartphone,
   Eye,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +50,11 @@ export default function App() {
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
+
+  // Scroll to Top state & ref
+  const mainRef = React.useRef<HTMLElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+  const [isScrollMenuExpanded, setIsScrollMenuExpanded] = useState<boolean>(false);
 
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState<boolean>(false);
   const deviceMenuRef = React.useRef<HTMLDivElement>(null);
@@ -84,6 +91,42 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Global Scroll-to-Top tracking
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+    const checkScroll = () => {
+      if (mainEl.scrollTop > 140) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+        setIsScrollMenuExpanded(false);
+      }
+    };
+    mainEl.addEventListener('scroll', checkScroll, { passive: true });
+    checkScroll();
+    return () => mainEl.removeEventListener('scroll', checkScroll);
+  }, [currentScreen]);
+
+  // 화면 전환 시 스크롤 최상단 리셋
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0 });
+    }
+  }, [currentScreen]);
+
+  const handleScrollToTop = () => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollToBottom = () => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: mainRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  };
 
   // Screen Registry Definition
   const screens = [
@@ -431,7 +474,7 @@ export default function App() {
       </header>
 
       {/* 3. Main Screen Viewport Container */}
-      <main className="flex-1 flex items-start justify-center p-0 sm:p-4 overflow-y-auto pb-20 sm:pb-8">
+      <main ref={mainRef} className="flex-1 flex items-start justify-center p-0 sm:p-4 overflow-y-auto pb-20 sm:pb-8">
         <div
           className={`w-full transition-all duration-300 ${
             deviceView === 'FULL'
@@ -529,6 +572,82 @@ export default function App() {
           onOpenMoney={() => setCurrentScreen('SCR-QCK-01')}
           onOpenDuty={() => setCurrentScreen('SCR-QCK-02')}
         />
+      )}
+
+      {/* 7. Global Scroll to Top Floating Layer Widget (화면 스크롤 발생 시 우측하단 고정 노출) */}
+      {showScrollTop && (
+        <aside
+          className="fixed right-3 sm:right-6 bottom-20 sm:bottom-6 z-35 flex flex-col items-end gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200 select-none"
+          aria-label="화면 스크롤 제어"
+        >
+          {/* 확장 서브 메뉴 (최상단으로 / 최하단으로) */}
+          {isScrollMenuExpanded && (
+            <div
+              className={`p-1.5 rounded-2xl border shadow-xl flex flex-col gap-1 backdrop-blur-md animate-in zoom-in-95 duration-150 ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-[#0d1838]/95 border-[#1e3a6d] text-white shadow-blue-900/30'
+                  : isDark
+                  ? 'bg-zinc-900/95 border-zinc-700 text-zinc-100 shadow-black/50'
+                  : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/50'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={handleScrollToTop}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                title="페이지 맨 위로 이동"
+              >
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>최상단으로</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleScrollToBottom}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                title="페이지 맨 아래로 이동"
+              >
+                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>최하단으로</span>
+              </button>
+            </div>
+          )}
+
+          {/* 메인 통합 플로팅 레이어 버튼 (원터치 최상단 이동 + 펼치기 토글) */}
+          <div
+            className={`flex items-center p-1 rounded-full border shadow-lg backdrop-blur-md transition-all ${
+              resolvedTheme === 'dawn'
+                ? 'bg-[#132247]/90 border-[#254680] text-white shadow-blue-900/30 hover:border-blue-400'
+                : isDark
+                ? 'bg-zinc-800/90 border-zinc-700 text-zinc-100 shadow-black/40 hover:border-zinc-500'
+                : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/60 hover:border-indigo-300'
+            }`}
+          >
+            {/* 최상단 스무스 이동 버튼 */}
+            <button
+              type="button"
+              onClick={handleScrollToTop}
+              className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1 active:scale-95"
+              title="맨 위로 이동 (Scroll to Top)"
+            >
+              <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+              <span className="text-[11px] font-bold px-1 hidden xs:inline">TOP</span>
+            </button>
+
+            {/* 레이어 펼치기/접기 토글 버튼 */}
+            <button
+              type="button"
+              onClick={() => setIsScrollMenuExpanded(!isScrollMenuExpanded)}
+              className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors cursor-pointer border-l border-slate-200 dark:border-zinc-700"
+              title={isScrollMenuExpanded ? '옵션 접기' : '이동 옵션 펼치기'}
+            >
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  isScrollMenuExpanded ? 'rotate-180 text-indigo-500' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   );

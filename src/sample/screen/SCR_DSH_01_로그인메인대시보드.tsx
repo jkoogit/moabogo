@@ -287,8 +287,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [bookshelfViewMode, setBookshelfViewMode] = useState<'GRID' | 'LIST'>('GRID');
   const [isBookshelfExpanded, setIsBookshelfExpanded] = useState<boolean>(true);
+  const [isInboundExpanded, setIsInboundExpanded] = useState<boolean>(true);
+  const [isDutyExpanded, setIsDutyExpanded] = useState<boolean>(true);
+  const [isGoalExpanded, setIsGoalExpanded] = useState<boolean>(true);
+  const [isGameExpanded, setIsGameExpanded] = useState<boolean>(true);
+  const [isActivityExpanded, setIsActivityExpanded] = useState<boolean>(true);
 
-  // 2. 가계부 책꽂이 확장 상태
+  // 2. 장부 책꽂이 확장 상태
   const [extendedLedgers, setExtendedLedgers] = useState<ExtendedLedgerInfo[]>([
     {
       ledger: ledgers[0] || {
@@ -992,80 +997,56 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* ===================================================================
-          Top Header & Quick Actions Bar (모바일 반응형 최적화 & 명칭 현행화)
+          Top Header & Action Bar (SCR-LED-01 기준 상단 여백 축소 및 타이틀 정돈)
           =================================================================== */}
-      <div className="flex flex-col gap-3 border-b pb-4 border-slate-200 dark:border-zinc-800">
-        {/* Row 1: 타이틀 & 아이콘 툴바 (데스크탑/모바일 공통 최적화) */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
-              SCR-DSH-01
-            </span>
-            <ElmTyp01
-              title="메인 대시보드"
-              subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
-              className="min-w-0"
-            />
-          </div>
-
-          {/* 툴바 액션: 검색, 맞춤설정, 환경설정 */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onOpenCommand && (
-              <button
-                type="button"
-                onClick={onOpenCommand}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs"
-                title="검색 및 명령어 바 열기 (⌘K)"
-              >
-                <Search className="w-4 h-4 text-slate-400" />
-                <span className="hidden md:inline">검색 / 명령</span>
-                <kbd className="hidden sm:inline font-mono text-[10px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
-                  ⌘K
-                </kbd>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setIsCustomizeOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs"
-              title="대시보드 위젯 On/Off 및 배치 커스터마이징"
-            >
-              <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">맞춤 설정</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate && onNavigate('SCR-SET-01')}
-              className="p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
-              title="사용자 환경설정"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
+      <div className="flex items-center justify-between gap-3 border-b pb-3 border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 min-w-0">
+          <ElmTyp01
+            title="메인 대시보드"
+            subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
+            className="min-w-0"
+          />
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold border border-slate-200 dark:border-zinc-700 shrink-0 opacity-70">
+            SCR-DSH-01
+          </span>
         </div>
 
-        {/* Row 2: 모바일 1:1 균등 그리드 / 데스크탑 우측 인라인 액션 버튼 */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2">
+        {/* 툴바 액션: 검색, 맞춤설정, 환경설정 */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onOpenCommand && (
+            <button
+              type="button"
+              onClick={onOpenCommand}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs"
+              title="검색 및 명령어 바 열기 (⌘K)"
+            >
+              <Search className="w-4 h-4 text-slate-400" />
+              <span className="hidden md:inline">검색 / 명령</span>
+              <kbd className="hidden sm:inline font-mono text-[10px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                ⌘K
+              </kbd>
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => setActiveQuickModal('MONEY')}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm cursor-pointer transition-all active:scale-95"
+            onClick={() => setIsCustomizeOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs"
+            title="대시보드 위젯 On/Off 및 배치 커스터마이징"
           >
-            <Camera className="w-3.5 h-3.5 shrink-0" />
-            <span>머니등록</span>
+            <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+            <span className="hidden sm:inline">맞춤 설정</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveQuickModal('DUTY')}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold shadow-sm cursor-pointer transition-all active:scale-95"
+            onClick={() => onNavigate && onNavigate('SCR-SET-01')}
+            className="p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
+            title="사용자 환경설정"
           >
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>수행등록</span>
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -1107,7 +1088,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </span>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  가계부 책꽂이
+                  장부 책꽂이
                   <span className="text-[11px] font-normal text-slate-400">
                     ({extendedLedgers.length}권 관리 중)
                   </span>
@@ -1513,11 +1494,23 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   전체 일괄 승인 & 송금
                 </button>
               )}
+
+              {/* 섹션 접기/펼치기 토글 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsInboundExpanded(!isInboundExpanded)}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                title={isInboundExpanded ? '요청된 머니 접기' : '요청된 머니 펼치기'}
+              >
+                {isInboundExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
-          {/* 요청 목록 (웜 앰버 골드 톤) */}
-          {pendingInbounds.length === 0 ? (
+          {/* 요청 목록 (웜 앰버 골드 톤) - 접힘/펼침 제어 */}
+          {isInboundExpanded && (
+            <>
+              {pendingInbounds.length === 0 ? (
             <div className="p-6 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 text-center space-y-1 bg-slate-50/50 dark:bg-zinc-850/40">
               <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
               <p className="text-xs font-bold text-slate-700 dark:text-zinc-200">
@@ -1590,7 +1583,9 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               ))}
             </div>
           )}
-        </section>
+        </>
+      )}
+    </section>
       )}
 
       {/* ===================================================================
@@ -1730,84 +1725,98 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     모아당번
                   </span>
                 </div>
-                <ElmStt01 type="INDIGO" label="직교 3상태" />
-              </div>
-
-              {/* 과업 목록 */}
-              <div className="mt-3 space-y-2.5">
-                {dutyList.slice(0, 2).map((duty) => (
-                  <div
-                    key={duty.id}
-                    className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 space-y-1.5 text-xs"
+                <div className="flex items-center gap-1.5">
+                  <ElmStt01 type="INDIGO" label="직교 3상태" />
+                  <button
+                    type="button"
+                    onClick={() => setIsDutyExpanded(!isDutyExpanded)}
+                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    title={isDutyExpanded ? '모아당번 접기' : '모아당번 펼치기'}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 dark:text-white truncate">
-                        {duty.title}
-                      </span>
-                      <span className="text-[10px] text-slate-400 shrink-0">
-                        {duty.dueDate}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1">
-                        <span>{duty.assigneeAvatar}</span>
-                        <span className="text-slate-600 dark:text-zinc-400">
-                          {duty.assigneeName}
-                        </span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                          duty.progressStatus === 'ENDED'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
-                        }`}
-                      >
-                        {duty.progressStatus === 'ENDED' ? '수행완료' : '진행중'}
-                      </span>
-                    </div>
-
-                    {duty.substituteRequested && !duty.isApproved && (
-                      <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-between text-[11px]">
-                        <span className="text-purple-600 dark:text-purple-400 font-bold truncate">
-                          대신수행 요청됨
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleApproveDutySubstitute(duty.id)}
-                          className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] cursor-pointer"
-                        >
-                          승인
-                        </button>
-                      </div>
-                    )}
-
-                    {duty.id === 'duty-01' && duty.progressStatus === 'ASSIGNED' && (
-                      <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleCompleteMyDuty(duty.id)}
-                          className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
-                        >
-                          오늘 완료 인증 ✓
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    {isDutyExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => onNavigate && onNavigate('SCR-DUT-01')}
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>당번 관리 상세</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <ElmCnt01 count="3과업 진행" />
+              {isDutyExpanded && (
+                <>
+                  {/* 과업 목록 */}
+                  <div className="mt-3 space-y-2.5">
+                    {dutyList.slice(0, 2).map((duty) => (
+                      <div
+                        key={duty.id}
+                        className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 space-y-1.5 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {duty.title}
+                          </span>
+                          <span className="text-[10px] text-slate-400 shrink-0">
+                            {duty.dueDate}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-1">
+                            <span>{duty.assigneeAvatar}</span>
+                            <span className="text-slate-600 dark:text-zinc-400">
+                              {duty.assigneeName}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              duty.progressStatus === 'ENDED'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
+                            }`}
+                          >
+                            {duty.progressStatus === 'ENDED' ? '수행완료' : '진행중'}
+                          </span>
+                        </div>
+
+                        {duty.substituteRequested && !duty.isApproved && (
+                          <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-between text-[11px]">
+                            <span className="text-purple-600 dark:text-purple-400 font-bold truncate">
+                              대신수행 요청됨
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveDutySubstitute(duty.id)}
+                              className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              승인
+                            </button>
+                          </div>
+                        )}
+
+                        {duty.id === 'duty-01' && duty.progressStatus === 'ASSIGNED' && (
+                          <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleCompleteMyDuty(duty.id)}
+                              className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              오늘 완료 인증 ✓
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate && onNavigate('SCR-DUT-01')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>당번 관리 상세</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <ElmCnt01 count="3과업 진행" />
+                </div>
+              </>
+            )}
             </div>
           </div>
         )}
@@ -1835,96 +1844,110 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     모아목표
                   </span>
                 </div>
-                <ElmStt01 type="INDIGO" label="동행 3명" />
+                <div className="flex items-center gap-1.5">
+                  <ElmStt01 type="INDIGO" label="동행 3명" />
+                  <button
+                    type="button"
+                    onClick={() => setIsGoalExpanded(!isGoalExpanded)}
+                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    title={isGoalExpanded ? '모아목표 접기' : '모아목표 펼치기'}
+                  >
+                    {isGoalExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
-              <div className="mt-3 space-y-3">
-                {/* 목표 1: 1만보 걷기 */}
-                <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 dark:text-white truncate">
-                      가족 1만보 걷기 챌린지
-                    </span>
-                    <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                      {Math.round((familyGoalSteps / 10000) * 100)}%
-                    </span>
-                  </div>
-                  <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (familyGoalSteps / 10000) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <div className="flex items-center -space-x-1">
-                      <span className="w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] flex items-center justify-center font-bold">
-                        구
-                      </span>
-                      <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] flex items-center justify-center font-bold">
-                        김
-                      </span>
-                      <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] flex items-center justify-center font-bold">
-                        민
-                      </span>
+              {isGoalExpanded && (
+                <>
+                  <div className="mt-3 space-y-3">
+                    {/* 목표 1: 1만보 걷기 */}
+                    <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 dark:text-white truncate">
+                          가족 1만보 걷기 챌린지
+                        </span>
+                        <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                          {Math.round((familyGoalSteps / 10000) * 100)}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-600 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (familyGoalSteps / 10000) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <div className="flex items-center -space-x-1">
+                          <span className="w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] flex items-center justify-center font-bold">
+                            구
+                          </span>
+                          <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] flex items-center justify-center font-bold">
+                            김
+                          </span>
+                          <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] flex items-center justify-center font-bold">
+                            민
+                          </span>
+                        </div>
+                        {familyGoalSteps < 10000 ? (
+                          <button
+                            type="button"
+                            onClick={handleCheckinSteps}
+                            className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
+                          >
+                            오늘 체크인 👣
+                          </button>
+                        ) : (
+                          <span className="text-emerald-500 font-bold text-[10px]">
+                            ✓ 전원 달성
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {familyGoalSteps < 10000 ? (
-                      <button
-                        type="button"
-                        onClick={handleCheckinSteps}
-                        className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
-                      >
-                        오늘 체크인 👣
-                      </button>
-                    ) : (
-                      <span className="text-emerald-500 font-bold text-[10px]">
-                        ✓ 전원 달성
-                      </span>
-                    )}
-                  </div>
-                </div>
 
-                {/* 목표 2: 비상금 모으기 */}
-                <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 dark:text-white truncate">
-                      비상금 500만원 모으기
-                    </span>
-                    <span className="font-mono text-[11px] text-purple-600 dark:text-purple-400 font-bold shrink-0">
-                      {Math.round((savingsAmount / 5000000) * 100)}%
-                    </span>
+                    {/* 목표 2: 비상금 모으기 */}
+                    <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 dark:text-white truncate">
+                          비상금 500만원 모으기
+                        </span>
+                        <span className="font-mono text-[11px] text-purple-600 dark:text-purple-400 font-bold shrink-0">
+                          {Math.round((savingsAmount / 5000000) * 100)}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                        <div
+                          className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (savingsAmount / 5000000) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <span className="text-[10px] text-slate-400">
+                          누적 ₩{savingsAmount.toLocaleString()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleAddSavings}
+                          className="px-2 py-0.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] cursor-pointer"
+                        >
+                          저축 +10만 💰
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
-                    <div
-                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (savingsAmount / 5000000) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <span className="text-[10px] text-slate-400">
-                      누적 ₩{savingsAmount.toLocaleString()}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAddSavings}
-                      className="px-2 py-0.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] cursor-pointer"
-                    >
-                      저축 +10만 💰
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => onNavigate && onNavigate('SCR-GOL-01')}
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>목표 관리 상세</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <ElmCnt01 count="2개 진행" />
+                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate && onNavigate('SCR-GOL-01')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>목표 관리 상세</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <ElmCnt01 count="2개 진행" />
+                </div>
+              </>
+            )}
             </div>
           </div>
         )}
@@ -1957,17 +1980,29 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     </span>
                   </div>
                 </div>
-                {/* 프리셋 관리 모달 트리거 (요청 7번) */}
-                <button
-                  type="button"
-                  onClick={() => setIsGamePresetModalOpen(true)}
-                  className="px-2.5 py-1 text-xs font-bold rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition-colors cursor-pointer"
-                >
-                  ⚙️ 프리셋 관리 ({gamePresets.length})
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {/* 프리셋 관리 모달 트리거 (요청 7번) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsGamePresetModalOpen(true)}
+                    className="px-2.5 py-1 text-xs font-bold rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition-colors cursor-pointer"
+                  >
+                    ⚙️ 프리셋 관리 ({gamePresets.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsGameExpanded(!isGameExpanded)}
+                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    title={isGameExpanded ? '게임 퀵런처 접기' : '게임 퀵런처 펼치기'}
+                  >
+                    {isGameExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
-              {/* 프리셋 카드 그리드 */}
+              {isGameExpanded && (
+                <>
+                  {/* 프리셋 카드 그리드 */}
               <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 프리셋 1: 사다리타기 */}
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-850/60 flex flex-col justify-between space-y-2">
@@ -2039,7 +2074,6 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   </div>
                 </div>
               </div>
-            </div>
 
             <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs">
               <button
@@ -2053,9 +2087,12 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </button>
               <span className="text-[11px] text-slate-400">맞춤 프리셋 영속 보존됨</span>
             </div>
-          </div>
+          </>
         )}
+        </div>
       </div>
+    )}
+  </div>
 
       {/* ===================================================================
           MODULE 7: ⏱️ 활동이력 (Activity Feed - 요청 3번: 목록/카드 뷰어, 5/10/20건, 페이징/5줄 스크롤)
@@ -2147,10 +2184,22 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     <LayoutGrid className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
+                {/* 활동이력 접기/펼치기 토글 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setIsActivityExpanded(!isActivityExpanded)}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                  title={isActivityExpanded ? '활동이력 접기' : '활동이력 펼치기'}
+                >
+                  {isActivityExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
 
-            {/* 3. 본문 뷰어 컨테이너: 5줄 넘어가면 스크롤 적용 (max-h-[380px] overflow-y-auto) */}
+            {isActivityExpanded && (
+              <>
+                {/* 3. 본문 뷰어 컨테이너: 5줄 넘어가면 스크롤 적용 (max-h-[380px] overflow-y-auto) */}
             <div className="max-h-[380px] overflow-y-auto pr-1">
               {activityViewMode === 'LIST' ? (
                 /* 3-A. 목록 뷰어 */
@@ -2294,6 +2343,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   </button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </section>
         );

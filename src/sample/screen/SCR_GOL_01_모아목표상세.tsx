@@ -72,15 +72,13 @@ export const SCR_GOL_01_모아목표상세: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* Section 1: Header (Flat Peer 1) */}
-      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 dark:border-zinc-800 pb-4">
+      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
-            SCR-GOL-01
-          </span>
           <ElmTyp01
             title="모아목표 상세 관리"
+            badge="SCR-GOL-01"
             subtitle="동행원(목표수행) vs 관람원(응원조회) 역할 분리 • 플랫 피어 레이아웃"
           />
         </div>

@@ -46,18 +46,16 @@ export const SCR_OFF_01_오프라인동기화: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* Section 1: Sticky Offline Indicator (Flat Peer 1) */}
       <ElmOff01 isOffline={isOffline} pendingCount={pendingQueue.length} />
 
       {/* Section 2: Header (Flat Peer 2) */}
-      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-zinc-800 pb-4">
+      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800 shrink-0">
-            SCR-OFF-01
-          </span>
           <ElmTyp01
             title="오프라인 PWA 대응 및 동기화/Stale 검증"
+            badge="SCR-OFF-01"
             subtitle="오프라인 빠른등록 ➔ 온라인 재연결 Stale 무효화 가드레일 • 플랫 피어 레이아웃"
           />
         </div>

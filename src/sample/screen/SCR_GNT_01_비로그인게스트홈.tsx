@@ -2085,34 +2085,32 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     : 'border-indigo-200/90 bg-slate-50/50';
 
   return (
-    <div className={`w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8 min-h-screen transition-colors ${containerThemeClass}`}>
+    <div className={`w-full max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 min-h-screen transition-colors ${containerThemeClass}`}>
       {/* ---------------------------------------------------------------------
           Top Hero Header
           --------------------------------------------------------------------- */}
       <header
-        className={`p-6 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border transition-all ${
+        className={`p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border transition-all ${
           resolvedTheme === 'dawn'
             ? 'bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 border-blue-400/40 shadow-blue-500/10'
             : 'bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-950 border-slate-800'
         }`}
       >
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
+        <div className="space-y-1.5">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight flex items-center flex-wrap gap-2">
+            <span>모아서 분석하고 한눈에 보고! <span className={resolvedTheme === 'dawn' ? 'text-sky-200' : 'text-indigo-400'}>모아보고</span></span>
             <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border shrink-0 ${
                 resolvedTheme === 'dawn'
                   ? 'bg-white/20 text-white border-white/30'
                   : 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30'
               }`}
             >
-              SCR-GNT-01 • 게스트 홈
+              SCR-GNT-01
             </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            모아서 분석하고 한눈에 보고! <span className={resolvedTheme === 'dawn' ? 'text-sky-200' : 'text-indigo-400'}>모아보고</span>
           </h1>
-          <p className="text-sm max-w-xl text-slate-200">
-            가입 없이도 인원정산과 모임 게임을 즉시 즐기세요. 로그인 시 1인 다중 가계부와 당번·목표·용돈 라이프 서비스를 연동할 수 있습니다.
+          <p className="text-xs sm:text-sm max-w-xl text-slate-200">
+            가입 없이도 인원정산과 모임 게임을 즉시 즐기세요. 로그인 시 1인 다중 장부와 당번·목표·용돈 라이프 서비스를 연동할 수 있습니다.
           </p>
         </div>
 
