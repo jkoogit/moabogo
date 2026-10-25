@@ -202,7 +202,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'HOT',
         description: 'WPS 스타벅스 에스프레소 원두의 깊고 진한 풍미',
-        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[94]_20210430103337006.jpg',
       },
       {
         id: 'menu_pc_02',
@@ -213,7 +213,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'ICE',
         description: '얼음 가득 깔끔하고 시원한 부동의 1위 메뉴',
-        imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[110563]_20250626094353711.jpg',
       },
       {
         id: 'menu_pc_03',
@@ -222,7 +222,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'HOT',
         description: '농밀한 크레마와 바디감의 정통 에스프레소 더블샷',
-        imageUrl: 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[20]_20210415144112678.jpg',
       },
       {
         id: 'menu_pc_04',
@@ -233,7 +233,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'BOTH',
         description: '부드러운 스팀우유와 에스프레소의 고소한 조화',
-        imageUrl: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[110569]_20250626094801903.jpg',
       },
       {
         id: 'menu_pc_05',
@@ -243,7 +243,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '추천',
         temperature: 'BOTH',
         description: '천연 바닐라빈 시럽이 은은하게 퍼지는 달콤함',
-        imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/02/[9200000001939]_20210225094313315.jpg',
       },
       {
         id: 'menu_pc_06',
@@ -252,7 +252,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'BOTH',
         description: '달콤한 바닐라 시럽, 벨벳 우유 거품, 진한 카라멜 드리즐',
-        imageUrl: 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[126197]_20210415154609863.jpg',
       },
       {
         id: 'menu_pc_07',
@@ -261,6 +261,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'HOT',
         description: '풍성하고 벨벳 같은 우유 거품과 향긋한 시나몬 파우더',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[38]_20210415154821846.jpg',
       },
       {
         id: 'menu_pc_08',
@@ -269,6 +270,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'ICE',
         description: '고소한 헤이즐넛 시럽 향이 어우러진 달콤 아메리카노',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[110563]_20250626094353711.jpg',
       },
       {
         id: 'menu_pc_09',
@@ -277,6 +279,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에스프레소 & 커피',
         temperature: 'BOTH',
         description: '달콤 쌉싸름한 다크 초콜릿 모카 시럽과 휘핑크림',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[110566]_20210415140810776.jpg',
       },
 
       // 2. 콜드브루 & 디카페인
@@ -289,7 +292,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'ICE',
         description: '장시간 저온 추출하여 깔끔하고 초콜릿 풍미가 감도는 커피',
-        imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000000038]_20250626095744182.jpg',
       },
       {
         id: 'menu_pc_11',
@@ -299,7 +302,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'ICE',
         description: '부드러운 연유 돌체 시럽과 콜드브루의 깔끔한 만남',
-        imageUrl: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000002081]_20250626100020135.jpg',
       },
       {
         id: 'menu_pc_12',
@@ -308,7 +311,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '콜드브루 & 디카페인',
         temperature: 'ICE',
         description: '카페인 부담 없이 가볍게 즐기는 100% 디카페인 원두',
-        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[110563]_20250626094353711.jpg',
       },
       {
         id: 'menu_pc_13',
@@ -317,7 +320,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '콜드브루 & 디카페인',
         temperature: 'BOTH',
         description: '늦은 오후에도 부담 없는 편안하고 고소한 디카페인 라떼',
-        imageUrl: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[110569]_20250626094801903.jpg',
       },
 
       // 3. 티 & 프리미엄 블렌딩
@@ -330,7 +333,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'BOTH',
         description: '상큼한 생자몽 퓨레와 달콤한 아카시아 꿀, 블랙티의 완벽한 밸런스',
-        imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000000190]_20250626093924488.jpg',
       },
       {
         id: 'menu_pc_15',
@@ -340,7 +343,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '상큼',
         temperature: 'BOTH',
         description: '달콤한 고흥 유자청과 시원하고 청량한 스피아민트 허브',
-        imageUrl: 'https://images.unsplash.com/photo-1597481499750-3e6b22637e12?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000002959]_20250626095858925.jpg',
       },
       {
         id: 'menu_pc_16',
@@ -350,7 +353,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'ICE',
         description: '리치와 레몬그라스, 캐모마일이 주는 힐링 블렌딩 음료',
-        imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=200&auto=format&fit=crop&q=80',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[4004000000056]_20210415135215632.jpg',
       },
       {
         id: 'menu_pc_17',
@@ -359,6 +362,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '티 & 프리미엄 블렌딩',
         temperature: 'HOT',
         description: '천연 베르가못 향과 수레국화 꽃잎의 귀족적인 향기',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[4004000000039]_20250626095101523.jpg',
       },
       {
         id: 'menu_pc_18',
@@ -367,6 +371,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '티 & 프리미엄 블렌딩',
         temperature: 'BOTH',
         description: '멘톨의 상쾌함으로 입안을 개운하게 해주는 무카페인 허브티',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[4004000000056]_20210415135215632.jpg',
       },
 
       // 4. 논커피 라떼 & 초콜릿
@@ -379,6 +384,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '시그니처',
         temperature: 'BOTH',
         description: '차광 재배한 제주 어린 찻잎으로 만든 깊고 진한 프리미엄 말차',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000002499]_20250626100713501.jpg',
       },
       {
         id: 'menu_pc_20',
@@ -388,6 +394,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '인기',
         temperature: 'ICE',
         description: '국내산 생딸기 과육이 씹히는 달콤하고 부드러운 우유 음료',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000004936]_20250626095136814.jpg',
       },
       {
         id: 'menu_pc_21',
@@ -396,6 +403,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '논커피 라떼 & 초콜릿',
         temperature: 'BOTH',
         description: '벨기에산 진한 다크 초콜릿을 직접 녹여낸 극강의 달콤함',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/04/[110566]_20210415140810776.jpg',
       },
       {
         id: 'menu_pc_22',
@@ -405,6 +413,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '시즌',
         temperature: 'BOTH',
         description: '버터의 고소함과 구운 견과류 향이 입안 가득 맴도는 라떼',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2021/02/[9200000001939]_20210225094313315.jpg',
       },
       {
         id: 'menu_pc_23',
@@ -413,6 +422,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '논커피 라떼 & 초콜릿',
         temperature: 'BOTH',
         description: '진한 아쌈 홍차를 찻잎째 끓여 우려낸 진한 밀크티',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000004936]_20250626095136814.jpg',
       },
 
       // 5. 에이드 & 생과일주스
@@ -425,6 +435,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: 'BEST',
         temperature: 'ICE',
         description: '생자몽을 통째로 착즙하여 탄산수와 블렌딩한 톡 쏘는 청량감',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000000190]_20250626093924488.jpg',
       },
       {
         id: 'menu_pc_25',
@@ -433,6 +444,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '에이드 & 생과일주스',
         temperature: 'ICE',
         description: '달콤한 청포도 알갱이와 라임 주스의 상큼한 만남',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000002959]_20250626095858925.jpg',
       },
       {
         id: 'menu_pc_26',
@@ -442,6 +454,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '건강',
         temperature: 'ICE',
         description: '신선한 완숙 토마토를 즉석에서 곱게 갈아 넣은 건강 주스',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000000190]_20250626093924488.jpg',
       },
       {
         id: 'menu_pc_27',
@@ -451,6 +464,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         badge: '추천',
         temperature: 'ICE',
         description: '달콤한 애플망고와 생바나나 1개를 통째로 갈아 든든한 한 끼',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2025/06/[9200000002499]_20250626100713501.jpg',
       },
 
       // 6. 베이커리 & 샌드위치
@@ -462,6 +476,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         isSignature: true,
         badge: 'BEST',
         description: '프랑스산 고메버터 크루아상 생지를 와플기에 갓 구워낸 바삭함',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2023/09/[9300000004833]_20230911131305579.jpg',
       },
       {
         id: 'menu_pc_29',
@@ -470,6 +485,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '베이커리 & 샌드위치',
         badge: '단짠',
         description: '갓 구운 크로플 위에 노르웨이 브라운치즈를 산더미처럼 갈아 올림',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2023/09/[9300000004833]_20230911131305579.jpg',
       },
       {
         id: 'menu_pc_30',
@@ -477,6 +493,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         price: 4200,
         categoryName: '베이커리 & 샌드위치',
         description: '따뜻하게 토스팅한 쫄깃한 베이글과 필라델피아 크림치즈 포션',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2023/09/[9300000004833]_20230911131305579.jpg',
       },
       {
         id: 'menu_pc_31',
@@ -486,6 +503,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         isSignature: true,
         badge: '식사대용',
         description: '담백한 올리브 치아바타에 고급 본레스햄과 고소한 에멘탈 치즈',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2026/07/[9300000006549]_20260727103107787.jpg',
       },
       {
         id: 'menu_pc_32',
@@ -494,6 +512,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '베이커리 & 샌드위치',
         badge: '든든',
         description: '신선한 삶은 달걀과 파슬리가 듬뿍 들어간 클래식 샌드위치',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2026/07/[9300000006549]_20260727103107787.jpg',
       },
       {
         id: 'menu_pc_33',
@@ -502,6 +521,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         categoryName: '베이커리 & 샌드위치',
         badge: '인기',
         description: '고온에서 그을려 캐러멜라이징된 스모키한 크림치즈의 깊은 맛',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2026/09/[9300000006889]_20260909162756087.jpg',
       },
       {
         id: 'menu_pc_34',
@@ -509,6 +529,7 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
         price: 2800,
         categoryName: '베이커리 & 샌드위치',
         description: '쫀득한 꼬끄와 진한 가나슈 필링의 달콤한 디저트',
+        imageUrl: 'https://image.istarbucks.co.kr/upload/store/skuimg/2026/09/[9300000006889]_20260909162756087.jpg',
       },
     ],
   },
@@ -524,11 +545,11 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['대표 식사', '곁들임/전류'],
     menus: [
-      { id: 'menu_jj_01', name: '손만두 떡국', price: 13000, categoryName: '대표 식사', isSignature: true, badge: '대표', imageUrl: 'https://images.unsplash.com/photo-1541696432-82c6da8ce7bf?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_jj_02', name: '칼만두국', price: 13000, categoryName: '대표 식사', badge: '인기', imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_jj_03', name: '접시만두 (6알)', price: 12000, categoryName: '곁들임/전류', isSignature: true, imageUrl: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_jj_04', name: '부추전', price: 15000, categoryName: '곁들임/전류', imageUrl: 'https://images.unsplash.com/photo-1628294895950-9805252327bc?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_jj_05', name: '어복쟁반 (중)', price: 68000, categoryName: '대표 식사', badge: '회식추천', imageUrl: 'https://images.unsplash.com/photo-1547496502-affa22d38842?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_jj_01', name: '손만두 떡국', price: 13000, categoryName: '대표 식사', isSignature: true, badge: '대표' },
+      { id: 'menu_jj_02', name: '칼만두국', price: 13000, categoryName: '대표 식사', badge: '인기' },
+      { id: 'menu_jj_03', name: '접시만두 (6알)', price: 12000, categoryName: '곁들임/전류', isSignature: true },
+      { id: 'menu_jj_04', name: '부추전', price: 15000, categoryName: '곁들임/전류' },
+      { id: 'menu_jj_05', name: '어복쟁반 (중)', price: 68000, categoryName: '대표 식사', badge: '회식추천' },
     ],
   },
   {
@@ -543,13 +564,13 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['시그니처 샐러디', '든든 웜볼', '간편 샌드/랩'],
     menus: [
-      { id: 'menu_sal_01', name: '탄단지 샐러디', price: 8900, categoryName: '시그니처 샐러디', isSignature: true, badge: 'BEST', description: '치킨, 고구마무스, 견과류와 크랜베리의 완벽한 영양 밸런스', imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_02', name: '로스트닭다리살 샐러디', price: 10900, categoryName: '시그니처 샐러디', badge: '인기', description: '육즙 가득 구워낸 부드러운 닭다리살', imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_03', name: '칠리베이컨 웜볼', price: 8600, categoryName: '든든 웜볼', isSignature: true, badge: 'BEST', description: '베이컨, 에그, 옥수수와 매콤달콤 크리미칠리 드레싱의 따뜻한 곡물볼', imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_04', name: '우삼겹 웜볼', price: 9300, categoryName: '든든 웜볼', badge: '든든', description: '달콤 짭조름한 우삼겹과 오리엔탈 드레싱', imageUrl: 'https://images.unsplash.com/photo-1543339308-43e59d6b73a6?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_05', name: '멕시칸 랩', price: 7200, categoryName: '간편 샌드/랩', badge: '간편', description: '그라운드비프, 나쵸칩의 바삭한 식감', imageUrl: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_06', name: '바질치킨 웜랩', price: 7900, categoryName: '간편 샌드/랩', description: '향긋한 바질페스토와 담백한 닭가슴살', imageUrl: 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sal_07', name: '착즙주스 (그린밀싹/옐로우)', price: 4500, categoryName: '시그니처 샐러디', description: '100% 무가당 신선 과채 착즙 주스', imageUrl: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sal_01', name: '탄단지 샐러디', price: 8900, categoryName: '시그니처 샐러디', isSignature: true, badge: 'BEST', description: '치킨, 고구마무스, 견과류와 크랜베리의 완벽한 영양 밸런스' },
+      { id: 'menu_sal_02', name: '로스트닭다리살 샐러디', price: 10900, categoryName: '시그니처 샐러디', badge: '인기', description: '육즙 가득 구워낸 부드러운 닭다리살' },
+      { id: 'menu_sal_03', name: '칠리베이컨 웜볼', price: 8600, categoryName: '든든 웜볼', isSignature: true, badge: 'BEST', description: '베이컨, 에그, 옥수수와 매콤달콤 크리미칠리 드레싱의 따뜻한 곡물볼' },
+      { id: 'menu_sal_04', name: '우삼겹 웜볼', price: 9300, categoryName: '든든 웜볼', badge: '든든', description: '달콤 짭조름한 우삼겹과 오리엔탈 드레싱' },
+      { id: 'menu_sal_05', name: '멕시칸 랩', price: 7200, categoryName: '간편 샌드/랩', badge: '간편', description: '그라운드비프, 나쵸칩의 바삭한 식감' },
+      { id: 'menu_sal_06', name: '바질치킨 웜랩', price: 7900, categoryName: '간편 샌드/랩', description: '향긋한 바질페스토와 담백한 닭가슴살' },
+      { id: 'menu_sal_07', name: '착즙주스 (그린밀싹/옐로우)', price: 4500, categoryName: '시그니처 샐러디', description: '100% 무가당 신선 과채 착즙 주스' },
     ],
   },
   {
@@ -564,13 +585,13 @@ export const SYSTEM_STORE_POOL: StorePreset[] = [
     updatedAt: '2026-10-21',
     menuCategories: ['김밥류', '분식/떡볶이류', '식사/면류'],
     menus: [
-      { id: 'menu_sd_01', name: '싸다김밥 (기본)', price: 4000, categoryName: '김밥류', isSignature: true, badge: '기본', imageUrl: 'https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_02', name: '참치샐러드김밥', price: 5500, categoryName: '김밥류', badge: '인기', imageUrl: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_03', name: '매운오징어김밥', price: 5500, categoryName: '김밥류', badge: '매콤', imageUrl: 'https://images.unsplash.com/photo-1617196034096-74dbb8a7f9a1?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_04', name: '국물떡볶이 (치즈추가)', price: 7500, categoryName: '분식/떡볶이류', isSignature: true, badge: 'BEST', imageUrl: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_05', name: '모둠튀김 (5종)', price: 6000, categoryName: '분식/떡볶이류', imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_06', name: '치즈돈까스', price: 9500, categoryName: '식사/면류', badge: '든든', imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=200&auto=format&fit=crop&q=80' },
-      { id: 'menu_sd_07', name: '얼큰해장라면', price: 5000, categoryName: '식사/면류', imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80' },
+      { id: 'menu_sd_01', name: '싸다김밥 (기본)', price: 4000, categoryName: '김밥류', isSignature: true, badge: '기본' },
+      { id: 'menu_sd_02', name: '참치샐러드김밥', price: 5500, categoryName: '김밥류', badge: '인기' },
+      { id: 'menu_sd_03', name: '매운오징어김밥', price: 5500, categoryName: '김밥류', badge: '매콤' },
+      { id: 'menu_sd_04', name: '국물떡볶이 (치즈추가)', price: 7500, categoryName: '분식/떡볶이류', isSignature: true, badge: 'BEST' },
+      { id: 'menu_sd_05', name: '모둠튀김 (5종)', price: 6000, categoryName: '분식/떡볶이류' },
+      { id: 'menu_sd_06', name: '치즈돈까스', price: 9500, categoryName: '식사/면류', badge: '든든' },
+      { id: 'menu_sd_07', name: '얼큰해장라면', price: 5000, categoryName: '식사/면류' },
     ],
   },
 ];

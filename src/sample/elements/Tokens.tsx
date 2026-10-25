@@ -23,6 +23,8 @@ import {
   Coins,
   Info,
   AlertCircle,
+  Flag,
+  CornerDownRight,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -36,17 +38,17 @@ export const ElmTyp01: React.FC<{
 }> = ({ title, badge, subtitle, className = '' }) => (
   <div className={`flex flex-col justify-center ${className}`}>
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-h-[32px]">
-      <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-none flex items-center break-keep">
+      <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight leading-none flex items-center break-keep">
         {title}
       </h2>
       {badge && (
-        <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 leading-none whitespace-nowrap shrink-0">
+        <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800 leading-none whitespace-nowrap shrink-0">
           {badge}
         </span>
       )}
     </div>
     {subtitle && (
-      <p className="text-xs text-slate-500 mt-1 leading-normal break-keep">{subtitle}</p>
+      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 leading-normal break-keep">{subtitle}</p>
     )}
   </div>
 );
@@ -738,10 +740,20 @@ export const ElmTre01: React.FC<{
   onSaveNode?: (id: string, newName: string) => void;
   onDeleteNode?: (id: string) => void;
   onAddChildNode?: (parentId: string) => void;
-}> = ({ data, isEditMode, onSaveNode, onDeleteNode, onAddChildNode }) => {
+  onMoveNode?: (draggedId: string, targetId: string, position: 'before' | 'after' | 'inside') => void;
+  onDataChange?: (newData: TreeNode[]) => void;
+}> = ({ data, isEditMode, onSaveNode, onDeleteNode, onAddChildNode, onMoveNode, onDataChange }) => {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({ '1': true, '2': true });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
+
+  // 드래그 앤 드롭 이동 상태 및 실시간 위치 표시 플래그 상태
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dragOverInfo, setDragOverInfo] = useState<{
+    targetId: string;
+    position: 'before' | 'after' | 'inside';
+    isInvalid?: boolean;
+  } | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -757,30 +769,230 @@ export const ElmTre01: React.FC<{
     setEditingId(null);
   };
 
+  // 특정 노드가 검색 대상 노드의 자식/후손인지 검사 (순환 참조 방지)
+  const isNodeDescendant = (nodes: TreeNode[], parentId: string, searchId: string): boolean => {
+    for (const n of nodes) {
+      if (n.id === parentId) {
+        return checkContains(n.children || [], searchId);
+      }
+      if (n.children && isNodeDescendant(n.children, parentId, searchId)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const checkContains = (nodes: TreeNode[], targetId: string): boolean => {
+    for (const n of nodes) {
+      if (n.id === targetId) return true;
+      if (n.children && checkContains(n.children, targetId)) return true;
+    }
+    return false;
+  };
+
+  // 트리 재배치 순수 함수 (상위 노드, 다른 경로, 자식 노드로 이동)
+  const moveTreeNode = (
+    tree: TreeNode[],
+    draggedId: string,
+    targetId: string,
+    position: 'before' | 'after' | 'inside'
+  ): TreeNode[] => {
+    let extractedNode: TreeNode | null = null;
+
+    // 1. 기존 위치에서 드래그 노드 추출
+    const remove = (nodes: TreeNode[]): TreeNode[] => {
+      const res: TreeNode[] = [];
+      for (const n of nodes) {
+        if (n.id === draggedId) {
+          extractedNode = JSON.parse(JSON.stringify(n));
+        } else {
+          const item = { ...n };
+          if (item.children) {
+            item.children = remove(item.children);
+          }
+          res.push(item);
+        }
+      }
+      return res;
+    };
+
+    const cleanedTree = remove(tree);
+    if (!extractedNode) return tree;
+
+    // 2. 대상 위치에 삽입
+    const insert = (nodes: TreeNode[]): TreeNode[] => {
+      const res: TreeNode[] = [];
+      for (const n of nodes) {
+        if (n.id === targetId) {
+          if (position === 'before') {
+            res.push(extractedNode!);
+            res.push(n);
+          } else if (position === 'after') {
+            res.push(n);
+            res.push(extractedNode!);
+          } else if (position === 'inside') {
+            const item = { ...n };
+            item.children = [...(item.children || []), extractedNode!];
+            res.push(item);
+          }
+        } else {
+          const item = { ...n };
+          if (item.children) {
+            item.children = insert(item.children);
+          }
+          res.push(item);
+        }
+      }
+      return res;
+    };
+
+    return insert(cleanedTree);
+  };
+
   const renderTree = (nodes: TreeNode[], depth = 0) =>
     nodes.map((node) => {
       const isExpanded = expandedIds[node.id] ?? false;
       const hasChildren = node.children && node.children.length > 0;
       const isEditing = editingId === node.id;
+      const isBeingDragged = draggedNodeId === node.id;
+      const isDragOver = dragOverInfo?.targetId === node.id;
+      const dropPos = isDragOver ? dragOverInfo.position : null;
+      const isInvalidDrop = isDragOver && dragOverInfo.isInvalid;
 
       return (
-        <div key={node.id} className="w-full">
+        <div key={node.id} className="w-full relative select-none">
+          {/* 1. 상단 삽입 위치 표시 플래그 (▲ 이 노드 앞에 삽입) */}
+          {isDragOver && dropPos === 'before' && !isInvalidDrop && (
+            <div className="absolute -top-2.5 left-0 right-0 z-30 flex items-center gap-1.5 pointer-events-none px-2 animate-in fade-in">
+              <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 flex-1 rounded-full shadow-xs" />
+              <span className="shrink-0 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shadow-md animate-bounce">
+                <Flag className="w-2.5 h-2.5 fill-current" />
+                <span>▲ [위치 플래그] '{node.name}' 앞에 삽입</span>
+              </span>
+              <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 w-6 rounded-full" />
+            </div>
+          )}
+
+          {/* 2. 무효 이동 경고 플래그 (🚫 자기 자신 또는 하위 경로) */}
+          {isDragOver && isInvalidDrop && (
+            <div className="absolute -top-2.5 left-0 right-0 z-30 flex items-center gap-1.5 pointer-events-none px-2 animate-in fade-in">
+              <div className="h-0.5 bg-rose-500 flex-1 rounded-full shadow-xs" />
+              <span className="shrink-0 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold shadow-md">
+                <AlertCircle className="w-2.5 h-2.5" />
+                <span>🚫 이동 불가 (자기 자신 또는 하위 경로)</span>
+              </span>
+              <div className="h-0.5 bg-rose-500 w-6 rounded-full" />
+            </div>
+          )}
+
+          {/* 노드 행 컨테이너 */}
           <div
-            className={`flex items-center justify-between p-2 rounded-lg border border-transparent hover:border-slate-200 hover:bg-slate-50 transition-all text-xs ${
+            onDragOver={(e) => {
+              if (!isEditMode || !draggedNodeId) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              if (draggedNodeId === node.id) {
+                setDragOverInfo(null);
+                return;
+              }
+
+              const isInvalid = isNodeDescendant(data, draggedNodeId, node.id);
+              const rect = e.currentTarget.getBoundingClientRect();
+              const offsetY = e.clientY - rect.top;
+              const ratio = offsetY / rect.height;
+
+              let pos: 'before' | 'after' | 'inside' = 'inside';
+              if (ratio < 0.28) {
+                pos = 'before';
+              } else if (ratio > 0.72) {
+                pos = 'after';
+              } else {
+                pos = 'inside';
+              }
+
+              setDragOverInfo({
+                targetId: node.id,
+                position: pos,
+                isInvalid,
+              });
+            }}
+            onDragLeave={(e) => {
+              if (dragOverInfo?.targetId === node.id) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                if (
+                  e.clientY < rect.top ||
+                  e.clientY > rect.bottom ||
+                  e.clientX < rect.left ||
+                  e.clientX > rect.right
+                ) {
+                  setDragOverInfo(null);
+                }
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!draggedNodeId || !dragOverInfo) return;
+              const { targetId, position, isInvalid } = dragOverInfo;
+              setDraggedNodeId(null);
+              setDragOverInfo(null);
+
+              if (isInvalid || draggedNodeId === targetId) return;
+
+              const newTree = moveTreeNode(data, draggedNodeId, targetId, position);
+              if (position === 'inside') {
+                setExpandedIds((prev) => ({ ...prev, [targetId]: true }));
+              }
+              if (onMoveNode) onMoveNode(draggedNodeId, targetId, position);
+              if (onDataChange) onDataChange(newTree);
+            }}
+            className={`flex items-center justify-between p-2 rounded-lg border transition-all text-xs relative ${
               depth > 0 ? 'ml-4' : ''
+            } ${
+              isBeingDragged
+                ? 'opacity-40 bg-slate-100 dark:bg-zinc-800 border-dashed border-indigo-400'
+                : isDragOver && dropPos === 'inside' && !isInvalidDrop
+                ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 shadow-sm'
+                : isDragOver && isInvalidDrop
+                ? 'border-rose-400 bg-rose-50/60 dark:bg-rose-950/30'
+                : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800/60'
             }`}
           >
+            {/* 3. 하위 자식 노드로 편입 플래그 (↳ 자식 노드로 이동) */}
+            {isDragOver && dropPos === 'inside' && !isInvalidDrop && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 pointer-events-none flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-md animate-pulse">
+                <CornerDownRight className="w-2.5 h-2.5" />
+                <span>🚩 [위치 플래그] '{node.name}'의 하위(자식) 노드로 이동</span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {isEditMode && (
-                <span className="cursor-grab text-slate-400 hover:text-slate-600">
+                <span
+                  draggable
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    setDraggedNodeId(node.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', node.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedNodeId(null);
+                    setDragOverInfo(null);
+                  }}
+                  className="cursor-grab active:cursor-grabbing p-1 -m-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0"
+                  title="드래그하여 항목의 위치 및 상위/하위 경로를 수정하세요"
+                >
                   <Menu className="w-3.5 h-3.5" />
                 </span>
               )}
+
               {hasChildren ? (
                 <button
                   type="button"
                   onClick={() => toggleExpand(node.id)}
-                  className="p-0.5 rounded text-slate-400 hover:text-slate-700"
+                  className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 cursor-pointer"
                 >
                   {isExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -798,23 +1010,23 @@ export const ElmTre01: React.FC<{
                     type="text"
                     value={editVal}
                     onChange={(e) => setEditVal(e.target.value)}
-                    className="h-7 px-2 text-xs bg-white border border-indigo-400 rounded focus:outline-none flex-1"
+                    className="h-7 px-2 text-xs bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border border-indigo-400 rounded focus:outline-none flex-1"
                   />
                   <button
                     onClick={() => handleSave(node.id)}
-                    className="px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-semibold"
+                    className="px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-semibold cursor-pointer"
                   >
                     저장
                   </button>
                   <button
                     onClick={() => setEditingId(null)}
-                    className="px-1.5 py-1 text-slate-500 rounded text-[10px]"
+                    className="px-1.5 py-1 text-slate-500 rounded text-[10px] cursor-pointer"
                   >
                     취소
                   </button>
                 </div>
               ) : (
-                <span className="font-medium text-slate-800 truncate leading-none">
+                <span className="font-medium text-slate-800 dark:text-zinc-200 truncate leading-none">
                   {node.name}
                 </span>
               )}
@@ -823,7 +1035,7 @@ export const ElmTre01: React.FC<{
             <div className="flex items-center gap-2 shrink-0">
               {node.count !== undefined && <ElmCnt01 count={`${node.count}건`} />}
               {node.amount !== undefined && (
-                <span className="font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
+                <span className="font-mono text-xs font-bold text-slate-900 dark:text-zinc-100 whitespace-nowrap">
                   ₩{node.amount.toLocaleString()}
                 </span>
               )}
@@ -832,7 +1044,7 @@ export const ElmTre01: React.FC<{
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => startEdit(node)}
-                    className="p-1 rounded text-slate-400 hover:text-indigo-600"
+                    className="p-1 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
                     title="이름 수정"
                   >
                     <Edit2 className="w-3 h-3" />
@@ -840,7 +1052,7 @@ export const ElmTre01: React.FC<{
                   {onAddChildNode && (
                     <button
                       onClick={() => onAddChildNode(node.id)}
-                      className="p-1 rounded text-slate-400 hover:text-emerald-600"
+                      className="p-1 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
                       title="하위 항목 추가"
                     >
                       <Plus className="w-3 h-3" />
@@ -849,7 +1061,7 @@ export const ElmTre01: React.FC<{
                   {onDeleteNode && (
                     <button
                       onClick={() => onDeleteNode(node.id)}
-                      className="p-1 rounded text-slate-400 hover:text-rose-600"
+                      className="p-1 rounded text-slate-400 hover:text-rose-600 cursor-pointer"
                       title="삭제"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -860,8 +1072,20 @@ export const ElmTre01: React.FC<{
             </div>
           </div>
 
+          {/* 4. 하단 삽입 위치 표시 플래그 (▼ 이 노드 뒤에 삽입) */}
+          {isDragOver && dropPos === 'after' && !isInvalidDrop && (
+            <div className="absolute -bottom-2.5 left-0 right-0 z-30 flex items-center gap-1.5 pointer-events-none px-2 animate-in fade-in">
+              <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 flex-1 rounded-full shadow-xs" />
+              <span className="shrink-0 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shadow-md animate-bounce">
+                <Flag className="w-2.5 h-2.5 fill-current" />
+                <span>▼ [위치 플래그] '{node.name}' 뒤에 삽입</span>
+              </span>
+              <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 w-6 rounded-full" />
+            </div>
+          )}
+
           {hasChildren && isExpanded && (
-            <div className="border-l border-slate-200 ml-3 pl-1">
+            <div className="border-l border-slate-200 dark:border-zinc-800 ml-3 pl-1">
               {renderTree(node.children!, depth + 1)}
             </div>
           )}
@@ -870,7 +1094,7 @@ export const ElmTre01: React.FC<{
     });
 
   return (
-    <div className="w-full bg-white border border-slate-200 rounded-xl p-3 space-y-1">
+    <div className="w-full bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 rounded-xl p-3 space-y-1">
       {renderTree(data)}
     </div>
   );
