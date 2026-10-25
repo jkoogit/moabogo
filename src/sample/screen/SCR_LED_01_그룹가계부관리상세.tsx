@@ -2943,12 +2943,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* ==================================================================== */}
       <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3.5 border-slate-200 dark:border-zinc-800">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
-            SCR-LED-01
-          </span>
           <ElmTyp01
-            title="통합 가계부 · 지출내역 종합관리"
-            subtitle="가계부 책장 & 3대 뷰(타임라인/카테고리/캘린더) & SSOT 원장 관리"
+            title="통합 장부 · 지출내역 종합관리"
+            badge="SCR-LED-01"
+            subtitle="장부 책장 & 3대 뷰(타임라인/카테고리/캘린더) & SSOT 원장 관리"
             className="min-w-0"
           />
         </div>
@@ -2959,10 +2957,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             type="button"
             onClick={() => setNewLedgerModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95"
-            title="새 가계부 장부 개설하기"
+            title="새 장부 개설하기"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>새 가계부 개설</span>
+            <span>새 장부 개설</span>
           </button>
         </div>
       </section>
@@ -2971,10 +2969,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
       <div className="relative pt-0 pb-2 sm:pt-0 sm:pb-3 landscape:py-1 px-1 sm:px-4">
-        {/* 상단 장부책장 반응형 헤더 (모바일: 1행 타이틀·새장부·건수·열기·방향 한줄 집약, 2행 필터 배치 / 데스크톱: 3단 헤더) */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-2.5 pb-2 mb-1.5 border-b border-stone-200 dark:border-stone-800">
-          {/* 모바일 상단 1행 / 데스크톱 좌측: 타이틀 및 컨트롤러 */}
-          <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
+        {/* 상단 장부책장 반응형 헤더 (1행: 타이틀 + 우측 컨트롤러 / 2행: 장부구분 필터 슬라이더) */}
+        <div className="space-y-2 pb-2 mb-1.5 border-b border-stone-200 dark:border-stone-800">
+          {/* 1행: 타이틀 및 우측 제어 컨트롤러 ([+ 새 장부] [건수] [책장 열기/닫기] [▲▼ 방향]) */}
+          <div className="flex items-center justify-between gap-2 w-full">
             {/* 타이틀 */}
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
@@ -2982,22 +2980,22 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
               </span>
             </div>
 
-            {/* [요구사항 2] 모바일 전용(sm:hidden) 한 줄 집약 컨트롤러: [+ 새 장부] [건수] [책장열기] [▲▼ 방향] */}
-            <div className="flex sm:hidden items-center gap-1.5 shrink-0">
-              {/* [요구사항 1] 새 장부 등록 복구 버튼 (모바일) */}
+            {/* 통합 우측 제어 컨트롤러 */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* 새 장부 등록 버튼 */}
               <button
                 type="button"
                 onClick={() => setNewLedgerModalOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
-                title="새 가계부 장부 개설하기"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                title="새 장부 개설하기"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>새 장부</span>
               </button>
 
-              {/* 건수 뱃지 (모바일) */}
+              {/* 건수 뱃지 */}
               <span
-                className="text-[11px] font-mono px-2 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
+                className="text-[11px] sm:text-xs font-mono px-2 sm:px-2.5 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
                 title="현재 노출된 장부 건수 / 전체 건수"
               >
                 {(() => {
@@ -3007,27 +3005,27 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 })()}
               </span>
 
-              {/* 책장 열기 / 닫기 버튼 (모바일) */}
+              {/* 책장 열기 / 닫기 버튼 */}
               <button
                 type="button"
                 onClick={() => setIsBookshelfOpen((prev) => !prev)}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
                 title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
               >
                 {isBookshelfOpen ? (
                   <>
                     <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[2.2]" />
-                    <span>닫기</span>
+                    <span className="hidden xs:inline sm:inline">책장 </span><span>닫기</span>
                   </>
                 ) : (
                   <>
                     <Book className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 stroke-[2.2]" />
-                    <span>열기</span>
+                    <span className="hidden xs:inline sm:inline">책장 </span><span>열기</span>
                   </>
                 )}
               </button>
 
-              {/* 방향 이동 버튼 (모바일) */}
+              {/* 방향 이동 버튼 */}
               {isBookshelfOpen && visibleLedgers.length > 1 && (
                 <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
                   <button
@@ -3036,7 +3034,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
                     title="스택 위로 스크롤"
                   >
-                    <ChevronUp className="w-3 h-3 stroke-[2.5]" />
+                    <ChevronUp className="w-3 sm:w-3.5 h-3 sm:h-3.5 stroke-[2.5]" />
                   </button>
                   <button
                     type="button"
@@ -3044,19 +3042,19 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
                     title="스택 아래로 스크롤"
                   >
-                    <ChevronDown className="w-3 h-3 stroke-[2.5]" />
+                    <ChevronDown className="w-3 sm:w-3.5 h-3 sm:h-3.5 stroke-[2.5]" />
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* [요구사항 2] 2단: 장부구분(개인, 장기, 단기) 필터 (ElmSld03 공통 슬라이드드래그휠 전파차단 토큰 적용) */}
-          <div className="w-full sm:w-auto sm:flex-1 flex items-center justify-start sm:justify-center">
+          {/* 2행: 장부구분(전체, 개인, 장기, 단기) 필터 (ElmSld03 공통 슬라이드드래그휠 전파차단 토큰 적용) */}
+          <div className="w-full flex items-center justify-start">
             <ElmSld03
               showNavButtons={false}
               className="w-full"
-              innerClassName="items-center justify-start sm:justify-center gap-1.5 py-0.5"
+              innerClassName="items-center justify-start gap-1.5 py-0.5"
             >
               {/* 전체 뱃지 */}
               <button
@@ -3090,7 +3088,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/30 shadow-xs font-black'
                     : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
-                title="개인 가계부 노출/숨김 토글"
+                title="개인 장부 노출/숨김 토글"
               >
                 <span>개인</span>
                 <span
@@ -3113,7 +3111,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     ? 'bg-emerald-600 text-white ring-2 ring-emerald-600/30 shadow-xs font-black'
                     : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
-                title="장기 모임 가계부 노출/숨김 토글"
+                title="장기 모임 장부 노출/숨김 토글"
               >
                 <span>장기</span>
                 <span
@@ -3136,7 +3134,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     ? 'bg-amber-600 text-white ring-2 ring-amber-600/30 shadow-xs font-black'
                     : 'bg-stone-100 dark:bg-stone-800/60 text-stone-400 dark:text-stone-500 border border-dashed border-stone-300 dark:border-stone-700 opacity-60 hover:opacity-90'
                 }`}
-                title="단기 모임 가계부 노출/숨김 토글"
+                title="단기 모임 장부 노출/숨김 토글"
               >
                 <span>단기</span>
                 <span
@@ -3150,74 +3148,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 </span>
               </button>
             </ElmSld03>
-          </div>
-
-          {/* 데스크톱 전용(hidden sm:flex) 3단 우측 제어 컨트롤러: [+ 새 장부] [건수] [책장 닫기/열기] [▲▼] */}
-          <div className="hidden sm:flex items-center gap-2 shrink-0">
-            {/* [요구사항 1] 새 장부 등록 복구 버튼 (데스크톱) */}
-            <button
-              type="button"
-              onClick={() => setNewLedgerModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
-              title="새 가계부 장부 개설하기"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>새 장부</span>
-            </button>
-
-            {/* 건수 뱃지 (데스크톱) */}
-            <span
-              className="text-xs font-mono px-2.5 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
-              title="현재 노출된 장부 건수 / 전체 건수"
-            >
-              {(() => {
-                const totalCount = ledgers.length;
-                const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
-                return currentDisplayedCount === totalCount ? `${totalCount}건` : `${currentDisplayedCount}건 / ${totalCount}건`;
-              })()}
-            </span>
-
-            {/* 책장 열기 / 닫기 토글 버튼 (데스크톱) */}
-            <button
-              type="button"
-              onClick={() => setIsBookshelfOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
-              title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
-            >
-              {isBookshelfOpen ? (
-                <>
-                  <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[2.2]" />
-                  <span>책장 닫기</span>
-                </>
-              ) : (
-                <>
-                  <Book className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 stroke-[2.2]" />
-                  <span>책장 열기</span>
-                </>
-              )}
-            </button>
-
-            {/* 우측 퀵 탐색 핸들 (데스크톱) */}
-            {isBookshelfOpen && visibleLedgers.length > 1 && (
-              <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleScrollBooks('UP')}
-                  className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
-                  title="스택 위로 스크롤"
-                >
-                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScrollBooks('DOWN')}
-                  className="p-1 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer"
-                  title="스택 아래로 스크롤"
-                >
-                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
 

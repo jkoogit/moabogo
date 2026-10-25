@@ -2231,28 +2231,28 @@ export const ElmQck01: React.FC<{
       style={{ top: `${topPos}px` }}
       className={`fixed right-3 sm:right-5 z-40 flex flex-col items-end select-none transition-shadow ${className}`}
     >
-      {/* 1.2 위치이동 핸들: 접고 펼치는 영역 상단에 배치 */}
+      {/* 1.2 위치이동 핸들: 접고 펼치는 영역 상단에 배치 (컴팩트 너비) */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="w-10 h-5 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/80 hover:bg-slate-900 text-slate-300 hover:text-white rounded-full shadow-md backdrop-blur-md transition-all active:scale-95"
+        className="w-8 h-4 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/80 hover:bg-slate-900 text-slate-300 hover:text-white rounded-full shadow-md backdrop-blur-md transition-all active:scale-95"
         title="상하 위치 이동 핸들 (상한선: 화면 타이틀선)"
       >
-        <GripHorizontal className="w-3.5 h-3.5" />
+        <GripHorizontal className="w-3 h-3" />
       </div>
 
       {/* 접힘 / 펼침 영역 */}
       {!isExpanded ? (
-        /* 1.1 접었을 때: 처음 번개(Zap) 아이콘 하나만 표시 */
+        /* 1.1 접었을 때: 처음 번개(Zap) 아이콘 하나만 컴팩트하게 표시 */
         <button
           type="button"
           onClick={() => setIsExpanded(true)}
-          className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
           title="빠른등록 열기"
         >
-          <Zap className="w-5 h-5 fill-amber-300 text-amber-300" />
+          <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
         </button>
       ) : (
         /* 펼쳤을 때: 빠른 머니/수행 등록 및 접기 버튼 */

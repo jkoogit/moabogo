@@ -4,7 +4,6 @@ import {
   ElmInp01,
   ElmChk01,
   ElmStt01,
-  ElmOff01,
   ElmSwt01,
 } from '../elements/Tokens';
 import { MoaLogo } from '../../components/MoaLogo';
@@ -146,12 +145,9 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 transition-colors">
-      {/* 최상단 오프라인 인디케이터 토큰 (ELM-OFF-01) */}
-      <ElmOff01 isOffline={isOffline} pendingCount={isOffline ? 2 : 0} />
-
-      {/* 중앙 정렬 페이지 본문 컨테이너 */}
-      <div className="w-full max-w-md p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-xs space-y-5 transition-colors my-auto">
+    <div className="w-full flex-1 flex flex-col items-center justify-start py-2 sm:py-4 px-3 sm:px-4 transition-colors">
+      {/* 중앙 정렬 페이지 본문 컨테이너 (컴팩트 여백 최적화) */}
+      <div className="w-full max-w-md p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-xs space-y-3.5 transition-colors">
         
         {/* Header with ElmTyp01 & Badges */}
         <div className="text-center">
