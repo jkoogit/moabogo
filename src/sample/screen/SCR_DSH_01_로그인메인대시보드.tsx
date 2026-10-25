@@ -288,6 +288,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   const [bookshelfViewMode, setBookshelfViewMode] = useState<'GRID' | 'LIST'>('GRID');
   const [isBookshelfExpanded, setIsBookshelfExpanded] = useState<boolean>(true);
   const [isInboundExpanded, setIsInboundExpanded] = useState<boolean>(true);
+  const [isFinancialExpanded, setIsFinancialExpanded] = useState<boolean>(true);
   const [isDutyExpanded, setIsDutyExpanded] = useState<boolean>(true);
   const [isGoalExpanded, setIsGoalExpanded] = useState<boolean>(true);
   const [isGameExpanded, setIsGameExpanded] = useState<boolean>(true);
@@ -1082,8 +1083,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         >
           {/* 책꽂이 헤더 & 듀얼 뷰어 토글 아이콘 */}
           <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
                 <BookOpen className="w-4 h-4" />
               </span>
               <div>
@@ -1099,11 +1100,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
               {/* 카드 / 목록 뷰어 전환 아이콘 버튼 (요청 3번) */}
               <div
                 className={`flex items-center p-0.5 rounded-lg border ${
-                  isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-slate-100 border-slate-200'
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#101e42] border-[#1e3a6d]'
+                    : isDark
+                    ? 'bg-zinc-800/80 border-zinc-700'
+                    : 'bg-slate-100 border-slate-200'
                 }`}
               >
                 <button
@@ -1111,7 +1116,11 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   onClick={() => setBookshelfViewMode('GRID')}
                   className={`p-1.5 rounded-md transition-all cursor-pointer ${
                     bookshelfViewMode === 'GRID'
-                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
+                      ? resolvedTheme === 'dawn'
+                        ? 'bg-[#1b2b54] text-indigo-300 shadow-2xs font-bold'
+                        : isDark
+                        ? 'bg-zinc-700 text-indigo-400 shadow-2xs font-bold'
+                        : 'bg-white text-indigo-600 shadow-2xs font-bold'
                       : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                   }`}
                   title="카드 뷰어"
@@ -1123,7 +1132,11 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   onClick={() => setBookshelfViewMode('LIST')}
                   className={`p-1.5 rounded-md transition-all cursor-pointer ${
                     bookshelfViewMode === 'LIST'
-                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
+                      ? resolvedTheme === 'dawn'
+                        ? 'bg-[#1b2b54] text-indigo-300 shadow-2xs font-bold'
+                        : isDark
+                        ? 'bg-zinc-700 text-indigo-400 shadow-2xs font-bold'
+                        : 'bg-white text-indigo-600 shadow-2xs font-bold'
                       : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                   }`}
                   title="목록 뷰어"
@@ -1136,16 +1149,29 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               <button
                 type="button"
                 onClick={() => setIsNewLedgerOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer border shadow-2xs ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#1b2b54] text-indigo-300 border-[#2a437e] hover:bg-[#233768]'
+                    : isDark
+                    ? 'bg-indigo-950/60 text-indigo-400 border-indigo-800 hover:bg-indigo-900/60'
+                    : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+                }`}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>새 가계부</span>
               </button>
 
+              {/* 표준 아코디언 토글 버튼 */}
               <button
                 type="button"
                 onClick={() => setIsBookshelfExpanded((prev) => !prev)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                    : isDark
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                }`}
                 title={isBookshelfExpanded ? '책꽂이 접기' : '책꽂이 펼치기'}
               >
                 {isBookshelfExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1174,8 +1200,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         }}
                         className={`relative p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group ${
                           isCurrent
-                            ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20 ring-2 ring-indigo-500/20 shadow-xs'
-                            : 'border-slate-200 dark:border-zinc-700/80 bg-slate-50/50 dark:bg-zinc-800/40 hover:border-slate-400 dark:hover:border-zinc-600'
+                            ? resolvedTheme === 'dawn'
+                              ? 'border-indigo-500 bg-indigo-950/40 ring-2 ring-indigo-500/30 shadow-xs'
+                              : isDark
+                              ? 'border-indigo-500 bg-indigo-950/30 ring-2 ring-indigo-500/20 shadow-xs'
+                              : 'border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-500/20 shadow-xs'
+                            : resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d] bg-[#101e42]/60 hover:border-indigo-400'
+                            : isDark
+                            ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
+                            : 'border-slate-200 bg-slate-50/60 hover:border-slate-400'
                         }`}
                       >
                         {/* 카드 상단 배지 & 핀 고정 */}
@@ -1226,21 +1260,33 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         </div>
 
                         {/* 지출액 & 소진 게이지 */}
-                        <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-zinc-700/60">
+                        <div className={`mt-3 pt-2.5 border-t ${
+                          resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d]'
+                            : isDark
+                            ? 'border-zinc-800'
+                            : 'border-slate-200/80'
+                        }`}>
                           <div className="flex items-baseline justify-between text-xs">
                             <span className="text-[11px] text-slate-400">당월 지출</span>
                             <span className="font-mono font-bold text-slate-900 dark:text-white">
                               ₩{item.spent_amount.toLocaleString()}
                             </span>
                           </div>
-                          <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                          <div className={`mt-1.5 w-full h-1.5 rounded-full overflow-hidden ${
+                            resolvedTheme === 'dawn'
+                              ? 'bg-[#1b2b54]'
+                              : isDark
+                              ? 'bg-zinc-800'
+                              : 'bg-slate-200'
+                          }`}>
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${
                                 spendRate > 80
-                                  ? 'bg-rose-500'
-                                  : spendRate > 50
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500'
+                                    ? 'bg-rose-500'
+                                    : spendRate > 50
+                                    ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
                               }`}
                               style={{ width: `${spendRate}%` }}
                             />
@@ -1252,7 +1298,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         </div>
 
                         {/* 빠른 액션 링크 (호버/포커스 시) */}
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-[11px]">
+                        <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[11px] ${
+                          resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d]'
+                            : isDark
+                            ? 'border-zinc-800'
+                            : 'border-slate-100'
+                        }`}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1283,7 +1335,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   {sortedLedgers.length % 2 !== 0 && (
                     <div
                       onClick={() => setIsNewLedgerOpen(true)}
-                      className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 hover:border-indigo-500 dark:hover:border-indigo-400 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer bg-slate-50/30 dark:bg-zinc-850/30 transition-colors group min-h-[160px]"
+                      className={`p-4 rounded-xl border border-dashed flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer transition-colors group min-h-[160px] ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d] bg-[#101e42]/40 hover:border-indigo-400'
+                          : isDark
+                          ? 'border-zinc-800 bg-zinc-900/40 hover:border-indigo-500'
+                          : 'border-slate-300 bg-slate-50/30 hover:border-indigo-500'
+                      }`}
                     >
                       <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <Plus className="w-4 h-4" />
@@ -1301,9 +1359,21 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
               {/* 3.2 목록 뷰어 (LIST Mode - 요청 3번) */}
               {bookshelfViewMode === 'LIST' && (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700/80">
+                <div className={`overflow-x-auto rounded-xl border ${
+                  resolvedTheme === 'dawn'
+                    ? 'border-[#1e3a6d]'
+                    : isDark
+                    ? 'border-zinc-800'
+                    : 'border-slate-200'
+                }`}>
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-zinc-800/80 border-b border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 font-bold">
+                    <thead className={`border-b font-bold text-slate-500 dark:text-zinc-400 ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42] border-[#1e3a6d]'
+                        : isDark
+                        ? 'bg-zinc-900 border-zinc-800'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}>
                       <tr>
                         <th className="py-2.5 px-3 w-10 text-center">핀</th>
                         <th className="py-2.5 px-3">가계부 구분</th>
@@ -1314,7 +1384,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         <th className="py-2.5 px-3 text-center">작업</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+                    <tbody className={`divide-y ${
+                      resolvedTheme === 'dawn'
+                        ? 'divide-[#1e3a6d]'
+                        : isDark
+                        ? 'divide-zinc-800'
+                        : 'divide-slate-100'
+                    }`}>
                       {sortedLedgers.map((item) => {
                         const isCurrent = item.ledger.ledger_id === currentLedgerId;
                         const spendRate = Math.min(
@@ -1331,8 +1407,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                             }}
                             className={`transition-colors cursor-pointer ${
                               isCurrent
-                                ? 'bg-indigo-50/50 dark:bg-indigo-950/30 font-semibold'
-                                : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50'
+                                ? resolvedTheme === 'dawn'
+                                  ? 'bg-indigo-950/40 font-semibold'
+                                  : isDark
+                                  ? 'bg-indigo-950/30 font-semibold'
+                                  : 'bg-indigo-50/50 font-semibold'
+                                : resolvedTheme === 'dawn'
+                                ? 'hover:bg-[#101e42]/60'
+                                : isDark
+                                ? 'hover:bg-zinc-850/60'
+                                : 'hover:bg-slate-50'
                             }`}
                           >
                             <td className="py-2.5 px-3 text-center">
@@ -1434,84 +1518,119 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               : 'bg-white border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                {pendingInbounds.length > 0 && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                )}
-                <span
-                  className={`relative inline-flex rounded-full h-3 w-3 ${
-                    pendingInbounds.length > 0 ? 'bg-amber-500' : 'bg-emerald-500'
+          <div className="flex flex-col gap-2.5 mb-3.5">
+            {/* 첫 번째 행: 좌측 타이틀 영역 + 우측 [+ 정산·머니 요청 버튼(줄바꿈 제한) + 토글버튼] */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+                  <Coins className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                    <span>요청된 머니</span>
+                    <span className="text-[11px] font-normal text-slate-400">
+                      ({inboundRequests.length}건 등록됨)
+                    </span>
+                    {pendingInbounds.length > 0 && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 truncate hidden sm:block">
+                    도착한 모임 정산 및 용돈 지급 요청을 확인하고 송금 링크로 마감합니다
+                  </p>
+                </div>
+              </div>
+
+              {/* 첫줄 우측: [+ 정산·머니 요청 버튼] + [토글버튼] */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsNewRequestModalOpen(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-amber-700/80 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40'
+                      : isDark
+                      ? 'border-amber-700/80 bg-amber-950/40 text-amber-200 hover:bg-amber-900/50'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
                   }`}
-                />
-              </span>
-              <span className="p-1 rounded-lg bg-amber-500/10 text-amber-500">
-                <Coins className="w-4 h-4" />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  요청된 머니
-                  <span className="text-[11px] font-normal text-slate-400">
-                    ({inboundRequests.length}건 등록됨)
-                  </span>
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  도착한 모임 정산 및 용돈 지급 요청을 확인하고 송금 링크로 마감합니다
-                </p>
+                >
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                  <span className="whitespace-nowrap">+ 정산·머니 요청</span>
+                </button>
+
+                {/* 표준 아코디언 토글 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setIsInboundExpanded(!isInboundExpanded)}
+                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                    resolvedTheme === 'dawn'
+                      ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                      : isDark
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={isInboundExpanded ? '요청된 머니 접기' : '요청된 머니 펼치기'}
+                >
+                  {isInboundExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* 새 요청 등록 버튼 (요청 5번) */}
-              <button
-                type="button"
-                onClick={() => setIsNewRequestModalOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ 정산·머니 요청</span>
-              </button>
+            {/* 모바일 화면용 설명 텍스트 (줄바꿈 표시) */}
+            <p className="text-[11px] text-slate-400 sm:hidden">
+              도착한 모임 정산 및 용돈 지급 요청을 확인하고 송금 링크로 마감합니다
+            </p>
 
-              <span
-                className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
-                  pendingInbounds.length > 0
-                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                }`}
-              >
-                {pendingInbounds.length > 0
-                  ? `대기 ${pendingInbounds.length}건 (₩${totalPendingInboundAmount.toLocaleString()})`
-                  : '✓ 모두 해결됨'}
-              </span>
-
-              {pendingInbounds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleInitiateApproveAll}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-xs"
+            {/* 두 번째 행: 우측정렬 [대기 건수/금액 뱃지] + [전체 일괄 승인 & 송금 버튼] - 토글 대상 편입 */}
+            {isInboundExpanded && (
+              <div className="flex items-center justify-end gap-2 flex-wrap animate-in fade-in-50 duration-150">
+                <span
+                  className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                    pendingInbounds.length > 0
+                      ? resolvedTheme === 'dawn'
+                        ? 'bg-amber-950/40 text-amber-300 border border-amber-800'
+                        : isDark
+                        ? 'bg-amber-950/60 text-amber-300 border border-amber-800'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : resolvedTheme === 'dawn'
+                      ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800'
+                      : isDark
+                      ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
+                      : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                  }`}
                 >
-                  전체 일괄 승인 & 송금
-                </button>
-              )}
+                  {pendingInbounds.length > 0
+                    ? `대기 ${pendingInbounds.length}건 (₩${totalPendingInboundAmount.toLocaleString()})`
+                    : '✓ 모두 해결됨'}
+                </span>
 
-              {/* 섹션 접기/펼치기 토글 버튼 */}
-              <button
-                type="button"
-                onClick={() => setIsInboundExpanded(!isInboundExpanded)}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
-                title={isInboundExpanded ? '요청된 머니 접기' : '요청된 머니 펼치기'}
-              >
-                {isInboundExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
-            </div>
+                {pendingInbounds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleInitiateApproveAll}
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-xs"
+                  >
+                    전체 일괄 승인 & 송금
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 요청 목록 (웜 앰버 골드 톤) - 접힘/펼침 제어 */}
           {isInboundExpanded && (
             <>
               {pendingInbounds.length === 0 ? (
-            <div className="p-6 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 text-center space-y-1 bg-slate-50/50 dark:bg-zinc-850/40">
+            <div className={`p-6 rounded-xl border border-dashed text-center space-y-1 ${
+              resolvedTheme === 'dawn'
+                ? 'bg-[#101e42]/40 border-[#1e3a6d]'
+                : isDark
+                ? 'bg-zinc-900/40 border-zinc-800'
+                : 'bg-slate-50/50 border-slate-200'
+            }`}>
               <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
               <p className="text-xs font-bold text-slate-700 dark:text-zinc-200">
                 도착한 요청 머니가 모두 해결되었습니다!
@@ -1525,7 +1644,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               {pendingInbounds.map((req) => (
                 <div
                   key={req.id}
-                  className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/15 flex flex-col justify-between space-y-2.5 transition-all hover:border-amber-400"
+                  className={`p-3.5 rounded-xl border flex flex-col justify-between space-y-2.5 transition-all hover:border-amber-400 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-amber-900/60 bg-amber-950/20'
+                      : isDark
+                      ? 'border-amber-900/60 bg-amber-950/15'
+                      : 'border-amber-200 bg-amber-50/30'
+                  }`}
                 >
                   <div>
                     <div className="flex items-center justify-between text-xs">
@@ -1555,14 +1680,26 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         </span>
                       </div>
                       {req.memo && (
-                        <p className="text-[10px] text-slate-600 dark:text-zinc-400 mt-1 bg-white/70 dark:bg-zinc-800/60 p-1.5 rounded-md border border-amber-100 dark:border-amber-900/40">
+                        <p className={`text-[10px] mt-1 p-1.5 rounded-md border ${
+                          resolvedTheme === 'dawn'
+                            ? 'bg-[#101e42]/80 border-amber-900/40 text-zinc-300'
+                            : isDark
+                            ? 'bg-zinc-900/80 border-amber-900/40 text-zinc-300'
+                            : 'bg-white/80 border-amber-100 text-slate-600'
+                        }`}>
                           "{req.memo}"
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-amber-100 dark:border-amber-900/40 flex items-center justify-between gap-1.5">
+                  <div className={`pt-2 border-t flex items-center justify-between gap-1.5 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-amber-900/40'
+                      : isDark
+                      ? 'border-amber-900/40'
+                      : 'border-amber-100'
+                  }`}>
                     <button
                       type="button"
                       onClick={() => handleRejectInbound(req.id)}
@@ -1606,98 +1743,146 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             }`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
                     <Wallet className="w-4 h-4" />
                   </span>
                   <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
-                      순수 생활비 (자산이동 분리 집계)
-                    </span>
-                    <span className="block text-[10px] text-slate-400 font-mono">
-                      현재 기준: {activeLedgerData.ledger.ledger_name}
-                    </span>
-                  </div>
-                </div>
-                <ElmStt01 type="EMERALD" label="정상 예산 집계" />
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-3xl font-black tracking-tight font-mono text-slate-900 dark:text-white">
-                    ₩{activeLedgerData.spent_amount.toLocaleString()}
-                  </span>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    당월 예산 ₩{activeLedgerData.budget_total.toLocaleString()} 중{' '}
-                    <strong className="text-emerald-500 font-mono">
-                      {Math.round(
-                        (activeLedgerData.spent_amount / activeLedgerData.budget_total) * 100
-                      )}
-                      %
-                    </strong>{' '}
-                    소진 (19일 잔여)
-                  </p>
-                  {/* 예산 소진율 게이지 */}
-                  <div className="mt-2.5 w-full h-2 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            (activeLedgerData.spent_amount / activeLedgerData.budget_total) * 100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* 통계 분리 보장 안내 박스 (10.3: 금액과 줄바꿈 분리 & 개념 안내) */}
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-700/60 space-y-2 text-xs">
-                  <div className="flex justify-between font-medium">
-                    <span className="text-slate-500 dark:text-zinc-400">총 자산 잔액</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-zinc-100">
-                      ₩{activeLedgerData.total_asset.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-medium">
-                    <span className="text-slate-500 dark:text-zinc-400">순수 당월 수입</span>
-                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      +₩{activeLedgerData.income_amount.toLocaleString()}
-                    </span>
-                  </div>
-                  {/* 자산이체 분리 안내: 금액 줄바꿈 분리 */}
-                  <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 space-y-0.5">
-                    <div className="flex justify-between items-baseline font-medium">
-                      <span className="text-amber-700 dark:text-amber-400 text-[11px] font-bold">
-                        자산이체(용돈·저축 등)
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      순수 생활비
+                      <span className="text-[11px] font-normal text-slate-400">
+                        ({activeLedgerData.ledger.ledger_name})
                       </span>
-                      <span className="font-mono font-black text-sm text-amber-700 dark:text-amber-400">
-                        ₩{activeLedgerData.asset_transfer_amount.toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 leading-tight">
-                      * 계좌 간 단순 이동(TRANSFER)으로 순수 생활비 지출 통계에서 안전하게 분리 제외됨
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      계좌 간 단순 이동(TRANSFER) 분리 및 당월 순수 소비 현황
                     </p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
+                  <ElmStt01 type="EMERALD" label="정상 예산 집계" />
+                  {/* 표준 아코디언 토글 버튼 */}
+                  <button
+                    type="button"
+                    onClick={() => setIsFinancialExpanded(!isFinancialExpanded)}
+                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                        : isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                    }`}
+                    title={isFinancialExpanded ? '생활비 브리핑 접기' : '생활비 브리핑 펼치기'}
+                  >
+                    {isFinancialExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs">
-              <span className="text-[11px] text-slate-400">
-                1:1 TRANSFER 페어링 연결 보장
-              </span>
-              <button
-                type="button"
-                onClick={() => onNavigate && onNavigate('SCR-LED-01')}
-                className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
-              >
-                <span>장부 관리 상세</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {isFinancialExpanded && (
+                <>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-3xl font-black tracking-tight font-mono text-slate-900 dark:text-white">
+                        ₩{activeLedgerData.spent_amount.toLocaleString()}
+                      </span>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        당월 예산 ₩{activeLedgerData.budget_total.toLocaleString()} 중{' '}
+                        <strong className="text-emerald-500 font-mono">
+                          {Math.round(
+                            (activeLedgerData.spent_amount / activeLedgerData.budget_total) * 100
+                          )}
+                          %
+                        </strong>{' '}
+                        소진 (19일 잔여)
+                      </p>
+                      {/* 예산 소진율 게이지 */}
+                      <div className={`mt-2.5 w-full h-2 rounded-full overflow-hidden ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-[#1b2b54]'
+                          : isDark
+                          ? 'bg-zinc-800'
+                          : 'bg-slate-100'
+                      }`}>
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.round(
+                                (activeLedgerData.spent_amount / activeLedgerData.budget_total) * 100
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 통계 분리 보장 안내 박스 */}
+                    <div className={`p-3 rounded-xl border space-y-2 text-xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42]/60 border-[#1e3a6d]'
+                        : isDark
+                        ? 'bg-zinc-900/60 border-zinc-800'
+                        : 'bg-slate-50 border-slate-100'
+                    }`}>
+                      <div className="flex justify-between font-medium">
+                        <span className="text-slate-500 dark:text-zinc-400">총 자산 잔액</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-zinc-100">
+                          ₩{activeLedgerData.total_asset.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span className="text-slate-500 dark:text-zinc-400">순수 당월 수입</span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          +₩{activeLedgerData.income_amount.toLocaleString()}
+                        </span>
+                      </div>
+                      {/* 자산이체 분리 안내 */}
+                      <div className={`pt-1.5 border-t space-y-0.5 ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d]'
+                          : isDark
+                          ? 'border-zinc-800'
+                          : 'border-slate-200'
+                      }`}>
+                        <div className="flex justify-between items-baseline font-medium">
+                          <span className="text-amber-700 dark:text-amber-400 text-[11px] font-bold">
+                            자산이체(용돈·저축 등)
+                          </span>
+                          <span className="font-mono font-black text-sm text-amber-700 dark:text-amber-400">
+                            ₩{activeLedgerData.asset_transfer_amount.toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-tight">
+                          * 계좌 간 단순 이동(TRANSFER)으로 순수 생활비 지출 통계에서 안전하게 분리 제외됨
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`mt-4 pt-3 border-t flex items-center justify-between text-xs ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d]'
+                      : isDark
+                      ? 'border-zinc-800'
+                      : 'border-slate-100'
+                  }`}>
+                    <span className="text-[11px] text-slate-400">
+                      1:1 TRANSFER 페어링 연결 보장
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('SCR-LED-01')}
+                      className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <span>장부 관리 상세</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1716,24 +1901,39 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             }`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="p-1 rounded-lg bg-indigo-500/10 text-indigo-500">
-                    <Sparkles className="w-3.5 h-3.5" />
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
+                    <Sparkles className="w-4 h-4" />
                   </span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
-                    모아당번
-                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      모아당번
+                      <span className="text-[11px] font-normal text-slate-400">
+                        (3과업 진행)
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      직교 3상태머신 기반 당번 과업 및 대신수행 즉시 승인
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
                   <ElmStt01 type="INDIGO" label="직교 3상태" />
+                  {/* 표준 아코디언 토글 버튼 */}
                   <button
                     type="button"
                     onClick={() => setIsDutyExpanded(!isDutyExpanded)}
-                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                        : isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                    }`}
                     title={isDutyExpanded ? '모아당번 접기' : '모아당번 펼치기'}
                   >
-                    {isDutyExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {isDutyExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -1745,7 +1945,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     {dutyList.slice(0, 2).map((duty) => (
                       <div
                         key={duty.id}
-                        className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 space-y-1.5 text-xs"
+                        className={`p-2.5 rounded-xl border space-y-1.5 text-xs ${
+                          resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                            : isDark
+                            ? 'border-zinc-800 bg-zinc-900/50'
+                            : 'border-slate-100 bg-slate-50/50'
+                        }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-900 dark:text-white truncate">
@@ -1775,7 +1981,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         </div>
 
                         {duty.substituteRequested && !duty.isApproved && (
-                          <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-between text-[11px]">
+                          <div className={`pt-1.5 border-t flex items-center justify-between text-[11px] ${
+                            resolvedTheme === 'dawn'
+                              ? 'border-[#1e3a6d]'
+                              : isDark
+                              ? 'border-zinc-800'
+                              : 'border-slate-200'
+                          }`}>
                             <span className="text-purple-600 dark:text-purple-400 font-bold truncate">
                               대신수행 요청됨
                             </span>
@@ -1790,7 +2002,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         )}
 
                         {duty.id === 'duty-01' && duty.progressStatus === 'ASSIGNED' && (
-                          <div className="pt-1.5 border-t border-slate-200 dark:border-zinc-700 flex items-center justify-end">
+                          <div className={`pt-1.5 border-t flex items-center justify-end ${
+                            resolvedTheme === 'dawn'
+                              ? 'border-[#1e3a6d]'
+                              : isDark
+                              ? 'border-zinc-800'
+                              : 'border-slate-200'
+                          }`}>
                             <button
                               type="button"
                               onClick={() => handleCompleteMyDuty(duty.id)}
@@ -1804,19 +2022,25 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     ))}
                   </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate && onNavigate('SCR-DUT-01')}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>당번 관리 상세</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <ElmCnt01 count="3과업 진행" />
-                </div>
-              </>
-            )}
+                  <div className={`mt-3 pt-2.5 border-t flex items-center justify-between ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d]'
+                      : isDark
+                      ? 'border-zinc-800'
+                      : 'border-slate-100'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('SCR-DUT-01')}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>당번 관리 상세</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <ElmCnt01 count="3과업 진행" />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1835,24 +2059,39 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             }`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="p-1 rounded-lg bg-indigo-500/10 text-indigo-500">
-                    <Target className="w-3.5 h-3.5" />
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
+                    <Target className="w-4 h-4" />
                   </span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
-                    모아목표
-                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      모아목표
+                      <span className="text-[11px] font-normal text-slate-400">
+                        (동행 3명)
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      동행원/관람원 챌린지 및 오늘 걸음수/저축 1초 체크인
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <ElmStt01 type="INDIGO" label="동행 3명" />
+                <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
+                  <ElmStt01 type="INDIGO" label="2개 진행" />
+                  {/* 표준 아코디언 토글 버튼 */}
                   <button
                     type="button"
                     onClick={() => setIsGoalExpanded(!isGoalExpanded)}
-                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                        : isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                    }`}
                     title={isGoalExpanded ? '모아목표 접기' : '모아목표 펼치기'}
                   >
-                    {isGoalExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {isGoalExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -1861,7 +2100,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 <>
                   <div className="mt-3 space-y-3">
                     {/* 목표 1: 1만보 걷기 */}
-                    <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
+                    <div className={`p-2.5 rounded-xl border text-xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                        : isDark
+                        ? 'border-zinc-800 bg-zinc-900/50'
+                        : 'border-slate-100 bg-slate-50/50'
+                    }`}>
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-900 dark:text-white truncate">
                           가족 1만보 걷기 챌린지
@@ -1870,7 +2115,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                           {Math.round((familyGoalSteps / 10000) * 100)}%
                         </span>
                       </div>
-                      <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                      <div className={`mt-1.5 w-full h-1.5 rounded-full overflow-hidden ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-[#1b2b54]'
+                          : isDark
+                          ? 'bg-zinc-800'
+                          : 'bg-slate-200'
+                      }`}>
                         <div
                           className="h-full bg-indigo-600 rounded-full transition-all duration-300"
                           style={{ width: `${Math.min(100, (familyGoalSteps / 10000) * 100)}%` }}
@@ -1905,7 +2156,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     </div>
 
                     {/* 목표 2: 비상금 모으기 */}
-                    <div className="p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/50 text-xs">
+                    <div className={`p-2.5 rounded-xl border text-xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                        : isDark
+                        ? 'border-zinc-800 bg-zinc-900/50'
+                        : 'border-slate-100 bg-slate-50/50'
+                    }`}>
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-900 dark:text-white truncate">
                           비상금 500만원 모으기
@@ -1914,7 +2171,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                           {Math.round((savingsAmount / 5000000) * 100)}%
                         </span>
                       </div>
-                      <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                      <div className={`mt-1.5 w-full h-1.5 rounded-full overflow-hidden ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-[#1b2b54]'
+                          : isDark
+                          ? 'bg-zinc-800'
+                          : 'bg-slate-200'
+                      }`}>
                         <div
                           className="h-full bg-purple-600 rounded-full transition-all duration-300"
                           style={{ width: `${Math.min(100, (savingsAmount / 5000000) * 100)}%` }}
@@ -1935,19 +2198,25 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     </div>
                   </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate && onNavigate('SCR-GOL-01')}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>목표 관리 상세</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <ElmCnt01 count="2개 진행" />
-                </div>
-              </>
-            )}
+                  <div className={`mt-3 pt-2.5 border-t flex items-center justify-between ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d]'
+                      : isDark
+                      ? 'border-zinc-800'
+                      : 'border-slate-100'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('SCR-GOL-01')}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>목표 관리 상세</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <ElmCnt01 count="2개 진행" />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1966,36 +2235,52 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             }`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
                     <Gamepad2 className="w-4 h-4" />
                   </span>
                   <div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">
-                      게임·정산 퀵런처 (맞춤 프리셋)
-                    </span>
-                    <span className="block text-[10px] text-slate-400">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      게임·정산 퀵런처
+                      <span className="text-[11px] font-normal text-slate-400">
+                        ({gamePresets.length}개 프리셋)
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
                       로그인 회원 전용: 자주 쓰는 멤버·벌칙 옵션 원클릭 즉시 플레이
-                    </span>
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
                   {/* 프리셋 관리 모달 트리거 (요청 7번) */}
                   <button
                     type="button"
                     onClick={() => setIsGamePresetModalOpen(true)}
-                    className="px-2.5 py-1 text-xs font-bold rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition-colors cursor-pointer"
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-purple-700/80 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40'
+                        : isDark
+                        ? 'border-purple-700/80 bg-purple-950/40 text-purple-300 hover:bg-purple-900/50'
+                        : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100'
+                    }`}
                   >
                     ⚙️ 프리셋 관리 ({gamePresets.length})
                   </button>
+                  {/* 표준 아코디언 토글 버튼 */}
                   <button
                     type="button"
                     onClick={() => setIsGameExpanded(!isGameExpanded)}
-                    className="p-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                      resolvedTheme === 'dawn'
+                        ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                        : isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                    }`}
                     title={isGameExpanded ? '게임 퀵런처 접기' : '게임 퀵런처 펼치기'}
                   >
-                    {isGameExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {isGameExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -2005,7 +2290,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   {/* 프리셋 카드 그리드 */}
               <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 프리셋 1: 사다리타기 */}
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-850/60 flex flex-col justify-between space-y-2">
+                <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
+                  resolvedTheme === 'dawn'
+                    ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                    : isDark
+                    ? 'border-zinc-800 bg-zinc-900/50'
+                    : 'border-slate-200 bg-slate-50/60'
+                }`}>
                   <div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
@@ -2020,7 +2311,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 dark:border-zinc-700/60 flex items-center justify-between gap-1">
+                  <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d]'
+                      : isDark
+                      ? 'border-zinc-800'
+                      : 'border-slate-200/80'
+                  }`}>
                     <button
                       type="button"
                       onClick={() => setIsGamePresetModalOpen(true)}
@@ -2040,7 +2337,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
 
                 {/* 프리셋 2: 점심 메뉴 룰렛 */}
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-850/60 flex flex-col justify-between space-y-2">
+                <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
+                  resolvedTheme === 'dawn'
+                    ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                    : isDark
+                    ? 'border-zinc-800 bg-zinc-900/50'
+                    : 'border-slate-200 bg-slate-50/60'
+                }`}>
                   <div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
@@ -2055,7 +2358,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 dark:border-zinc-700/60 flex items-center justify-between gap-1">
+                  <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d]'
+                      : isDark
+                      ? 'border-zinc-800'
+                      : 'border-slate-200/80'
+                  }`}>
                     <button
                       type="button"
                       onClick={() => setIsGamePresetModalOpen(true)}
@@ -2075,7 +2384,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
               </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs">
+            <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-xs ${
+              resolvedTheme === 'dawn'
+                ? 'border-[#1e3a6d]'
+                : isDark
+                ? 'border-zinc-800'
+                : 'border-slate-100'
+            }`}>
               <button
                 type="button"
                 onClick={() => onNavigate && onNavigate('SCR-GNT-01')}
@@ -2115,9 +2430,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             }`}
           >
             {/* 상단 헤더: 타이틀, 5/10/20건 선택 세그먼트, 카드/목록 뷰어 토글 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-slate-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 ${
+              resolvedTheme === 'dawn'
+                ? 'border-[#1e3a6d]'
+                : isDark
+                ? 'border-zinc-800'
+                : 'border-slate-100'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
                   <Clock className="w-4 h-4" />
                 </span>
                 <div>
@@ -2133,10 +2454,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
               </div>
 
-              {/* 우측 컨트롤러: 건수 선택 (5, 10, 20) + 보기 모드 (목록 / 카드) */}
-              <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+              {/* 우측 컨트롤러: 건수 선택 (5, 10, 20) + 보기 모드 (목록 / 카드) + 아코디언 토글 */}
+              <div className="flex items-center gap-2 ml-auto self-end sm:self-auto flex-wrap shrink-0">
                 {/* 1. 최근 건수 설정 (5, 10, 20) */}
-                <div className="flex items-center p-0.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 text-xs">
+                <div className={`flex items-center p-0.5 rounded-lg border text-xs ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#101e42] border-[#1e3a6d]'
+                    : isDark
+                    ? 'bg-zinc-800/80 border-zinc-700'
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
                   <span className="text-[10px] font-medium text-slate-400 px-1.5 hidden xs:inline">
                     표시:
                   </span>
@@ -2158,13 +2485,23 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
 
                 {/* 2. 목록 / 카드 보기모드 아이콘 토글 */}
-                <div className="flex items-center p-0.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80">
+                <div className={`flex items-center p-0.5 rounded-lg border ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-[#101e42] border-[#1e3a6d]'
+                    : isDark
+                    ? 'bg-zinc-800/80 border-zinc-700'
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
                   <button
                     type="button"
                     onClick={() => setActivityViewMode('LIST')}
                     className={`p-1 rounded-md transition-all cursor-pointer ${
                       activityViewMode === 'LIST'
-                        ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                        ? resolvedTheme === 'dawn'
+                          ? 'bg-[#1b2b54] text-indigo-300 shadow-2xs font-bold'
+                          : isDark
+                          ? 'bg-zinc-700 text-indigo-400 shadow-2xs'
+                          : 'bg-white text-indigo-600 shadow-2xs'
                         : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
                     }`}
                     title="목록 뷰어"
@@ -2176,7 +2513,11 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     onClick={() => setActivityViewMode('CARD')}
                     className={`p-1 rounded-md transition-all cursor-pointer ${
                       activityViewMode === 'CARD'
-                        ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                        ? resolvedTheme === 'dawn'
+                          ? 'bg-[#1b2b54] text-indigo-300 shadow-2xs font-bold'
+                          : isDark
+                          ? 'bg-zinc-700 text-indigo-400 shadow-2xs'
+                          : 'bg-white text-indigo-600 shadow-2xs'
                         : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
                     }`}
                     title="카드 뷰어"
@@ -2185,14 +2526,20 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   </button>
                 </div>
 
-                {/* 활동이력 접기/펼치기 토글 버튼 */}
+                {/* 표준 아코디언 토글 버튼 */}
                 <button
                   type="button"
                   onClick={() => setIsActivityExpanded(!isActivityExpanded)}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 shadow-2xs ${
+                    resolvedTheme === 'dawn'
+                      ? 'bg-[#101e42] border-[#1e3a6d] text-slate-300 hover:text-white hover:border-indigo-400'
+                      : isDark
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                  }`}
                   title={isActivityExpanded ? '활동이력 접기' : '활동이력 펼치기'}
                 >
-                  {isActivityExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {isActivityExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -2207,7 +2554,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   {currentPageFeed.map((item) => (
                     <div
                       key={item.id}
-                      className="p-2.5 sm:p-3 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-850/50 hover:bg-slate-100/80 dark:hover:bg-zinc-800/70 transition-all flex items-center justify-between gap-3 text-xs"
+                      className={`p-2.5 sm:p-3 rounded-xl border transition-all flex items-center justify-between gap-3 text-xs ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d] bg-[#101e42]/50 hover:bg-[#152756]/70'
+                          : isDark
+                          ? 'border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800/70'
+                          : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100/80'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span
@@ -2256,7 +2609,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   {currentPageFeed.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/70 dark:bg-zinc-850/60 hover:border-indigo-400 transition-all flex flex-col justify-between space-y-2"
+                      className={`p-3 rounded-xl border transition-all flex flex-col justify-between space-y-2 hover:border-indigo-400 ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                          : isDark
+                          ? 'border-zinc-800 bg-zinc-900/50'
+                          : 'border-slate-200 bg-slate-50/70'
+                      }`}
                     >
                       <div>
                         <div className="flex items-center justify-between text-xs">
@@ -2286,7 +2645,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         </p>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200/80 dark:border-zinc-700/80 flex items-center justify-between">
+                      <div className={`pt-2 border-t flex items-center justify-between ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d]'
+                          : isDark
+                          ? 'border-zinc-800'
+                          : 'border-slate-200/80'
+                      }`}>
                         <span className="text-[10px] text-slate-400">활동 내역</span>
                         {item.amount ? (
                           <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-400">
@@ -2306,7 +2671,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
             {/* 4. 페이징 컨트롤 바 (5줄 초과 또는 페이지 분할 시 동작) */}
             {totalPages > 1 && (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs">
+              <div className={`pt-2.5 border-t flex items-center justify-between text-xs ${
+                resolvedTheme === 'dawn'
+                  ? 'border-[#1e3a6d]'
+                  : isDark
+                  ? 'border-zinc-800'
+                  : 'border-slate-100'
+              }`}>
                 <span className="text-[11px] text-slate-400">
                   {safePage} / {totalPages} 페이지 (총 {effectiveFeed.length}건)
                 </span>
@@ -2315,7 +2686,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     type="button"
                     onClick={() => setActivityPage((prev) => Math.max(1, prev - 1))}
                     disabled={safePage === 1}
-                    className="px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 text-xs font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                    className={`px-2 py-1 rounded-lg border text-xs font-bold disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-[#1e3a6d] hover:bg-[#101e42] text-slate-300'
+                        : isDark
+                        ? 'border-zinc-700 hover:bg-zinc-800 text-zinc-300'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
                   >
                     이전
                   </button>
@@ -2327,7 +2704,11 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                       className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         safePage === p
                           ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                          : resolvedTheme === 'dawn'
+                          ? 'border border-[#1e3a6d] hover:bg-[#101e42] text-slate-300'
+                          : isDark
+                          ? 'border border-zinc-700 hover:bg-zinc-800 text-zinc-300'
+                          : 'border border-slate-200 hover:bg-slate-50 text-slate-700'
                       }`}
                     >
                       {p}
@@ -2337,7 +2718,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     type="button"
                     onClick={() => setActivityPage((prev) => Math.min(totalPages, prev + 1))}
                     disabled={safePage === totalPages}
-                    className="px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 text-xs font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                    className={`px-2 py-1 rounded-lg border text-xs font-bold disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-[#1e3a6d] hover:bg-[#101e42] text-slate-300'
+                        : isDark
+                        ? 'border-zinc-700 hover:bg-zinc-800 text-zinc-300'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
                   >
                     다음
                   </button>

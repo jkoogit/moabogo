@@ -1878,6 +1878,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   // 3.2.2 분석 보고서 이력 및 재수집 상태
   const [isRecollecting, setIsRecollecting] = useState(false);
   const [selectedReportDetail, setSelectedReportDetail] = useState<AnalysisReportSnapshot | null>(null);
+  const [reportViewMode, setReportViewMode] = useState<'CARD' | 'LIST'>('CARD');
   const [analysisReports, setAnalysisReports] = useState<AnalysisReportSnapshot[]>([
     {
       id: 'rep-202610-02',
@@ -3348,10 +3349,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             </button>
           )}
 
-          {/* [우선순위 그룹] 내 권한(소유자) & 사용자관리 묶음 (줄바꿈 시 소유자·사용자관리 동일선 유지 우선) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* [우선순위 그룹] 내 권한(소유자) & 사용자관리 묶음 (줄바꿈 허용으로 구역 이탈 원천 차단) */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* 내 권한 시뮬레이터 */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs text-xs shrink-0">
               <span className="text-slate-400 font-medium text-[11px]">내 권한:</span>
               <select
                 value={currentUserRole}
@@ -3374,22 +3375,22 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
             <button
               type="button"
               onClick={() => setMemberModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap shrink-0"
               title="장부 참여 멤버 및 권한 관리"
             >
-              <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
               <span>사용자 관리 ({currentMembers.length}명)</span>
             </button>
           </div>
 
-          {/* 2. 커버색상 버튼 (사용자관리 뒤에 배치하여 줄바꿈 시 소유자·사용자관리 동일선 유지 우선) */}
+          {/* 2. 커버색상 버튼 (줄바꿈 시 소유자·사용자관리 다음선으로 유연하게 배치) */}
           <button
             type="button"
             onClick={() => handleOpenEditCover(currentLedger)}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold shadow-2xs cursor-pointer transition-colors whitespace-nowrap shrink-0"
             title="현재 선택된 장부의 북커버 디자인 및 시그니처 색상 변경"
           >
-            <Palette className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <Palette className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <span>커버색상</span>
           </button>
         </div>
@@ -3602,8 +3603,10 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
         <div className="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
           {/* Level 1: 2대 대축 (장부작성 vs 분석) 스위치 & Level 2 툴바 */}
           <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-2.5 sm:gap-3">
-            <div
-              className="flex items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap shrink-0 max-w-full overscroll-contain overscroll-x-contain touch-pan-x"
+            <ElmSld03
+              showNavButtons={false}
+              className="w-full 2xl:w-auto"
+              innerClassName="items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-zinc-800/90 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-700/80 shrink-0 max-w-full py-1.5 flex-nowrap"
             >
               {/* 축 1: 장부작성 */}
               <button
@@ -3646,7 +3649,7 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                   </span>
                 )}
               </button>
-            </div>
+            </ElmSld03>
 
             {/* Level 2 툴바 & 특화 도구 (가로넓이 초과 시 앞의 장부작성, 분석 버튼 다음줄로 [카드명세서대사, 고정수입관리, 통장내역일괄등록, ?] 한줄 버튼 표시 배치) */}
             {mainAxisTab === 'WRITE' ? (
@@ -5339,9 +5342,9 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                 </div>
               </div>
 
-              {/* 보고서 스냅샷 이력 관리 목록 (History Management Table) */}
+              {/* 보고서 스냅샷 이력 관리 목록 (History Management Table & Cards) */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
                   <div>
                     <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
                       <FileText className="w-4 h-4 text-purple-600" />
@@ -5352,82 +5355,192 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
                     </p>
                   </div>
 
-                  <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
-                    총 {analysisReports.length}개 버전 관리 중
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
+                      총 {analysisReports.length}개 버전
+                    </span>
+
+                    {/* 카드보기 / 목록보기 아이콘 토글 컨트롤러 (모바일에서는 카드보기만 단독 표시) */}
+                    <div className="hidden sm:flex items-center p-0.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80">
+                      <button
+                        type="button"
+                        onClick={() => setReportViewMode('CARD')}
+                        className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                          reportViewMode === 'CARD'
+                            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-bold'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
+                        }`}
+                        title="카드형 그리드 보기"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReportViewMode('LIST')}
+                        className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                          reportViewMode === 'LIST'
+                            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs font-bold'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
+                        }`}
+                        title="테이블 목록형 보기"
+                      >
+                        <List className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* 모바일 화면용 카드 전용 뱃지 */}
+                    <div className="sm:hidden px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold flex items-center gap-1">
+                      <LayoutGrid className="w-3 h-3" />
+                      <span>카드보기</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
-                  <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
-                    <div className="col-span-3">버전 / 보고서명</div>
-                    <div className="col-span-2">집계 기간</div>
-                    <div className="col-span-2 text-right">총 수입 / 순수 지출</div>
-                    <div className="col-span-2 text-right">순수지 (Net)</div>
-                    <div className="col-span-1 text-center">원장 건수</div>
-                    <div className="col-span-2 text-center">관리 액션</div>
-                  </div>
-
-                  {analysisReports.map((rep, idx) => (
-                    <div
-                      key={rep.id}
-                      className="p-3.5 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/60 dark:hover:bg-zinc-800/40 text-xs transition-colors"
-                    >
-                      <div className="col-span-3 space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-extrabold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 text-[10px]">
-                            {rep.version}
-                          </span>
-                          {idx === 0 && (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
-                              최신
+                {/* 1. 모바일이거나 reportViewMode === 'CARD'일 때: 카드형 그리드 뷰어 */}
+                <div className={`${reportViewMode === 'CARD' ? 'block' : 'block sm:hidden'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {analysisReports.map((rep, idx) => (
+                      <div
+                        key={rep.id}
+                        className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/40 hover:border-purple-300 dark:hover:border-purple-800/80 transition-all flex flex-col justify-between space-y-3"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-extrabold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 text-[10px]">
+                                {rep.version}
+                              </span>
+                              {idx === 0 && (
+                                <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                                  최신
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {rep.createdAt}
                             </span>
-                          )}
+                          </div>
+
+                          <h5 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm line-clamp-1">
+                            {rep.title}
+                          </h5>
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 block">
+                            집계기간: {rep.period}
+                          </span>
                         </div>
-                        <span className="font-bold text-slate-900 dark:text-white block truncate">
-                          {rep.title}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono block">
-                          발행: {rep.createdAt}
-                        </span>
-                      </div>
 
-                      <div className="col-span-2 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
-                        {rep.period}
-                      </div>
+                        <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 space-y-1 text-xs">
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[11px] text-slate-400 font-medium">총 수입</span>
+                            <span className="font-mono font-bold text-emerald-600">
+                              +₩{rep.totalIncome.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[11px] text-slate-400 font-medium">순수 지출</span>
+                            <span className="font-mono font-bold text-rose-600">
+                              -₩{rep.totalExpense.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-baseline pt-1 border-t border-slate-100 dark:border-zinc-800">
+                            <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300">순수지(Net)</span>
+                            <span className="font-mono font-black text-purple-600 dark:text-purple-400">
+                              +₩{rep.netSavings.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
 
-                      <div className="col-span-2 text-right space-y-0.5">
-                        <span className="font-mono font-bold text-emerald-600 block">
-                          +₩{rep.totalIncome.toLocaleString()}
-                        </span>
-                        <span className="font-mono font-bold text-rose-600 block">
-                          -₩{rep.totalExpense.toLocaleString()}
-                        </span>
+                        <div className="flex items-center justify-between pt-1 text-xs">
+                          <span className="text-[11px] font-mono text-slate-400">
+                            원장 {rep.txCount}건 · 카드 ₩{(rep.cardBilledTotal / 10000).toFixed(0)}만
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReportDetail(rep)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors cursor-pointer border border-purple-200 dark:border-purple-800"
+                          >
+                            상세 열람
+                          </button>
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
 
-                      <div className="col-span-2 text-right">
-                        <span className="font-mono font-black text-purple-600 dark:text-purple-400 block">
-                          +₩{rep.netSavings.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono block">
-                          카드: ₩{(rep.cardBilledTotal / 10000).toFixed(0)}만
-                        </span>
-                      </div>
-
-                      <div className="col-span-1 text-center font-mono text-slate-500 font-bold">
-                        {rep.txCount}건
-                      </div>
-
-                      <div className="col-span-2 flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedReportDetail(rep)}
-                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
-                        >
-                          상세 열람
-                        </button>
-                      </div>
+                {/* 2. 데스크톱에서 reportViewMode === 'LIST'일 때: 테이블 목록 뷰어 */}
+                <div className={`${reportViewMode === 'LIST' ? 'hidden sm:block' : 'hidden'}`}>
+                  <div className="divide-y divide-slate-100 dark:divide-zinc-800 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                    <div className="p-3 bg-slate-50 dark:bg-zinc-800 text-[11px] font-bold text-slate-500 grid grid-cols-12 gap-2">
+                      <div className="col-span-3">버전 / 보고서명</div>
+                      <div className="col-span-2">집계 기간</div>
+                      <div className="col-span-2 text-right">총 수입 / 순수 지출</div>
+                      <div className="col-span-2 text-right">순수지 (Net)</div>
+                      <div className="col-span-1 text-center">원장 건수</div>
+                      <div className="col-span-2 text-center">관리 액션</div>
                     </div>
-                  ))}
+
+                    {analysisReports.map((rep, idx) => (
+                      <div
+                        key={rep.id}
+                        className="p-3.5 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/60 dark:hover:bg-zinc-800/40 text-xs transition-colors"
+                      >
+                        <div className="col-span-3 space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-extrabold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 text-[10px]">
+                              {rep.version}
+                            </span>
+                            {idx === 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                                최신
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-slate-900 dark:text-white block truncate">
+                            {rep.title}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            발행: {rep.createdAt}
+                          </span>
+                        </div>
+
+                        <div className="col-span-2 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+                          {rep.period}
+                        </div>
+
+                        <div className="col-span-2 text-right space-y-0.5">
+                          <span className="font-mono font-bold text-emerald-600 block">
+                            +₩{rep.totalIncome.toLocaleString()}
+                          </span>
+                          <span className="font-mono font-bold text-rose-600 block">
+                            -₩{rep.totalExpense.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="col-span-2 text-right">
+                          <span className="font-mono font-black text-purple-600 dark:text-purple-400 block">
+                            +₩{rep.netSavings.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            카드: ₩{(rep.cardBilledTotal / 10000).toFixed(0)}만
+                          </span>
+                        </div>
+
+                        <div className="col-span-1 text-center font-mono text-slate-500 font-bold">
+                          {rep.txCount}건
+                        </div>
+
+                        <div className="col-span-2 flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReportDetail(rep)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                          >
+                            상세 열람
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
