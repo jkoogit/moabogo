@@ -5,6 +5,7 @@ export interface LadderResultParticipant {
   id: string;
   name: string;
   avatar: string;
+  imageUrl?: string;
   goalText: string;
   goalIcon: string;
   isWinner: boolean;
@@ -188,6 +189,17 @@ function getCanvasThemeColors(theme?: 'light' | 'dark' | 'dawn') {
   };
 }
 
+function loadCanvasImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+    setTimeout(() => resolve(null), 1200);
+  });
+}
+
 /**
  * 사다리타기 결과 고해상도(2x Retina) 카드 이미지 Blob 생성 (테마 완벽 반영, 너비 2/3 축소 426px)
  */
@@ -196,6 +208,21 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
   const marginX = 20;
   const colGap = 8;
   const colW = (width - marginX * 2 - colGap) / 2; // 약 189px
+
+  // 참가자 실물 이미지 사전 로드 (실패 시 이모지 아바타 자동 폴백)
+  const imageMap = new Map<string, HTMLImageElement>();
+  await Promise.all(
+    data.participants.map(async (p) => {
+      if (p.imageUrl) {
+        try {
+          const img = await loadCanvasImage(p.imageUrl);
+          if (img) imageMap.set(p.id, img);
+        } catch {
+          // ignore error
+        }
+      }
+    })
+  );
 
   const winnerList = data.participants.filter((p) => p.isWinner);
   const otherList = data.participants.filter((p) => !p.isWinner);
@@ -365,10 +392,21 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         ctx.strokeStyle = colors.winnerBoxBorder;
         ctx.stroke();
 
-        // 아바타 (세로 중앙)
-        ctx.font = '18px sans-serif';
+        // 아바타 (세로 중앙: 실물 제품 이미지 우선, 실패 시 메뉴 아이콘/이모지)
+        const winnerImg = imageMap.get(p.id);
         const avatarY = itemY + (rowHeight / 2) + 6;
-        ctx.fillText(p.avatar || '👤', itemX + 8, avatarY);
+        if (winnerImg) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(itemX + 17, avatarY - 6, 11, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(winnerImg, itemX + 6, avatarY - 17, 22, 22);
+          ctx.restore();
+        } else {
+          ctx.font = '16px sans-serif';
+          ctx.fillText(p.avatar || '👤', itemX + 8, avatarY);
+        }
 
         // 당첨 배지
         ctx.fillStyle = colors.winnerBadge;
@@ -423,9 +461,21 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         ctx.strokeStyle = colors.otherBoxBorder;
         ctx.stroke();
 
-        ctx.font = '15px sans-serif';
+        // 아바타 (세로 중앙: 실물 제품 이미지 우선, 실패 시 메뉴 아이콘/이모지)
+        const otherImg = imageMap.get(p.id);
         const avatarY = itemY + (rowHeight / 2) + 5;
-        ctx.fillText(p.avatar || '👤', itemX + 7, avatarY);
+        if (otherImg) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(itemX + 15, avatarY - 5, 9, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(otherImg, itemX + 6, avatarY - 14, 18, 18);
+          ctx.restore();
+        } else {
+          ctx.font = '14px sans-serif';
+          ctx.fillText(p.avatar || '👤', itemX + 7, avatarY);
+        }
 
         ctx.fillStyle = colors.otherName;
         ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';

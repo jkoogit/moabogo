@@ -999,18 +999,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
       <div className="flex flex-col gap-3 border-b pb-4 border-slate-200 dark:border-zinc-800">
         {/* Row 1: 타이틀 & 아이콘 툴바 (데스크탑/모바일 공통 최적화) */}
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
               SCR-DSH-01
             </span>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-black tracking-tight truncate text-slate-900 dark:text-white">
-                메인 대시보드
-              </h1>
-              <p className="text-[11px] text-slate-400 truncate">
-                {activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브
-              </p>
-            </div>
+            <ElmTyp01
+              title="메인 대시보드"
+              subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
+              className="min-w-0"
+            />
           </div>
 
           {/* 툴바 액션: 검색, 맞춤설정, 환경설정 */}

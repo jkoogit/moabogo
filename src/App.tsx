@@ -49,6 +49,22 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
 
+  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState<boolean>(false);
+  const deviceMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close device menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (deviceMenuRef.current && !deviceMenuRef.current.contains(e.target as Node)) {
+        setIsDeviceMenuOpen(false);
+      }
+    };
+    if (isDeviceMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDeviceMenuOpen]);
+
   // Mock Ledgers for Command Palette & Header Switcher
   const initialLedgers: Ledger[] = [
     { ledger_id: 'led-1', owner_id: 'user-1', ledger_name: '우리집 가계부 (가족 공유)', ledger_type: 'GROUP', is_instance: false, role: 'OWNER', created_at: '2026-01-01' },
@@ -92,6 +108,7 @@ export default function App() {
       category: '회원 / 게스트',
       comp: (
         <SCR_AUT_02_로그인오프라인세션
+          onGoHome={() => setCurrentScreen('SCR-GNT-01')}
           onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
           onSuccessLogin={() => {
             setIsLoggedIn(true);
@@ -106,6 +123,7 @@ export default function App() {
       category: '회원 / 게스트',
       comp: (
         <SCR_AUT_01_회원가입
+          onGoHome={() => setCurrentScreen('SCR-GNT-01')}
           onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
           onSuccessSignup={() => {
             setIsLoggedIn(true);
@@ -290,48 +308,105 @@ export default function App() {
 
           {/* Right: Device View Simulation, Offline Toggle & Theme Toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Viewport Simulation Mode Pills (Desktop / Tablet / Mobile) */}
-            <div
-              className={`hidden md:flex items-center p-0.5 rounded-lg border text-xs ${
-                isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'
-              }`}
-            >
+            {/* Viewport Simulation Mode Popover (Desktop / Tablet / Mobile) */}
+            <div ref={deviceMenuRef} className="relative hidden md:block">
               <button
                 type="button"
-                onClick={() => setDeviceView('FULL')}
-                className={`p-1.5 rounded transition-colors ${
-                  deviceView === 'FULL'
-                    ? 'bg-indigo-600 text-white font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
+                onClick={() => setIsDeviceMenuOpen((prev) => !prev)}
+                className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                  isDeviceMenuOpen
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
+                    : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
                 }`}
-                title="전체 풀화면 모드"
+                title={`화면 뷰포트 모드 변경 (현재: ${
+                  deviceView === 'FULL' ? 'PC 풀화면' : deviceView === 'TABLET' ? '태블릿 (860px)' : '모바일 (420px)'
+                })`}
               >
-                <Monitor className="w-3.5 h-3.5" />
+                {deviceView === 'FULL' && <Monitor className="w-3.5 h-3.5" />}
+                {deviceView === 'TABLET' && <Tablet className="w-3.5 h-3.5" />}
+                {deviceView === 'MOBILE' && <Smartphone className="w-3.5 h-3.5" />}
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isDeviceMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-              <button
-                type="button"
-                onClick={() => setDeviceView('TABLET')}
-                className={`p-1.5 rounded transition-colors ${
-                  deviceView === 'TABLET'
-                    ? 'bg-indigo-600 text-white font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="태블릿 모드 (860px 뷰포트)"
-              >
-                <Tablet className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeviceView('MOBILE')}
-                className={`p-1.5 rounded transition-colors ${
-                  deviceView === 'MOBILE'
-                    ? 'bg-indigo-600 text-white font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="모바일 Spacious 모드 (420px 뷰포트)"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-              </button>
+
+              {/* 드롭다운 레이어 팝업 */}
+              {isDeviceMenuOpen && (
+                <div
+                  className={`absolute right-0 top-full mt-1.5 w-48 rounded-xl border shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100 backdrop-blur-md' : 'bg-white/95 border-slate-200 text-slate-800 backdrop-blur-md'
+                  }`}
+                >
+                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    뷰포트 모드 선택
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeviceView('FULL');
+                      setIsDeviceMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      deviceView === 'FULL'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="text-xs">PC 풀화면</div>
+                        <div className="text-[10px] text-slate-400">전체 반응형 뷰</div>
+                      </div>
+                    </div>
+                    {deviceView === 'FULL' && <CheckCircle className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeviceView('TABLET');
+                      setIsDeviceMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      deviceView === 'TABLET'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Tablet className="w-4 h-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="text-xs">태블릿 모드</div>
+                        <div className="text-[10px] text-slate-400">860px 뷰포트</div>
+                      </div>
+                    </div>
+                    {deviceView === 'TABLET' && <CheckCircle className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeviceView('MOBILE');
+                      setIsDeviceMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      deviceView === 'MOBILE'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="text-xs">모바일 모드</div>
+                        <div className="text-[10px] text-slate-400">420px Spacious 뷰</div>
+                      </div>
+                    </div>
+                    {deviceView === 'MOBILE' && <CheckCircle className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Offline Simulation Toggle */}

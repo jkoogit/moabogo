@@ -5,6 +5,7 @@ import {
   ElmChk01,
   ElmStt01,
 } from '../elements/Tokens';
+import { MoaLogo } from '../../components/MoaLogo';
 import {
   UserPlus,
   Mail,
@@ -19,12 +20,14 @@ import {
   ShieldCheck,
   ArrowRight,
   ExternalLink,
+  Home,
 } from 'lucide-react';
 
 export const SCR_AUT_01_회원가입: React.FC<{
   onGoLogin?: () => void;
   onSuccessSignup?: () => void;
-}> = ({ onGoLogin, onSuccessSignup }) => {
+  onGoHome?: () => void;
+}> = ({ onGoLogin, onSuccessSignup, onGoHome }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -172,12 +175,13 @@ export const SCR_AUT_01_회원가입: React.FC<{
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-4 sm:p-6 space-y-6 bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-start pt-2 sm:pt-6 transition-colors">
-      <div className="p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-sm space-y-5 transition-colors">
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 transition-colors">
+      {/* 중앙 정렬 페이지 본문 컨테이너 */}
+      <div className="w-full max-w-md p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-sm space-y-5 transition-colors my-auto">
         
-        {/* Header with ElmTyp01 */}
+        {/* Header with ElmTyp01 & Badge */}
         <div className="text-center">
-          <div className="flex justify-center mb-1.5">
+          <div className="flex justify-center mb-2">
             <ElmStt01 type="INDIGO" label="SCR-AUT-01 · 3초 간편 시작" />
           </div>
           <ElmTyp01
@@ -401,14 +405,27 @@ export const SCR_AUT_01_회원가입: React.FC<{
             </div>
           </div>
 
-          {/* 가입 완료 제출 버튼 (min-h-[44px] 터치 규격 및 whitespace-nowrap) */}
-          <button
-            type="submit"
-            className="w-full mt-4 min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <UserPlus className="w-4 h-4 shrink-0" />
-            <span>가입 완료하고 내 가계부 바로 열기</span>
-          </button>
+          {/* 가입 완료 제출 버튼 + 좌측 홈 버튼 */}
+          <div className="flex items-center gap-2 mt-4">
+            {onGoHome && (
+              <button
+                type="button"
+                onClick={onGoHome}
+                className="min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] bg-slate-100 hover:bg-slate-200 dark:bg-[#252529] dark:hover:bg-[#2e2e33] text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+                title="모아보고 홈으로 이동"
+              >
+                <Home className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <span>홈</span>
+              </button>
+            )}
+            <button
+              type="submit"
+              className="flex-1 min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>회원가입</span>
+            </button>
+          </div>
         </form>
 
         {/* 기존 회원 로그인 링크 */}
@@ -424,6 +441,6 @@ export const SCR_AUT_01_회원가입: React.FC<{
         </div>
       </div>
     </div>
-  );
+);
 };
 

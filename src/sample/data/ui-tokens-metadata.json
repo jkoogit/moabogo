@@ -698,5 +698,30 @@
       { "screenId": "SCR-LED-01", "screenName": "가계부 관리 상세", "role": "전역 빠른 머니/수행 등록 독" },
       { "screenId": "SCR-DUT-01", "screenName": "모아당번 상세", "role": "전역 빠른 머니/수행 등록 독" }
     ]
+  },
+  {
+    "id": "ELM-TOA-01",
+    "name": "플로팅 상태 피드백 토스트 레이어",
+    "category": "Feedback & Overlay",
+    "description": "결과 복사, 사다리/목표 재배치, 데이터 저장 및 비동기 작업 완료 시 화면 하단 중앙에 일시적으로 노출되는 표준 비침습적 스낵바/토스트 컴포넌트입니다.",
+    "guardrails": {
+      "verticalCenterRule": "시맨틱 아이콘/배지, 텍스트 라벨, 닫기 버튼의 100% 수직 중앙 정렬",
+      "textWrapPolicy": "모바일 가로폭 기준 break-keep 및 1-2줄 유연 노출",
+      "touchTargetMin": "닫기 버튼 min-h-[44px] 터치 타겟 보장",
+      "keyTailwindClasses": "fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3",
+      "eventIsolation": "수동 ✕ 닫기 클릭 시 e.stopPropagation() 및 자동 타이머 해제"
+    },
+    "states": ["success", "info", "warning", "error"],
+    "viewportSupport": {
+      "pc": "화면 하단 중앙 플로팅 레이어",
+      "tablet": "화면 하단 중앙 배치",
+      "mobile": "화면 하단 중앙 (좌우 여백 확보 max-w-sm)"
+    },
+    "codeSnippet": "<ElmToast01\n  message=\"사다리 결과 카드 이미지가 클립보드에 복사되었습니다.\"\n  type=\"success\"\n  onClose={() => setToastMessage(null)}\n/>",
+    "propsInterface": "interface ElmToast01Props {\n  message: string | null;\n  type?: 'success' | 'info' | 'warning' | 'error';\n  onClose?: () => void;\n  duration?: number;\n  className?: string;\n}",
+    "usedScreenIds": [
+      { "screenId": "SCR-GNT-01", "screenName": "비로그인 메인 게스트 홈", "role": "사다리 결과 복사, 목표/사다리 재배치 안내 피드백" },
+      { "screenId": "SCR-SMP-01", "screenName": "공통 컴포넌트 쇼케이스", "role": "표준 토스트 피드백 라이브 데모" }
+    ]
   }
 ]

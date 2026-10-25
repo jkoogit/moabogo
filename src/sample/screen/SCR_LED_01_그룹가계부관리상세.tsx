@@ -2939,6 +2939,35 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 landscape:p-3 space-y-4 sm:space-y-5 landscape:space-y-3 bg-slate-50 dark:bg-zinc-950 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* ==================================================================== */}
+      {/* 1. 표준 상단 헤더 (Section 1 Header: ElmTyp01 & SCR-LED-01 뱃지) */}
+      {/* ==================================================================== */}
+      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3.5 border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
+            SCR-LED-01
+          </span>
+          <ElmTyp01
+            title="통합 가계부 · 지출내역 종합관리"
+            subtitle="가계부 책장 & 3대 뷰(타임라인/카테고리/캘린더) & SSOT 원장 관리"
+            className="min-w-0"
+          />
+        </div>
+
+        {/* 상단 퀵 액션 */}
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setNewLedgerModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95"
+            title="새 가계부 장부 개설하기"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>새 가계부 개설</span>
+          </button>
+        </div>
+      </section>
+
+      {/* ==================================================================== */}
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
       <div className="relative pt-0 pb-2 sm:pt-0 sm:pb-3 landscape:py-1 px-1 sm:px-4">

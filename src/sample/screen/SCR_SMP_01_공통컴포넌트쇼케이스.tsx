@@ -24,6 +24,7 @@ import {
   ElmBsh01,
   ElmTip01,
   ElmHlp01,
+  ElmToast01,
   TreeNode,
 } from '../elements/Tokens';
 import {
@@ -88,6 +89,12 @@ export const SCR_SMP_01_공통컴포넌트쇼케이스: React.FC = () => {
   const [demoStep, setDemoStep] = useState(2);
   const [demoBottomSheetOpen, setDemoBottomSheetOpen] = useState(false);
   const [isTreeEdit, setIsTreeEdit] = useState(false);
+  const [demoToastMsg, setDemoToastMsg] = useState<string | null>(null);
+  const [demoToastType, setDemoToastType] = useState<'success' | 'info' | 'warning' | 'error'>('success');
+  const triggerDemoToast = (msg: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    setDemoToastMsg(msg);
+    setDemoToastType(type);
+  };
 
   // 샘플 트리 데이터
   const [treeData, setTreeData] = useState<TreeNode[]>([
@@ -339,19 +346,30 @@ export const SCR_SMP_01_공통컴포넌트쇼케이스: React.FC = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                카테고리 분류 트리 (드래그앤드롭 순서 변경 지원)
+                카테고리 분류 트리 (드래그 핸들로 상하/자식 노드 위치 이동 지원)
               </span>
               <button
                 type="button"
                 onClick={() => setIsTreeEdit(!isTreeEdit)}
                 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
               >
-                {isTreeEdit ? '완료' : '편집 모드'}
+                {isTreeEdit ? '완료' : '편집 모드 (드래그 활성화)'}
               </button>
             </div>
+            {isTreeEdit && (
+              <div className="p-2 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                <span>💡</span>
+                <span>핸들(☰)을 드래그하면 실시간 위치 플래그(▲ 위 삽입, ↳ 자식 편입, ▼ 아래 삽입)가 표시됩니다.</span>
+              </div>
+            )}
             <ElmTre01
               data={treeData}
               isEditMode={isTreeEdit}
+              onDataChange={setTreeData}
+              onMoveNode={(draggedId, targetId, pos) => {
+                const posText = pos === 'inside' ? '하위 자식으로 편입' : pos === 'before' ? '앞으로 삽입' : '뒤로 삽입';
+                triggerDemoToast(`[ELM-TRE-01] 노드 위치 변경 완료 (${posText})`, 'success');
+              }}
               onSaveNode={(id, newName) => {
                 setTreeData((prev) =>
                   prev.map((node) => (node.id === id ? { ...node, name: newName } : node))
@@ -479,6 +497,44 @@ export const SCR_SMP_01_공통컴포넌트쇼케이스: React.FC = () => {
                 </button>
               </div>
             </ElmBsh01>
+          </div>
+        );
+      case 'ELM-TOA-01':
+        return (
+          <div className="space-y-3">
+            <div className="text-xs text-slate-600 dark:text-zinc-400 break-keep">
+              복사, 재배치, 저장 시 화면 하단 중앙에 부드럽게 노출되는 표준 비침습적 피드백 토스트/스낵바입니다. 아래 버튼을 눌러 피드백을 테스트해보세요.
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => triggerDemoToast('🎲 주사위를 굴려 사다리 경로가 새롭게 재배치되었습니다!', 'success')}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+              >
+                ✓ 성공 토스트 (사다리 재배치)
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerDemoToast('🎯 당첨 및 통과 목표 위치가 무작위로 재배치되었습니다!', 'info')}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+              >
+                ℹ 안내 토스트 (목표 재배치)
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerDemoToast('⚠️ 입력되지 않은 필수 항목이 있습니다. 확인해주세요.', 'warning')}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+              >
+                ⚠ 경고 토스트
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerDemoToast('❌ 데이터 동기화 중 일시적 오류가 발생했습니다.', 'error')}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+              >
+                ✕ 에러 토스트
+              </button>
+            </div>
           </div>
         );
       default:
@@ -786,6 +842,13 @@ export const SCR_SMP_01_공통컴포넌트쇼케이스: React.FC = () => {
         onOcrClick={() => {}}
         onQuickExpenseClick={() => {}}
         onQuickDutyClick={() => {}}
+      />
+
+      {/* 화면 하단 플로팅 표준 피드백 토스트 레이어 (ELM-TOA-01) */}
+      <ElmToast01
+        message={demoToastMsg}
+        type={demoToastType}
+        onClose={() => setDemoToastMsg(null)}
       />
     </div>
   );

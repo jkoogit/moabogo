@@ -242,9 +242,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [copiedResultText, setCopiedResultText] = useState<boolean>(false);
   const [invalidRoomNotice, setInvalidRoomNotice] = useState<string | null>(null);
 
-  // 연동 매장 및 메뉴판 모달 상태 (초기값: 매장선택 없음 null)
+  // 연동 매장 및 메뉴판 모달 상태 (기본값: PLUS CAFE 45층 WPS 스타벅스 매장 풀 프리셋)
   const [userStorePref] = useState(() => loadUserStorePreference());
-  const [selectedStore, setSelectedStore] = useState<StorePreset | null>(null);
+  const [selectedStore, setSelectedStore] = useState<StorePreset | null>(() => SYSTEM_STORE_POOL[0] || null);
   const [isMenuModalOpen, setIsMenuModalOpen] = useState<boolean>(false);
   const [selectingTargetMemberId, setSelectingTargetMemberId] = useState<string | null>(null);
   const [menuModalCategory, setMenuModalCategory] = useState<string>('전체');
@@ -473,8 +473,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // ---------------------------------------------------------------------------
   const [memberCount, setMemberCount] = useState<number>(6);
   const [members, setMembers] = useState<Participant[]>(() => {
+    const defaultStore = SYSTEM_STORE_POOL[0];
     return Array.from({ length: 6 }).map((_, i) => {
       const preset = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
+      const defaultMenu = defaultStore?.menus[i % defaultStore.menus.length];
       return {
         id: `m_${i + 1}`,
         name: `참가자${i + 1}`,
@@ -483,6 +485,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         bgLight: preset.bgLight,
         weight: 1,
         isSent: false,
+        selectedMenu: defaultMenu,
       };
     });
   });
@@ -901,6 +904,26 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [copiedLadderImage, setCopiedLadderImage] = useState<boolean>(false);
   const [isGeneratingLadderCard, setIsGeneratingLadderCard] = useState<boolean>(false);
 
+  // 사다리 결과 카드용 참가자 아바타 계산 (메뉴 선택 시 메뉴 아이콘/이모지 반환)
+  const getMemberLadderAvatar = (m: Participant): string => {
+    if (selectedStore && m.selectedMenu) {
+      const cat = m.selectedMenu.categoryName || '';
+      if (cat.includes('커피')) return '☕';
+      if (cat.includes('콜드브루')) return '🧊';
+      if (cat.includes('티')) return '🍵';
+      if (cat.includes('라떼')) return '🥛';
+      if (cat.includes('에이드') || cat.includes('주스')) return '🍹';
+      if (cat.includes('베이커리') || cat.includes('디저트')) return '🥐';
+      if (cat.includes('샌드위치')) return '🥪';
+      if (cat.includes('샐러드') || cat.includes('웜볼')) return '🥗';
+      if (cat.includes('케이크')) return '🍰';
+      if (cat.includes('김밥')) return '🍙';
+      if (cat.includes('만두')) return '🥟';
+      return '🍽️';
+    }
+    return m.avatar;
+  };
+
   const handleCopyLadderImageCard = async () => {
     if (!ladderResult) return;
     setIsGeneratingLadderCard(true);
@@ -910,7 +933,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         return {
           id: m.id,
           name: m.name,
-          avatar: m.avatar,
+          avatar: getMemberLadderAvatar(m),
+          imageUrl: selectedStore && m.selectedMenu ? m.selectedMenu.imageUrl : undefined,
           goalText: res ? res.text : '',
           goalIcon: res ? res.icon : '',
           isWinner: !!res?.isWinner,
@@ -952,7 +976,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         return {
           id: m.id,
           name: m.name,
-          avatar: m.avatar,
+          avatar: getMemberLadderAvatar(m),
+          imageUrl: selectedStore && m.selectedMenu ? m.selectedMenu.imageUrl : undefined,
           goalText: res ? res.text : '',
           goalIcon: res ? res.icon : '',
           isWinner: !!res?.isWinner,
@@ -1073,13 +1098,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     setRevealedGoals({});
     setRevealedGoalCols({});
     setArrivalPopup(null);
-    setShuffleNotice('🎲 주사위를 굴려 모든 사다리 경로가 완벽한 균형으로 새롭게 재배치되었습니다!');
+    showToast('🎲 주사위를 굴려 사다리 경로가 새롭게 재배치되었습니다!', 'success');
     setTimeout(() => {
       setIsDiceRolling(false);
     }, 450);
-    setTimeout(() => {
-      setShuffleNotice(null);
-    }, 3000);
   };
 
   // 목표(당첨/통과) 순서 무작위 셔플
@@ -1090,10 +1112,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     setRevealedGoals({});
     setRevealedGoalCols({});
     setArrivalPopup(null);
-    setShuffleNotice('🎯 당첨 및 통과 목표 위치가 무작위로 섞였습니다!');
-    setTimeout(() => {
-      setShuffleNotice(null);
-    }, 2500);
+    showToast('🎯 당첨 및 통과 목표 위치가 무작위로 재배치되었습니다!', 'info');
   };
 
   // 3 & 4. 정확한 X, Y 웨이포인트 경로 계산 및 부드러운 스텝 보간 (LADDER_COL_WIDTH = 84px)
@@ -1532,6 +1551,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [selectedTagger, setSelectedTagger] = useState<Participant | null>(null);
 
   const spinTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentSpinChosenRef = useRef<RouletteSliceItem | null>(null);
 
   // [중복제거 튜닝 1] 당첨자 제외 모드 & 제외된 항목 보관함
   const [excludeWinnerMode, setExcludeWinnerMode] = useState<boolean>(false);
@@ -1829,9 +1849,39 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     return slices;
   }, [rouletteItems, totalRouletteWeight]);
 
-  // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수 (중앙 허브 즉시 재실행 forceRestart 지원)
+  // [휠 튜닝 & 중복제거] 룰렛 회전 코어 함수 (중앙 허브 즉시 재실행 forceRestart 및 회전 중 즉시 결과 skip 지원)
   const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem, forceRestart = false) => {
     if (rouletteItems.length === 0) return;
+
+    // 회전 중에 '즉시 결과'를 누른 경우: 현재 회전 중인 타깃으로 즉시 완료 처리
+    if (isSpinning && skip) {
+      if (spinTimerRef.current) {
+        clearTimeout(spinTimerRef.current);
+        spinTimerRef.current = null;
+      }
+      const chosen = currentSpinChosenRef.current || overrideChosen || rouletteItems[0];
+      const chosenSlice = rouletteSlices.find((s) => s.item.id === chosen.id);
+      const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
+      const targetBase = 270 - sliceMidAngle;
+      const currentNorm = ((rouletteRotation % 360) + 360) % 360;
+      let diff = targetBase - currentNorm;
+      while (diff < -180) diff += 360;
+      while (diff > 180) diff -= 360;
+
+      setRouletteTransitionDuration(0);
+      setRouletteRotation((prev) => prev + diff);
+      setIsSpinning(false);
+      setSelectedRouletteWinner(chosen);
+      const matchedMember = members.find((m) => m.id === chosen.id || m.name === chosen.name);
+      if (matchedMember) setSelectedTagger(matchedMember);
+
+      if (excludeWinnerMode && rouletteItems.length > 2) {
+        setExcludedRouletteItems((prev) => [...prev, chosen]);
+        setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
+      }
+      return;
+    }
+
     if (isSpinning && !forceRestart) return;
 
     if (spinTimerRef.current) {
@@ -1854,6 +1904,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         rand -= w;
       }
     }
+    currentSpinChosenRef.current = chosen;
 
     if (skip) {
       setIsSpinning(true);
@@ -3238,13 +3289,41 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                                       isCurrentActive ? 'scale-125 ring-4 ring-indigo-500 animate-pulse' : ''
                                     }`}
                                   >
-                                    {selectedStore && m.selectedMenu?.imageUrl ? (
+                                    {selectedStore && m.selectedMenu ? (
                                       <>
-                                        <img
-                                          src={m.selectedMenu.imageUrl}
-                                          alt={m.selectedMenu.name}
-                                          className="w-full h-full object-cover"
-                                        />
+                                        {m.selectedMenu.imageUrl ? (
+                                          <img
+                                            src={m.selectedMenu.imageUrl}
+                                            alt={m.selectedMenu.name}
+                                            className="w-full h-full object-cover"
+                                            referrerPolicy="no-referrer"
+                                            onError={(e) => {
+                                              (e.target as HTMLElement).style.display = 'none';
+                                            }}
+                                          />
+                                        ) : (
+                                          <span className="text-base select-none">
+                                            {m.selectedMenu.categoryName.includes('커피')
+                                              ? '☕'
+                                              : m.selectedMenu.categoryName.includes('콜드브루')
+                                              ? '🧊'
+                                              : m.selectedMenu.categoryName.includes('티')
+                                              ? '🍵'
+                                              : m.selectedMenu.categoryName.includes('라떼')
+                                              ? '🥛'
+                                              : m.selectedMenu.categoryName.includes('에이드') || m.selectedMenu.categoryName.includes('주스')
+                                              ? '🍹'
+                                              : m.selectedMenu.categoryName.includes('베이커리')
+                                              ? '🥐'
+                                              : m.selectedMenu.categoryName.includes('샐러드') || m.selectedMenu.categoryName.includes('웜볼')
+                                              ? '🥗'
+                                              : m.selectedMenu.categoryName.includes('김밥')
+                                              ? '🍙'
+                                              : m.selectedMenu.categoryName.includes('만두')
+                                              ? '🥟'
+                                              : '🍽️'}
+                                          </span>
+                                        )}
                                         <span className="absolute -bottom-0.5 -right-0.5 text-[8px] bg-white/90 dark:bg-zinc-900/90 rounded-full w-3.5 h-3.5 flex items-center justify-center shadow-2xs border border-slate-200 dark:border-zinc-700 pointer-events-none">
                                           {m.avatar}
                                         </span>
@@ -4177,10 +4256,32 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                               alt={menu.name}
                               className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200/80 dark:border-zinc-700/80 shadow-2xs"
                               loading="lazy"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-xl bg-slate-200/70 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-xl border border-slate-200/50 dark:border-zinc-700/50">
-                              🍽️
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-xl border border-slate-200/50 dark:border-zinc-700/50 shadow-2xs select-none">
+                              {menu.categoryName.includes('커피')
+                                ? '☕'
+                                : menu.categoryName.includes('콜드브루')
+                                ? '🧊'
+                                : menu.categoryName.includes('티')
+                                ? '🍵'
+                                : menu.categoryName.includes('라떼')
+                                ? '🥛'
+                                : menu.categoryName.includes('에이드') || menu.categoryName.includes('주스')
+                                ? '🍹'
+                                : menu.categoryName.includes('베이커리')
+                                ? '🥐'
+                                : menu.categoryName.includes('샐러드') || menu.categoryName.includes('웜볼')
+                                ? '🥗'
+                                : menu.categoryName.includes('김밥')
+                                ? '🍙'
+                                : menu.categoryName.includes('만두')
+                                ? '🥟'
+                                : '🍽️'}
                             </div>
                           )}
                           <div className="min-w-0 space-y-0.5">
@@ -5310,13 +5411,23 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-2">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                      {menuTooltip.menu.categoryName}
-                    </span>
-                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-zinc-100 leading-snug">
-                      ☕ {menuTooltip.menu.name}
-                    </h4>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {menuTooltip.menu.imageUrl && (
+                      <img
+                        src={menuTooltip.menu.imageUrl}
+                        alt={menuTooltip.menu.name}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-zinc-700 shadow-2xs"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                    <div className="space-y-0.5 min-w-0">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        {menuTooltip.menu.categoryName}
+                      </span>
+                      <h4 className="text-sm font-extrabold text-slate-900 dark:text-zinc-100 leading-snug">
+                        {menuTooltip.menu.name}
+                      </h4>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -5786,11 +5897,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                   <button
                     type="button"
                     onClick={() => handleSpinRoulette(true)}
-                    disabled={isSpinning || rouletteItems.length === 0}
-                    className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 font-bold text-xs transition-all cursor-pointer"
+                    disabled={rouletteItems.length === 0}
+                    className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
+                      isSpinning
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/30 animate-pulse active:scale-95'
+                        : 'bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-zinc-200 disabled:opacity-50'
+                    }`}
+                    title="회전 중에도 즉시 결과를 확인합니다"
                   >
                     <FastForward className="w-4 h-4" />
-                    <span>즉시 결과</span>
+                    <span>{isSpinning ? '⚡ 즉시 결과 확인' : '즉시 결과'}</span>
                   </button>
                 </div>
               </div>

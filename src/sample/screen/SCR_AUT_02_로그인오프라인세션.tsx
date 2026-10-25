@@ -7,6 +7,7 @@ import {
   ElmOff01,
   ElmSwt01,
 } from '../elements/Tokens';
+import { MoaLogo } from '../../components/MoaLogo';
 import {
   LogIn,
   Shield,
@@ -23,12 +24,14 @@ import {
   Lock,
   Mail,
   HelpCircle,
+  Home,
 } from 'lucide-react';
 
 export const SCR_AUT_02_로그인오프라인세션: React.FC<{
   onSuccessLogin?: () => void;
   onGoSignup?: () => void;
-}> = ({ onSuccessLogin, onGoSignup }) => {
+  onGoHome?: () => void;
+}> = ({ onSuccessLogin, onGoSignup, onGoHome }) => {
   const [email, setEmail] = useState('jkok2j2m@gmail.com');
   const [password, setPassword] = useState('moabogo2026!');
   const [keepOfflineSession, setKeepOfflineSession] = useState(true);
@@ -143,30 +146,29 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
   };
 
   return (
-    <div className="w-full bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-start transition-colors">
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-[#121215] text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 transition-colors">
       {/* 최상단 오프라인 인디케이터 토큰 (ELM-OFF-01) */}
       <ElmOff01 isOffline={isOffline} pendingCount={isOffline ? 2 : 0} />
 
-      {/* 상단 밀착 및 div 중복 제거 플랫 레이아웃 */}
-      <div className="w-full max-w-md mx-auto p-4 sm:p-6">
-        <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-xs space-y-5 transition-colors">
-          
-          {/* Header with ElmTyp01 */}
-          <div className="text-center">
-            <div className="flex justify-center items-center gap-2 mb-1.5">
-              <ElmStt01 type="INDIGO" label="SCR-AUT-02 · 세션 관리" />
-              {isOffline ? (
-                <ElmStt01 type="AMBER" label="오프라인 모드" icon={<WifiOff className="w-3 h-3" />} />
-              ) : (
-                <ElmStt01 type="EMERALD" label="온라인 연결됨" icon={<Wifi className="w-3 h-3" />} />
-              )}
-            </div>
-            <ElmTyp01
-              title="모아보고 로그인 & 세션"
-              subtitle="오프라인 PWA 무중단 세션 지속 보장 (IndexedDB)"
-              className="items-center text-center"
-            />
+      {/* 중앙 정렬 페이지 본문 컨테이너 */}
+      <div className="w-full max-w-md p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#1a1a1e] border border-slate-200 dark:border-[#27272a] shadow-xs space-y-5 transition-colors my-auto">
+        
+        {/* Header with ElmTyp01 & Badges */}
+        <div className="text-center">
+          <div className="flex justify-center items-center gap-2 mb-2">
+            <ElmStt01 type="INDIGO" label="SCR-AUT-02 · 세션 관리" />
+            {isOffline ? (
+              <ElmStt01 type="AMBER" label="오프라인" icon={<WifiOff className="w-3 h-3" />} />
+            ) : (
+              <ElmStt01 type="EMERALD" label="온라인" icon={<Wifi className="w-3 h-3" />} />
+            )}
           </div>
+          <ElmTyp01
+            title="모아보고 로그인 & 세션"
+            subtitle="오프라인 PWA 무중단 세션 지속 보장 (IndexedDB)"
+            className="items-center text-center"
+          />
+        </div>
 
           {/* 오프라인 시뮬레이션 토글 버튼 (테스트 편의용) */}
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100/70 dark:bg-[#252529] border border-slate-200/80 dark:border-[#333338] text-xs">
@@ -303,14 +305,27 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
                   />
                 </div>
 
-                {/* 로그인 제출 버튼 (min-h-[44px], whitespace-nowrap) */}
-                <button
-                  type="submit"
-                  className="w-full mt-4 min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                >
-                  <LogIn className="w-4 h-4 shrink-0" />
-                  <span>{is2FAEnabled ? '다음 (2단계 OTP 인증)' : '로그인하고 내 가계부 열기'}</span>
-                </button>
+                {/* 홈버튼 (왼쪽) + 로그인 제출 버튼 */}
+                <div className="flex items-center gap-2 mt-4">
+                  {onGoHome && (
+                    <button
+                      type="button"
+                      onClick={onGoHome}
+                      className="min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] bg-slate-100 hover:bg-slate-200 dark:bg-[#252529] dark:hover:bg-[#2e2e33] text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+                      title="모아보고 홈으로 이동"
+                    >
+                      <Home className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                      <span>홈</span>
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-1 min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  >
+                    <LogIn className="w-4 h-4 shrink-0" />
+                    <span>{is2FAEnabled ? '다음 (2단계 OTP 인증)' : '로그인'}</span>
+                  </button>
+                </div>
               </>
             ) : (
               /* 2단계 인증(2FA) OTP 입력 화면 */
@@ -391,7 +406,6 @@ export const SCR_AUT_02_로그인오프라인세션: React.FC<{
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
