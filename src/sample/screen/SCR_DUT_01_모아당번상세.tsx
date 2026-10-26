@@ -36,6 +36,15 @@ import {
   Copy,
   ThumbsUp,
   Award,
+  BarChart3,
+  TrendingUp,
+  Flame,
+  Trophy,
+  Medal,
+  Settings2,
+  ArrowUpRight,
+  PieChart,
+  Info,
 } from 'lucide-react';
 import {
   MoaDuty,
@@ -48,6 +57,9 @@ import {
   DutyDurationType,
   DayOfWeek,
   DutySubstituteRequest,
+  DutyStatsPeriod,
+  DutyStatsDataPoint,
+  MemberContributionRank,
 } from '../../types';
 import {
   INITIAL_DUTIES,
@@ -55,6 +67,9 @@ import {
   INITIAL_INVITATIONS,
   INITIAL_DUTY_LOGS,
   calculateNextAssignee,
+  calculateDutyStats,
+  calculateMemberRanks,
+  calculateDutyKPIs,
   DutyInvitation,
 } from '../dutyStore';
 
@@ -65,11 +80,22 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
   const isDark = resolvedTheme === 'dark' || resolvedTheme === 'dawn';
 
   // State Management
-  const [activeTab, setActiveTab] = useState<'ALL' | 'MY' | 'SUBSTITUTE' | 'INVITATION' | 'LOGS'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'MY' | 'SUBSTITUTE' | 'INVITATION' | 'LOGS' | 'STATS'>('STATS');
   const [duties, setDuties] = useState<MoaDuty[]>(INITIAL_DUTIES);
   const [categories, setCategories] = useState<DutyCategory[]>(INITIAL_DUTY_CATEGORIES);
   const [invitations, setInvitations] = useState<DutyInvitation[]>(INITIAL_INVITATIONS);
   const [logs, setLogs] = useState<DutyExecutionLog[]>(INITIAL_DUTY_LOGS);
+
+  // Stats & Ranking State
+  const [statsPeriod, setStatsPeriod] = useState<DutyStatsPeriod>('WEEKLY');
+  const [selectedRankMember, setSelectedRankMember] = useState<MemberContributionRank | null>(null);
+  const [statsConfigModalOpen, setStatsConfigModalOpen] = useState(false);
+  const [statsConfig, setStatsConfig] = useState({
+    weekStartsOn: 'MON' as 'MON' | 'SUN',
+    targetRateThreshold: 80,
+    notifyStreak: true,
+  });
+  const [hoveredDataPoint, setHoveredDataPoint] = useState<DutyStatsDataPoint | null>(null);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -606,6 +632,21 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('STATS')}
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'STATS'
+                ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-purple-500" />
+            <span>실시간 통계 & 랭킹</span>
+            <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-bold">
+              8번
+            </span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('SUBSTITUTE')}
             className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'SUBSTITUTE'
@@ -703,6 +744,537 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
           </button>
         ))}
       </div>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* TAB CONTENT: STATS (8번 실시간 통계 차트 및 기여도 랭킹 뷰어) */}
+      {/* ------------------------------------------------------------------- */}
+      {activeTab === 'STATS' && (() => {
+        const statsData = calculateDutyStats(statsPeriod, duties, logs);
+        const memberRanks = calculateMemberRanks(duties, logs);
+        const kpis = calculateDutyKPIs(duties, logs);
+
+        // Chart dimensions
+        const chartWidth = 600;
+        const chartHeight = 200;
+        const padX = 50;
+        const padY = 25;
+        const usableWidth = chartWidth - padX * 2;
+        const usableHeight = chartHeight - padY * 2;
+        const stepX = statsData.length > 1 ? usableWidth / (statsData.length - 1) : usableWidth / 2;
+
+        // Points for completion rate line
+        const linePoints = statsData.map((d, idx) => {
+          const x = padX + idx * stepX;
+          const y = chartHeight - padY - (d.completion_rate / 100) * usableHeight;
+          return { x, y, data: d };
+        });
+        const pointsString = linePoints.map((p) => `${p.x},${p.y}`).join(' ');
+
+        // Target baseline Y (e.g. 80%)
+        const targetBaselineY = chartHeight - padY - (statsConfig.targetRateThreshold / 100) * usableHeight;
+
+        return (
+          <div className="space-y-6">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900/80 p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-purple-600/10 text-purple-600 dark:text-purple-400">
+                    <BarChart3 className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>실시간 당번 완수율 통계 및 기여도 랭킹</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
+                      모아당번 8번
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  일별·주별·월별 실시간 완수 추이 및 품앗이 기여도 랭킹 뷰어
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                {/* Period Selector */}
+                <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
+                  <button
+                    type="button"
+                    onClick={() => setStatsPeriod('DAILY')}
+                    className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      statsPeriod === 'DAILY'
+                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                    }`}
+                  >
+                    일간 (7일)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatsPeriod('WEEKLY')}
+                    className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      statsPeriod === 'WEEKLY'
+                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                    }`}
+                  >
+                    주간 (6주)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatsPeriod('MONTHLY')}
+                    className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      statsPeriod === 'MONTHLY'
+                        ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                    }`}
+                  >
+                    월간 (5개월)
+                  </button>
+                </div>
+
+                {/* Settings Button */}
+                <button
+                  type="button"
+                  onClick={() => setStatsConfigModalOpen(true)}
+                  className="min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>통계 설정</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Key Performance Indicator (KPI) Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>종합 완수율</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-500" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">
+                    {kpis.overallRate}%
+                  </span>
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    +{kpis.overallRate - statsConfig.targetRateThreshold}%p 초과
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
+                  <div
+                    className="bg-purple-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, kpis.overallRate)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>총 완수 건수</span>
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">
+                    {kpis.totalCompleted}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">회 완수</span>
+                </div>
+                <p className="text-[11px] text-slate-400">피어 3인 및 자율 승인 완료</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>대신수행 품앗이</span>
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-rose-500" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">
+                    {kpis.substituteCount}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">건 지원</span>
+                </div>
+                <p className="text-[11px] text-rose-500 font-semibold">상호 지원율 23% 기록</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>현재 연속 스트릭</span>
+                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                    {kpis.currentStreak}일
+                  </span>
+                  <span className="text-xs text-amber-500 font-bold">연속 달성 🔥</span>
+                </div>
+                <p className="text-[11px] text-slate-400">모임 과업 무중단 지속 중</p>
+              </div>
+            </div>
+
+            {/* Interactive SVG Chart Container */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>
+                      {statsPeriod === 'DAILY' && '최근 7일 일별 완수율 추이'}
+                      {statsPeriod === 'WEEKLY' && '최근 6주 주간 완수율 추이'}
+                      {statsPeriod === 'MONTHLY' && '최근 5개월 월간 완수율 추이'}
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    보라색 막대(완수 건수) · 분홍색 포인트(대신수행) · 인디고 선(완수율 %)
+                  </p>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-zinc-400 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-xs bg-purple-600 inline-block" />
+                    <span>완수 건수</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-xs bg-rose-500 inline-block" />
+                    <span>대신수행</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-indigo-500 inline-block" />
+                    <span>완수율(%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 border-t border-dashed border-emerald-500 inline-block" />
+                    <span>목표 기준({statsConfig.targetRateThreshold}%)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SVG Responsive Chart */}
+              <div className="w-full overflow-x-auto">
+                <svg
+                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                  className="w-full h-56 sm:h-64 select-none"
+                >
+                  <defs>
+                    <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#9333ea" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#7e22ce" stopOpacity="0.4" />
+                    </linearGradient>
+                    <linearGradient id="roseGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#e11d48" stopOpacity="0.5" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Grid Lines */}
+                  {[0, 25, 50, 75, 100].map((rate) => {
+                    const y = chartHeight - padY - (rate / 100) * usableHeight;
+                    return (
+                      <g key={rate}>
+                        <line
+                          x1={padX}
+                          y1={y}
+                          x2={chartWidth - padX}
+                          y2={y}
+                          stroke="currentColor"
+                          className="text-slate-200 dark:text-zinc-800"
+                          strokeWidth="1"
+                          strokeDasharray={rate === 0 ? 'none' : '3,3'}
+                        />
+                        <text
+                          x={padX - 8}
+                          y={y + 3}
+                          textAnchor="end"
+                          className="text-[9px] fill-slate-400 font-mono"
+                        >
+                          {rate}%
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Target Rate Baseline (e.g. 80%) */}
+                  <line
+                    x1={padX}
+                    y1={targetBaselineY}
+                    x2={chartWidth - padX}
+                    y2={targetBaselineY}
+                    stroke="#10b981"
+                    strokeWidth="1.5"
+                    strokeDasharray="4,4"
+                  />
+                  <text
+                    x={chartWidth - padX}
+                    y={targetBaselineY - 4}
+                    textAnchor="end"
+                    fill="#10b981"
+                    className="text-[9px] font-bold"
+                  >
+                    목표 {statsConfig.targetRateThreshold}%
+                  </text>
+
+                  {/* Bars & Interactive Columns */}
+                  {statsData.map((d, idx) => {
+                    const x = padX + idx * stepX;
+                    const maxVal = Math.max(...statsData.map((item) => item.total_scheduled || 1), 5);
+                    const barW = Math.min(28, usableWidth / statsData.length - 8);
+                    const schedH = (d.total_scheduled / maxVal) * (usableHeight * 0.7);
+                    const compH = (d.completed_count / maxVal) * (usableHeight * 0.7);
+                    const subH = (d.substitute_count / maxVal) * (usableHeight * 0.7);
+                    const barY = chartHeight - padY;
+
+                    const isHovered = hoveredDataPoint?.label === d.label;
+
+                    return (
+                      <g
+                        key={d.label}
+                        className="cursor-pointer group"
+                        onMouseEnter={() => setHoveredDataPoint(d)}
+                        onClick={() => setHoveredDataPoint(d)}
+                      >
+                        {/* Background Bar (Total Scheduled) */}
+                        <rect
+                          x={x - barW / 2}
+                          y={barY - schedH}
+                          width={barW}
+                          height={schedH}
+                          rx={4}
+                          className="fill-slate-100 dark:fill-zinc-800 group-hover:fill-slate-200 dark:group-hover:fill-zinc-700 transition-colors"
+                        />
+
+                        {/* Completed Bar */}
+                        <rect
+                          x={x - barW / 2}
+                          y={barY - compH}
+                          width={barW}
+                          height={compH}
+                          rx={4}
+                          fill="url(#purpleGrad)"
+                          className="transition-all duration-300"
+                        />
+
+                        {/* Substitute Bar Top Segment */}
+                        {d.substitute_count > 0 && (
+                          <rect
+                            x={x - barW / 2}
+                            y={barY - compH}
+                            width={barW}
+                            height={Math.min(compH, subH)}
+                            rx={4}
+                            fill="url(#roseGrad)"
+                          />
+                        )}
+
+                        {/* X-axis Label */}
+                        <text
+                          x={x}
+                          y={chartHeight - 6}
+                          textAnchor="middle"
+                          className={`text-[10px] font-semibold transition-colors ${
+                            isHovered
+                              ? 'fill-purple-600 dark:fill-purple-400 font-bold'
+                              : 'fill-slate-500 dark:fill-zinc-400'
+                          }`}
+                        >
+                          {d.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Completion Rate Trend Polyline */}
+                  <polyline
+                    fill="none"
+                    stroke="#6366f1"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={pointsString}
+                  />
+
+                  {/* Trend Data Dots */}
+                  {linePoints.map((p, idx) => {
+                    const isHovered = hoveredDataPoint?.label === p.data.label;
+                    return (
+                      <g key={idx}>
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={isHovered ? 6 : 4}
+                          className={`transition-all ${
+                            isHovered
+                              ? 'fill-white stroke-purple-600 stroke-[3]'
+                              : 'fill-indigo-600 stroke-white dark:stroke-zinc-900 stroke-[2]'
+                          }`}
+                        />
+                        <text
+                          x={p.x}
+                          y={p.y - 8}
+                          textAnchor="middle"
+                          className="text-[9px] font-bold fill-indigo-600 dark:fill-indigo-300"
+                        >
+                          {p.data.completion_rate}%
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* Active / Hovered Tooltip Card */}
+              {hoveredDataPoint && (
+                <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs flex items-center justify-between flex-wrap gap-2 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-purple-900 dark:text-purple-200">
+                      [{hoveredDataPoint.label}] 상세 실적:
+                    </span>
+                    <span className="text-slate-600 dark:text-zinc-300">
+                      총 배정 {hoveredDataPoint.total_scheduled}회 중{' '}
+                      <strong className="text-purple-600 dark:text-purple-400">
+                        {hoveredDataPoint.completed_count}회 완수
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px]">
+                    <span className="text-rose-600 font-semibold">
+                      🤝 대신수행: {hoveredDataPoint.substitute_count}건
+                    </span>
+                    <span className="text-slate-500">
+                      미완수: {hoveredDataPoint.uncompleted_count}건
+                    </span>
+                    <span className="font-mono font-black text-purple-700 dark:text-purple-300 bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                      완수율: {hoveredDataPoint.completion_rate}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 구성원별 기여도 랭킹 뷰어 (Member Contribution & Ranking Viewer) */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                    <Trophy className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>구성원별 당번 완수 및 품앗이 기여도 랭킹</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800">
+                        Top Ranking
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      산정 공식: 완수(10점) + 대신수행 기여(15점) - 대신수행 요청(5점)
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400">
+                  클릭 시 구성원 상세 활동 로그 확인
+                </span>
+              </div>
+
+              {/* Ranking Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {memberRanks.map((member) => {
+                  const isTop1 = member.rank === 1;
+                  const isTop2 = member.rank === 2;
+                  const isTop3 = member.rank === 3;
+
+                  return (
+                    <div
+                      key={member.participant_id}
+                      onClick={() => setSelectedRankMember(member)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer hover:scale-[1.01] flex flex-col justify-between space-y-3 ${
+                        isTop1
+                          ? 'border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/20 shadow-sm ring-1 ring-amber-400/30'
+                          : isTop2
+                          ? 'border-slate-300 dark:border-zinc-700 bg-slate-50/50 dark:bg-zinc-800/40'
+                          : isTop3
+                          ? 'border-amber-700/30 dark:border-amber-900/40 bg-amber-50/10 dark:bg-amber-950/10'
+                          : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        {/* Member Header */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="relative">
+                              <div className="w-10 h-10 rounded-xl bg-purple-600/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold flex items-center justify-center text-sm">
+                                {member.name.slice(0, 2)}
+                              </div>
+                              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                                {member.rank === 1 ? '🥇' : member.rank === 2 ? '🥈' : member.rank === 3 ? '🥉' : member.rank}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h5 className="text-xs font-bold text-slate-900 dark:text-white">
+                                  {member.name}
+                                </h5>
+                                {member.is_guest && (
+                                  <span className="text-[10px] px-1 rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
+                                    게스트
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                                <Flame className="w-3 h-3" />
+                                <span>{member.streak_days}일 연속 완수</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="text-xs font-mono font-black text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                              {member.score} pts
+                            </span>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {member.rank === 1 ? 'MVP 호스트' : `${member.rank}위 달성`}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Completion Rate Bar */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex justify-between text-[11px] text-slate-500">
+                            <span>완수율</span>
+                            <span className="font-bold text-slate-800 dark:text-zinc-200">
+                              {member.completion_rate}% ({member.completed_count}회 완수)
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-purple-600 h-full rounded-full transition-all"
+                              style={{ width: `${member.completion_rate}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Substitute Details (Who helped Whom) */}
+                        <div className="p-2 rounded-lg bg-slate-100/70 dark:bg-zinc-800/60 text-[11px] text-slate-600 dark:text-zinc-300 flex items-center justify-between">
+                          <span className="text-slate-500">품앗이 기여:</span>
+                          <span className="font-medium">
+                            <strong className="text-emerald-600">🤝 도움 {member.help_given_count}회</strong>
+                            <span className="mx-1 text-slate-300">|</span>
+                            <strong className="text-rose-500">🙋 도움받음 {member.help_received_count}회</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="w-full py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-600 dark:text-purple-400 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>활동 로그 확인</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ------------------------------------------------------------------- */}
       {/* TAB CONTENT: INVITATION (초대 대기 목록 조회 & 즉시 수락) */}
@@ -1689,6 +2261,248 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
             <p className="text-[11px] leading-relaxed">
               미가입 게스트는 임시 식별자로 참여하며, 추후 정식 회원가입 시 본인 동의를 통해 계정에 영구 매핑됩니다.
             </p>
+          </div>
+        </div>
+      </ElmBsh01>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* MODAL 6: 구성원 상세 활동 로그 확인 모달 (Rank Member Drill-down) */}
+      {/* ------------------------------------------------------------------- */}
+      <ElmBsh01
+        isOpen={!!selectedRankMember}
+        onClose={() => setSelectedRankMember(null)}
+        title={selectedRankMember ? `[${selectedRankMember.name}] 당번 및 품앗이 활동 이력` : '활동 이력'}
+      >
+        {selectedRankMember && (() => {
+          const memberLogs = logs.filter(
+            (l) =>
+              l.executed_by_name === selectedRankMember.name ||
+              l.substitute_for_name === selectedRankMember.name
+          );
+
+          return (
+            <div className="space-y-4 text-xs">
+              {/* Member Summary Header */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">
+                    {selectedRankMember.rank === 1 ? '🥇' : selectedRankMember.rank === 2 ? '🥈' : selectedRankMember.rank === 3 ? '🥉' : '🎖️'}
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                      {selectedRankMember.name}
+                    </h4>
+                    <span className="text-[11px] text-slate-500">
+                      종합 기여 {selectedRankMember.score}점 · {selectedRankMember.streak_days}일 연속 완수
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 font-mono">
+                  <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
+                    완수율 {selectedRankMember.completion_rate}%
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-600 font-semibold border border-emerald-200 dark:border-emerald-800">
+                    🤝 도움 {selectedRankMember.help_given_count}회
+                  </span>
+                </div>
+              </div>
+
+              {/* Logs List */}
+              <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                <h5 className="font-bold text-slate-700 dark:text-zinc-300">
+                  최근 수행 및 품앗이 기록 ({memberLogs.length}건)
+                </h5>
+
+                {memberLogs.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 border border-dashed rounded-xl">
+                    아직 등록된 활동 로그가 없습니다.
+                  </div>
+                ) : (
+                  memberLogs.map((log) => {
+                    const isHelper = log.executed_by_name === selectedRankMember.name && log.is_substitute;
+                    const isHelped = log.substitute_for_name === selectedRankMember.name;
+
+                    return (
+                      <div
+                        key={log.log_id}
+                        className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs space-y-1.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {log.duty_title}
+                              </span>
+                              {isHelper && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-rose-600 font-bold border border-rose-200 dark:border-rose-800">
+                                  🤝 대신수행 도움제공
+                                </span>
+                              )}
+                              {isHelped && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-600 font-bold border border-amber-200 dark:border-amber-800">
+                                  🙋 대신수행 도움받음
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              수행일시: {log.submitted_at} · 수행자: {log.executed_by_name}
+                              {log.substitute_for_name && ` (원담당: ${log.substitute_for_name})`}
+                            </p>
+                          </div>
+
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>승인완료</span>
+                          </span>
+                        </div>
+
+                        {log.memo && (
+                          <p className="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800 text-[11px] text-slate-600 dark:text-zinc-300">
+                            "{log.memo}"
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRankMember(null)}
+                  className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </ElmBsh01>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* MODAL 7: 당번 통계 및 시스템 설정 모달 (Stats Settings Modal) */}
+      {/* ------------------------------------------------------------------- */}
+      <ElmBsh01
+        isOpen={statsConfigModalOpen}
+        onClose={() => setStatsConfigModalOpen(false)}
+        title="모아당번 실시간 통계 및 시스템 설정"
+      >
+        <div className="space-y-4 text-xs">
+          <p className="text-slate-500">
+            통계 집계 주기 및 목표 완수율 기준선을 개인과 모임의 운영 규칙에 맞게 설정할 수 있습니다.
+          </p>
+
+          {/* Setting 1: Week starts on */}
+          <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-2">
+            <label className="font-bold text-slate-800 dark:text-zinc-200 block">
+              주간 통계 집계 시작 요일
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStatsConfig({ ...statsConfig, weekStartsOn: 'MON' })}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                  statsConfig.weekStartsOn === 'MON'
+                    ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300'
+                    : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                <span>월요일 시작 (표준)</span>
+                {statsConfig.weekStartsOn === 'MON' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatsConfig({ ...statsConfig, weekStartsOn: 'SUN' })}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                  statsConfig.weekStartsOn === 'SUN'
+                    ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300'
+                    : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                <span>일요일 시작</span>
+                {statsConfig.weekStartsOn === 'SUN' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Setting 2: Target threshold rate */}
+          <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-slate-800 dark:text-zinc-200">
+                목표 완수율 기준선 (차트 기준선 반영)
+              </label>
+              <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+                {statsConfig.targetRateThreshold}%
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[70, 80, 90].map((rate) => (
+                <button
+                  key={rate}
+                  type="button"
+                  onClick={() => setStatsConfig({ ...statsConfig, targetRateThreshold: rate })}
+                  className={`py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
+                    statsConfig.targetRateThreshold === rate
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                      : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                  }`}
+                >
+                  {rate}% {rate === 80 ? '(권장)' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Setting 3: Streak Notification */}
+          <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+            <div>
+              <div className="font-bold text-slate-800 dark:text-zinc-200">
+                연속 달성 스트릭(Streak) 리마인드
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                과업 미완수 위험 시 연속 기록 유지를 위한 알림 발송
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStatsConfig({ ...statsConfig, notifyStreak: !statsConfig.notifyStreak })}
+              className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                statsConfig.notifyStreak ? 'bg-purple-600' : 'bg-slate-300 dark:bg-zinc-700'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  statsConfig.notifyStreak ? 'translate-x-6' : ''
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Zero-Hang Engine Info */}
+          <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 text-purple-800 dark:text-purple-300 space-y-1">
+            <div className="font-bold flex items-center gap-1">
+              <Sparkles className="w-4 h-4" />
+              <span>실시간 동적 연산 (Zero-Hang Engine)</span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              모든 일/주/월별 통계 및 기여도 랭킹은 별도의 대기 시간 없이 클라이언트 메모리에서 실시간으로 정밀 산출됩니다.
+            </p>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStatsConfigModalOpen(false);
+                showToast('✓ 통계 설정이 성공적으로 저장되었습니다.');
+              }}
+              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-sm"
+            >
+              설정 저장 완료
+            </button>
           </div>
         </div>
       </ElmBsh01>
