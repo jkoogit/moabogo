@@ -195,3 +195,31 @@ export interface MoaLoan {
   created_at: string;
   repayments: Array<{ date: string; amount: number; note: string }>;
 }
+
+export type DutyStatsPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+export interface DutyStatsDataPoint {
+  label: string;
+  date_start?: string;
+  total_scheduled: number;
+  completed_count: number;
+  substitute_count: number;
+  uncompleted_count: number;
+  completion_rate: number;
+}
+
+export interface MemberContributionRank {
+  participant_id: string;
+  name: string;
+  role: DutyParticipantRole;
+  is_guest: boolean;
+  completed_count: number;
+  completion_rate: number;
+  help_given_count: number;
+  help_received_count: number;
+  streak_days: number;
+  score: number;
+  rank: number;
+  badge: 'GOLD' | 'SILVER' | 'BRONZE' | 'MEMBER';
+}
+
