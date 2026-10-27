@@ -199,13 +199,18 @@ export default function App() {
       id: 'SCR-DUT-01',
       name: '모아당번 상세 (할당/인증/승인)',
       category: '라이프 서비스',
-      comp: <SCR_DUT_01_모아당번상세 />,
+      comp: (
+        <SCR_DUT_01_모아당번상세
+          onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
+          onNavigateToGoal={() => setCurrentScreen('SCR-GOL-01')}
+        />
+      ),
     },
     {
       id: 'SCR-GOL-01',
       name: '모아목표 상세 (동행원 vs 관람원)',
       category: '라이프 서비스',
-      comp: <SCR_GOL_01_모아목표상세 />,
+      comp: <SCR_GOL_01_모아목표상세 onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')} />,
     },
     {
       id: 'SCR-MON-01',

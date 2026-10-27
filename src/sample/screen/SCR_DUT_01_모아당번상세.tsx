@@ -45,6 +45,12 @@ import {
   ArrowUpRight,
   PieChart,
   Info,
+  FileText,
+  Printer,
+  Download,
+  CreditCard,
+  ArrowDownRight,
+  Handshake,
 } from 'lucide-react';
 import {
   MoaDuty,
@@ -60,22 +66,29 @@ import {
   DutyStatsPeriod,
   DutyStatsDataPoint,
   MemberContributionRank,
+  SubstituteSettlementItem,
+  SubstituteNettingPair,
+  DutyComprehensiveReport,
 } from '../../types';
 import {
   INITIAL_DUTIES,
   INITIAL_DUTY_CATEGORIES,
   INITIAL_INVITATIONS,
   INITIAL_DUTY_LOGS,
+  INITIAL_SUBSTITUTE_SETTLEMENTS,
   calculateNextAssignee,
   calculateDutyStats,
   calculateMemberRanks,
   calculateDutyKPIs,
+  calculateSubstituteNetting,
+  generateDutyComprehensiveReport,
   DutyInvitation,
 } from '../dutyStore';
 
 export const SCR_DUT_01_모아당번상세: React.FC<{
   onOpenQuickRegister?: () => void;
-}> = ({ onOpenQuickRegister }) => {
+  onNavigateToGoal?: () => void;
+}> = ({ onOpenQuickRegister, onNavigateToGoal }) => {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark' || resolvedTheme === 'dawn';
 
@@ -85,6 +98,7 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
   const [categories, setCategories] = useState<DutyCategory[]>(INITIAL_DUTY_CATEGORIES);
   const [invitations, setInvitations] = useState<DutyInvitation[]>(INITIAL_INVITATIONS);
   const [logs, setLogs] = useState<DutyExecutionLog[]>(INITIAL_DUTY_LOGS);
+  const [settlements, setSettlements] = useState<SubstituteSettlementItem[]>(INITIAL_SUBSTITUTE_SETTLEMENTS);
 
   // Stats & Ranking State
   const [statsPeriod, setStatsPeriod] = useState<DutyStatsPeriod>('WEEKLY');
@@ -96,6 +110,10 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
     notifyStreak: true,
   });
   const [hoveredDataPoint, setHoveredDataPoint] = useState<DutyStatsDataPoint | null>(null);
+
+  // 9번 대신수행 정산 및 종합 보고서 모달 상태
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [generatedReport, setGeneratedReport] = useState<DutyComprehensiveReport | null>(null);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -560,6 +578,18 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
             <button
               type="button"
+              onClick={() => {
+                const rep = generateDutyComprehensiveReport(duties, logs, settlements);
+                setGeneratedReport(rep);
+                setReportModalOpen(true);
+              }}
+              className="min-h-[40px] px-3.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-bold text-purple-700 dark:text-purple-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span>종합 보고서 발행</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setCategoryModalOpen(true)}
               className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-300 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
@@ -579,23 +609,51 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
 
         {/* 1. 업무 정의 배너 (당번 vs 목표 가이드) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-          <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 text-xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-purple-900 dark:text-purple-300">
-              <Users className="w-4 h-4 text-purple-600" />
-              <span>모아당번 (Duty / Chore)</span>
+          <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 text-xs space-y-1 flex flex-col justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-purple-900 dark:text-purple-300">
+                <Users className="w-4 h-4 text-purple-600" />
+                <span>모아당번 (Duty / Chore)</span>
+              </div>
+              <p className="text-slate-600 dark:text-zinc-400 leading-relaxed text-[11px]">
+                여럿이 정기적 과업을 완수하여 결과를 함께 만드는 <strong>순환 책임 미션</strong>. 순환정책(랜덤/이름순/생년순/가중치), 직교 3상태머신, 보상형 대신수행 지원.
+              </p>
             </div>
-            <p className="text-slate-600 dark:text-zinc-400 leading-relaxed text-[11px]">
-              여럿이 정기적 과업을 완수하여 결과를 함께 만드는 <strong>순환 책임 미션</strong>. 순환정책(랜덤/이름순/생년순/가중치), 직교 3상태머신, 보상형 대신수행 지원.
-            </p>
+            <div className="pt-2 flex items-center justify-between text-[11px] text-purple-700 dark:text-purple-300 font-semibold border-t border-purple-100 dark:border-purple-900/40 mt-1">
+              <span>8번 실시간 통계 & 9번 품앗이 정산</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/60">
+                SCR-DUT-01
+              </span>
+            </div>
           </div>
-          <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 text-xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-300">
-              <Award className="w-4 h-4 text-indigo-600" />
-              <span>모아목표 (Goal / Milestone)</span>
+
+          <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 text-xs space-y-1 flex flex-col justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-300">
+                <Award className="w-4 h-4 text-indigo-600" />
+                <span>모아목표 (Goal / Milestone)</span>
+              </div>
+              <p className="text-slate-600 dark:text-zinc-400 leading-relaxed text-[11px]">
+                개인의 목표를 완수하며 부수적으로 동료와 동행하거나 관람자에게 공개·응원받는 <strong>성취 지향 미션</strong>. 달성도 집계 및 피어 승인 지원.
+              </p>
             </div>
-            <p className="text-slate-600 dark:text-zinc-400 leading-relaxed text-[11px]">
-              개인의 목표를 완수하며 부수적으로 동료와 동행하거나 관람자에게 공개·응원받는 <strong>성취 지향 미션</strong>. 달성도 집계 및 피어 승인 지원.
-            </p>
+            <div className="pt-2 flex items-center justify-between border-t border-indigo-100 dark:border-indigo-900/40 mt-1">
+              <span className="text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                동행원(수행) vs 관람원(응원)
+              </span>
+              {onNavigateToGoal ? (
+                <button
+                  type="button"
+                  onClick={onNavigateToGoal}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                >
+                  <span>모아목표 화면으로 이동</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <span className="text-[10px] font-mono text-indigo-500">SCR-GOL-01</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -648,14 +706,18 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
           <button
             type="button"
             onClick={() => setActiveTab('SUBSTITUTE')}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'SUBSTITUTE'
                 ? 'bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 shadow-xs'
                 : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
             }`}
           >
-            <span>대신수행 요청</span>
-            <span className="ml-1.5 text-[11px] font-mono text-rose-600 font-black">
+            <Handshake className="w-3.5 h-3.5 text-rose-500" />
+            <span>대신수행 & 정산</span>
+            <span className="ml-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold">
+              9번
+            </span>
+            <span className="ml-0.5 text-[11px] font-mono text-rose-600 font-black">
               ({duties.filter((d) => !!d.active_substitute_request).length})
             </span>
           </button>
@@ -1474,6 +1536,267 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
       {/* ------------------------------------------------------------------- */}
       {(activeTab === 'ALL' || activeTab === 'MY' || activeTab === 'SUBSTITUTE') && (
         <div className="space-y-4">
+          {/* --------------------------------------------------------------- */}
+          {/* 모아당번 9번: 대신수행 품앗이 정산 내역서 & 1:1 상계(Netting) 대사표 */}
+          {/* --------------------------------------------------------------- */}
+          {activeTab === 'SUBSTITUTE' && (() => {
+            const nettingPairs = calculateSubstituteNetting(settlements);
+            const unsettledCount = settlements.filter((s) => s.settlement_status === 'UNSETTLED').length;
+            const totalUnsettledMoney = settlements
+              .filter((s) => s.settlement_status === 'UNSETTLED')
+              .reduce((sum, s) => sum + s.amount, 0);
+
+            // Handler to settle a pair
+            const handleSettlePair = (pair: SubstituteNettingPair) => {
+              setSettlements((prev) =>
+                prev.map((item) => {
+                  if (item.requester_name === pair.from_name && item.substitute_name === pair.to_name) {
+                    return {
+                      ...item,
+                      settlement_status: 'SETTLED',
+                      settled_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                    };
+                  }
+                  return item;
+                })
+              );
+              showToast(`✓ [${pair.from_name} ➔ ${pair.to_name}] ${pair.netted_amount.toLocaleString()}원 품앗이 정산이 완료되었습니다.`);
+            };
+
+            // Handler to record personal ledger expense
+            const handleAutoRecordExpense = (pair: SubstituteNettingPair) => {
+              showToast(`✓ 개인 가계부에 [대신수행보상] 지출 ${pair.netted_amount.toLocaleString()}원이 자동 기록되었습니다. (금전관리 3대 원칙: 단일 귀속성 및 메타 태깅 분리)`);
+            };
+
+            return (
+              <div className="space-y-4 mb-6">
+                {/* Header Banner */}
+                <div className="p-4 rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                        <Handshake className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>대신수행 품앗이 정산 내역서 (Who pays Whom)</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800">
+                          모아당번 9번
+                        </span>
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400">
+                      상호 간 품앗이 1:1 맞교환 자동 상계(Netting) 대사표 · 개인 가계부 지출 자동연동 (금전관리 3대 원칙)
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rep = generateDutyComprehensiveReport(duties, logs, settlements);
+                      setGeneratedReport(rep);
+                      setReportModalOpen(true);
+                    }}
+                    className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>종합 보고서 발행</span>
+                  </button>
+                </div>
+
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                    <span className="text-xs text-slate-500">총 대신수행 이력</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black text-slate-900 dark:text-white">{settlements.length}</span>
+                      <span className="text-xs text-slate-500">건 발생</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                    <span className="text-xs text-rose-500 font-semibold">미정산 송금 대기</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black text-rose-600 dark:text-rose-400">
+                        {totalUnsettledMoney.toLocaleString()}원
+                      </span>
+                      <span className="text-xs text-rose-500 font-bold">({unsettledCount}건)</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-1">
+                    <span className="text-xs text-slate-500">상호 1:1 맞교환 상계</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                        {nettingPairs.filter((p) => p.is_cleared).length}쌍
+                      </span>
+                      <span className="text-xs text-slate-500">완전 상계됨</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1:1 상계 정산 매트릭스 카드 리스트 */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-purple-500" />
+                    <span>누가 누구에게 얼마를 정산해야 하는지 (상계 대사 결과)</span>
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {nettingPairs.map((pair, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-xl border transition-all flex flex-col justify-between space-y-3 ${
+                          pair.is_cleared
+                            ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 dark:bg-emerald-950/10'
+                            : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          {/* From -> To */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 dark:text-white text-xs">
+                                {pair.from_name}
+                              </span>
+                              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="font-bold text-purple-600 dark:text-purple-400 text-xs">
+                                {pair.to_name}
+                              </span>
+                            </div>
+
+                            {pair.is_cleared ? (
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" />
+                                <span>완전 상계 (0원)</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                                송금 대기
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Calculation details */}
+                          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 text-xs space-y-1">
+                            <div className="flex justify-between text-slate-500">
+                              <span>총 채무 합계:</span>
+                              <span>{pair.gross_amount.toLocaleString()}원</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-zinc-700 font-bold">
+                              <span className="text-slate-700 dark:text-zinc-200">상계 후 최종 정산액:</span>
+                              <span className={`font-mono text-sm ${pair.is_cleared ? 'text-emerald-600' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {pair.netted_amount.toLocaleString()}원
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {!pair.is_cleared && (
+                          <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-2 flex-wrap text-xs">
+                            <div className="flex items-center gap-1.5">
+                              {pair.payment_link_url && (
+                                <a
+                                  href={pair.payment_link_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                                >
+                                  <span>카카오페이 송금</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleAutoRecordExpense(pair)}
+                                className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 text-slate-700 dark:text-zinc-300 font-semibold text-[11px] transition-colors cursor-pointer"
+                              >
+                                가계부 지출 연계
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSettlePair(pair)}
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>정산 완료 처리</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 개별 건별 대사표 (Detail Ledger) */}
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-3">
+                  <h5 className="font-bold text-slate-800 dark:text-zinc-200 text-xs flex items-center justify-between">
+                    <span>개별 대신수행 발생 및 정산 상세 내역 ({settlements.length}건)</span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      개인 가계부 배타적 귀속 원칙 준수
+                    </span>
+                  </h5>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {settlements.map((item) => (
+                      <div
+                        key={item.settlement_id}
+                        className="p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/40 flex items-center justify-between text-xs gap-2 flex-wrap"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {item.duty_title}
+                            </span>
+                            <span className="text-[10px] px-1 rounded-sm bg-purple-50 dark:bg-purple-950/60 text-purple-600 font-mono">
+                              {item.date}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            요청: <strong>{item.requester_name}</strong> ➔ 수행: <strong>{item.substitute_name}</strong>
+                            {item.memo && ` · ${item.memo}`}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">
+                            {item.amount.toLocaleString()}원
+                          </span>
+                          {item.settlement_status === 'SETTLED' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800">
+                              정산완료 ({item.settled_at?.slice(5, 10)})
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSettlements((prev) =>
+                                  prev.map((s) =>
+                                    s.settlement_id === item.settlement_id
+                                      ? {
+                                          ...s,
+                                          settlement_status: 'SETTLED',
+                                          settled_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                        }
+                                      : s
+                                  )
+                                );
+                                showToast(`✓ [${item.duty_title}] ${item.amount.toLocaleString()}원 정산이 완료되었습니다.`);
+                              }}
+                              className="px-2.5 py-0.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold cursor-pointer transition-colors"
+                            >
+                              정산하기
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>
               총 <strong>{filteredDuties.length}</strong>개의 미션 과업
@@ -2505,6 +2828,210 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
             </button>
           </div>
         </div>
+      </ElmBsh01>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* MODAL 8: 당번 & 목표 종합 활동 보고서 발행 뷰어 (Comprehensive Report) */}
+      {/* ------------------------------------------------------------------- */}
+      <ElmBsh01
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        title={generatedReport ? `공식 보고서: ${generatedReport.period_label}` : '종합 활동 보고서'}
+      >
+        {generatedReport && (
+          <div className="space-y-5 text-xs max-h-[75vh] overflow-y-auto pr-1">
+            {/* Report Document Paper Header */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-3">
+              <div className="flex items-start justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+                <div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    {generatedReport.report_id}
+                  </span>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white mt-1">
+                    {generatedReport.period_label}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    발행일시: {generatedReport.generated_at} · 모아보고 인증 센터 검증
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-600 font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>공식 인증 스냅샷</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* 1. 과업 완수 및 품질 감사 매트릭스 */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                  <span>1. 과업 완수율 및 피어 승인 품질 감사</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 text-center">
+                    <span className="text-[11px] text-slate-400 block">총 관리 과업</span>
+                    <strong className="text-sm font-black text-slate-900 dark:text-white">
+                      {generatedReport.total_duties_count}개
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-center">
+                    <span className="text-[11px] text-purple-600 dark:text-purple-400 block">종합 완수율</span>
+                    <strong className="text-sm font-black text-purple-700 dark:text-purple-300">
+                      {generatedReport.overall_completion_rate}%
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-800/60 text-center">
+                    <span className="text-[11px] text-slate-400 block">총 완수 실적</span>
+                    <strong className="text-sm font-black text-slate-900 dark:text-white">
+                      {generatedReport.total_completed_logs}건
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-center">
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block">피어 승인율</span>
+                    <strong className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                      {generatedReport.peer_approval_rate}%
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. 대신수행 품앗이 및 상계 대사 내역 */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                <h4 className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                  <Handshake className="w-3.5 h-3.5 text-rose-500" />
+                  <span>2. 대신수행 품앗이 정산 및 상계(Netting) 대사표</span>
+                </h4>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                    <span className="text-[10px] text-slate-400 block">총 품앗이 건수</span>
+                    <span className="font-bold">{generatedReport.total_substitute_count}건</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300">
+                    <span className="text-[10px] block">정산 완료액</span>
+                    <span className="font-bold font-mono">{generatedReport.total_settled_amount.toLocaleString()}원</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300">
+                    <span className="text-[10px] block">미정산 잔여액</span>
+                    <span className="font-bold font-mono">{generatedReport.unsettled_amount.toLocaleString()}원</span>
+                  </div>
+                </div>
+
+                {/* Netting Pairs Table */}
+                <div className="border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden mt-1">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-slate-100 dark:bg-zinc-800 text-slate-500 font-semibold">
+                      <tr>
+                        <th className="p-2">송금 대상 (From ➔ To)</th>
+                        <th className="p-2 text-right">총 채무액</th>
+                        <th className="p-2 text-right">상계 후 정산액</th>
+                        <th className="p-2 text-center">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+                      {generatedReport.netting_pairs.map((p, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                          <td className="p-2 font-medium">
+                            {p.from_name} ➔ <strong className="text-purple-600 dark:text-purple-400">{p.to_name}</strong>
+                          </td>
+                          <td className="p-2 text-right font-mono text-slate-500">
+                            {p.gross_amount.toLocaleString()}원
+                          </td>
+                          <td className="p-2 text-right font-mono font-bold text-rose-600">
+                            {p.netted_amount.toLocaleString()}원
+                          </td>
+                          <td className="p-2 text-center">
+                            {p.is_cleared ? (
+                              <span className="text-[10px] font-bold text-emerald-600">상계완료</span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-600">송금대기</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 3. 명예의 전당 및 MVP */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                <h4 className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                  <span>3. 구성원 성취 명예의 전당 및 연속 스트릭</span>
+                </h4>
+                <div className="p-3 rounded-lg bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🥇</span>
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        최고 기여왕 (MVP): {generatedReport.top_contributor_name}
+                      </span>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                        완수 점수 및 품앗이 지원 가산점 합산 1위 달성
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-amber-600 font-bold flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>{generatedReport.longest_streak_days}일 연속 완수</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. 금전관리 3대 원칙 준수 확인 */}
+              <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 space-y-1">
+                <div className="font-bold flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>공식 회계 및 금전관리 감사 의견</span>
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-90">
+                  {generatedReport.summary_memo}
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-zinc-800 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textSummary = `[모아보고 공식 종합 활동 보고서]\n보고서ID: ${generatedReport.report_id}\n기간: ${generatedReport.period_label}\n종합 완수율: ${generatedReport.overall_completion_rate}%\n총 완수 실적: ${generatedReport.total_completed_logs}건\n피어 승인율: ${generatedReport.peer_approval_rate}%\n미정산 잔여액: ${generatedReport.unsettled_amount.toLocaleString()}원\n최고 기여왕: ${generatedReport.top_contributor_name}\n최장 스트릭: ${generatedReport.longest_streak_days}일 연속`;
+                    navigator.clipboard?.writeText(textSummary);
+                    showToast('✓ 보고서 텍스트 요약이 클립보드에 복사되었습니다.');
+                  }}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>클립보드 복사</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>인쇄 / PDF 저장</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setReportModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-colors cursor-pointer"
+              >
+                확인 완료
+              </button>
+            </div>
+          </div>
+        )}
       </ElmBsh01>
     </div>
   );

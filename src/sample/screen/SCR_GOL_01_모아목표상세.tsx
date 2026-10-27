@@ -22,9 +22,12 @@ import {
   Flame,
   Award,
   Check,
+  ChevronRight,
 } from 'lucide-react';
 
-export const SCR_GOL_01_모아목표상세: React.FC = () => {
+export const SCR_GOL_01_모아목표상세: React.FC<{
+  onNavigateToDuty?: () => void;
+}> = ({ onNavigateToDuty }) => {
   const [goalTitle, setGoalTitle] = useState('가족 건강 1만보 걷기 챌린지');
   const [currentStep, setCurrentStep] = useState(2);
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false);
@@ -92,6 +95,34 @@ export const SCR_GOL_01_모아목표상세: React.FC = () => {
           <span>새 모아목표 등록</span>
         </button>
       </section>
+
+      {/* 모아당번 연계 배너 (SCR-DUT-01 상호 연동) */}
+      <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-purple-600/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-bold text-purple-900 dark:text-purple-300">
+              모아당번 & 목표 라이프사이클 상호 연계
+            </span>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+              개인의 목표뿐만 아니라 구성원들과 함께 순환 분담하는 모아당번(8번 통계 / 9번 대신수행 정산)을 실시간 관리할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        {onNavigateToDuty && (
+          <button
+            type="button"
+            onClick={onNavigateToDuty}
+            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs shrink-0"
+          >
+            <span>모아당번 화면으로 이동</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
 
       {/* In-app Feedback Toast (replaces window.alert) */}
       {feedbackNotice && (
