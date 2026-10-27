@@ -223,3 +223,47 @@ export interface MemberContributionRank {
   badge: 'GOLD' | 'SILVER' | 'BRONZE' | 'MEMBER';
 }
 
+export interface SubstituteSettlementItem {
+  settlement_id: string;
+  duty_id: string;
+  duty_title: string;
+  requester_name: string;
+  substitute_name: string;
+  benefit_type: 'ALLOWANCE_MONEY' | 'SUBSTITUTE_COUPON' | 'NONE';
+  amount: number;
+  settlement_status: 'UNSETTLED' | 'SETTLED';
+  settled_at?: string;
+  payment_link_url?: string;
+  auto_created_expense?: boolean;
+  date: string;
+  memo?: string;
+}
+
+export interface SubstituteNettingPair {
+  from_name: string;
+  to_name: string;
+  gross_amount: number;
+  netted_amount: number;
+  help_count: number;
+  is_cleared: boolean;
+  payment_link_url?: string;
+}
+
+export interface DutyComprehensiveReport {
+  report_id: string;
+  generated_at: string;
+  period_label: string;
+  total_duties_count: number;
+  overall_completion_rate: number;
+  total_completed_logs: number;
+  peer_approval_rate: number;
+  total_substitute_count: number;
+  total_settled_amount: number;
+  unsettled_amount: number;
+  top_contributor_name: string;
+  longest_streak_days: number;
+  summary_memo: string;
+  netting_pairs: SubstituteNettingPair[];
+}
+
+

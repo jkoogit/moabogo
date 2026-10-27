@@ -11,6 +11,9 @@ import {
   DutyStatsPeriod,
   DutyStatsDataPoint,
   MemberContributionRank,
+  SubstituteSettlementItem,
+  SubstituteNettingPair,
+  DutyComprehensiveReport,
 } from '../types';
 
 export const INITIAL_DUTY_CATEGORIES: DutyCategory[] = [
@@ -771,4 +774,196 @@ export function calculateDutyKPIs(_duties: MoaDuty[], logs: DutyExecutionLog[]) 
     currentStreak,
   };
 }
+
+// -------------------------------------------------------------
+// 대신수행 품앗이 정산 내역 및 종합 보고서 발행 엔진 (모아당번 9번)
+// -------------------------------------------------------------
+
+export const INITIAL_SUBSTITUTE_SETTLEMENTS: SubstituteSettlementItem[] = [
+  {
+    settlement_id: 'set-01',
+    duty_id: 'duty-01',
+    duty_title: '거실 청소기 및 물걸레 밀기',
+    requester_name: '구민우(자녀)',
+    substitute_name: '이지은(배우자)',
+    benefit_type: 'ALLOWANCE_MONEY',
+    amount: 5000,
+    settlement_status: 'UNSETTLED',
+    payment_link_url: 'https://qr.kakaopay.com/sample_sub_pay_minwoo',
+    auto_created_expense: true,
+    date: '2026-10-26',
+    memo: '자녀 시험 특강으로 어머니가 대신 수행 완료 (용돈 5천원 미정산)',
+  },
+  {
+    settlement_id: 'set-02',
+    duty_id: 'duty-02',
+    duty_title: '주말 분리수거 및 음식물 쓰레기 배출',
+    requester_name: '이지은(배우자)',
+    substitute_name: '구본영(호스트)',
+    benefit_type: 'ALLOWANCE_MONEY',
+    amount: 5000,
+    settlement_status: 'SETTLED',
+    settled_at: '2026-10-22 09:30',
+    payment_link_url: 'https://toss.me/sample_sub_pay_jieun',
+    auto_created_expense: true,
+    date: '2026-10-21',
+    memo: '야근으로 남편이 대신 수행 후 토스로 즉시 정산 완료',
+  },
+  {
+    settlement_id: 'set-03',
+    duty_id: 'duty-01',
+    duty_title: '거실 청소기 및 물걸레 밀기',
+    requester_name: '구민우(자녀)',
+    substitute_name: '구본영(호스트)',
+    benefit_type: 'ALLOWANCE_MONEY',
+    amount: 5000,
+    settlement_status: 'SETTLED',
+    settled_at: '2026-10-17 11:20',
+    auto_created_expense: true,
+    date: '2026-10-16',
+    memo: '학원 시험 대비 아버지가 대신 수행 완료 (정산 완료)',
+  },
+  {
+    settlement_id: 'set-04',
+    duty_id: 'duty-03',
+    duty_title: '동창회 펜션 식기 설거지 & 주방 정리',
+    requester_name: '게스트 정현우',
+    substitute_name: '구본영(호스트)',
+    benefit_type: 'ALLOWANCE_MONEY',
+    amount: 10000,
+    settlement_status: 'UNSETTLED',
+    payment_link_url: 'https://qr.kakaopay.com/sample_sub_pay_dongchang',
+    auto_created_expense: false,
+    date: '2026-10-25',
+    memo: '동창회 바베큐 설거지 대신수행 (수고비 10,000원 송금 대기)',
+  },
+];
+
+// 상호 품앗이 상계(Netting) 정산 매트릭스 도출 알고리즘
+export function calculateSubstituteNetting(items: SubstituteSettlementItem[]): SubstituteNettingPair[] {
+  // A -> B 부채 맵 (key: `${requester}->${substitute}`)
+  const debtMap = new Map<string, { from: string; to: string; gross: number; count: number; paymentLink?: string }>();
+
+  items.forEach((item) => {
+    if (item.amount <= 0) return;
+    const key = `${item.requester_name}->${item.substitute_name}`;
+    const existing = debtMap.get(key) || {
+      from: item.requester_name,
+      to: item.substitute_name,
+      gross: 0,
+      count: 0,
+      paymentLink: item.payment_link_url,
+    };
+    existing.gross += item.amount;
+    existing.count += 1;
+    if (item.payment_link_url) existing.paymentLink = item.payment_link_url;
+    debtMap.set(key, existing);
+  });
+
+  const pairs: SubstituteNettingPair[] = [];
+  const processedKeys = new Set<string>();
+
+  debtMap.forEach((v, key) => {
+    if (processedKeys.has(key)) return;
+
+    const reverseKey = `${v.to}->${v.from}`;
+    const reverse = debtMap.get(reverseKey);
+
+    if (reverse) {
+      // 상호 채권/채무 존재: 상계 처리
+      processedKeys.add(key);
+      processedKeys.add(reverseKey);
+
+      const net = v.gross - reverse.gross;
+      if (net > 0) {
+        pairs.push({
+          from_name: v.from,
+          to_name: v.to,
+          gross_amount: v.gross,
+          netted_amount: net,
+          help_count: v.count,
+          is_cleared: false,
+          payment_link_url: v.paymentLink,
+        });
+      } else if (net < 0) {
+        pairs.push({
+          from_name: v.to,
+          to_name: v.from,
+          gross_amount: reverse.gross,
+          netted_amount: Math.abs(net),
+          help_count: reverse.count,
+          is_cleared: false,
+          payment_link_url: reverse.paymentLink,
+        });
+      } else {
+        // 완전 상계 (0원)
+        pairs.push({
+          from_name: v.from,
+          to_name: v.to,
+          gross_amount: v.gross,
+          netted_amount: 0,
+          help_count: v.count + reverse.count,
+          is_cleared: true,
+        });
+      }
+    } else {
+      // 단방향 채무
+      processedKeys.add(key);
+      pairs.push({
+        from_name: v.from,
+        to_name: v.to,
+        gross_amount: v.gross,
+        netted_amount: v.gross,
+        help_count: v.count,
+        is_cleared: false,
+        payment_link_url: v.paymentLink,
+      });
+    }
+  });
+
+  return pairs;
+}
+
+// 종합 보고서(Comprehensive Report) 생성 엔진
+export function generateDutyComprehensiveReport(
+  duties: MoaDuty[],
+  logs: DutyExecutionLog[],
+  settlements: SubstituteSettlementItem[],
+  periodLabel: string = '2026년 10월 당번 & 목표 종합 활동 보고서'
+): DutyComprehensiveReport {
+  const ranks = calculateMemberRanks(duties, logs);
+  const netting = calculateSubstituteNetting(settlements);
+
+  const totalLogs = logs.length;
+  const approvedLogs = logs.filter((l) => l.evaluation_status !== 'UNVERIFIED').length;
+  const peerApprovalRate = totalLogs > 0 ? Math.round((approvedLogs / totalLogs) * 100) : 100;
+
+  const totalSettledAmount = settlements
+    .filter((s) => s.settlement_status === 'SETTLED')
+    .reduce((sum, s) => sum + s.amount, 0);
+
+  const unsettledAmount = settlements
+    .filter((s) => s.settlement_status === 'UNSETTLED')
+    .reduce((sum, s) => sum + s.amount, 0);
+
+  const topMember = ranks.length > 0 ? ranks[0].name : '구본영(호스트)';
+
+  return {
+    report_id: `REP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-0021`,
+    generated_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
+    period_label: periodLabel,
+    total_duties_count: duties.length,
+    overall_completion_rate: 92,
+    total_completed_logs: totalLogs,
+    peer_approval_rate: peerApprovalRate,
+    total_substitute_count: settlements.length,
+    total_settled_amount: totalSettledAmount,
+    unsettled_amount: unsettledAmount,
+    top_contributor_name: topMember,
+    longest_streak_days: 12,
+    summary_memo: `본 보고서는 모아당번 직교 3상태머신과 금전관리 3대 원칙(단일 귀속성, TRANSFER 격리, 태깅 분리)을 준수하여 발행된 공식 인증 활동 보고서입니다. 총 ${duties.length}개 과업 중 ${totalLogs}회의 실적이 완수되었으며, 상호 품앗이 정산 ${settlements.length}건 중 ${settlements.filter(s => s.settlement_status === 'SETTLED').length}건이 안전하게 정산되었습니다.`,
+    netting_pairs: netting,
+  };
+}
+
 
