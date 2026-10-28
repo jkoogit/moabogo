@@ -13,7 +13,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { ElmRng01 } from '../../../sample/elements/Tokens';
-import { Participant, loadUserGoalPresets } from '../types';
+import { Participant, PRESET_CHARACTERS, loadUserGoalPresets } from '../types';
 import {
   LadderGoal,
   LadderResultMap,
@@ -132,6 +132,40 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setArrivalPopup(null);
     setIsResultModalOpen(false);
   }, [members.length, winnerCount, membersWeightsKey]);
+
+  // 매장 변경 또는 연동 해제 시 참가자 메뉴 선택 및 아바타 기본값 복원, 게임결과 초기화
+  const prevStoreIdRef = useRef<string | undefined>(selectedStore?.id);
+  const isInitialMountRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+    if (prevStoreIdRef.current !== selectedStore?.id) {
+      prevStoreIdRef.current = selectedStore?.id;
+      setMembers((prev) =>
+        prev.map((m, idx) => {
+          const preset = PRESET_CHARACTERS[idx % PRESET_CHARACTERS.length];
+          return {
+            ...m,
+            selectedMenu: undefined,
+            avatar: preset.avatar,
+          };
+        })
+      );
+      setLadderResult(null);
+      setRevealedGoals({});
+      setRevealedGoalCols({});
+      setArrivalPopup(null);
+      setIsResultModalOpen(false);
+      if (selectedStore) {
+        showToast(`🏪 매장이 '${selectedStore.name}'(으)로 변경되어 참가자 메뉴가 초기화되었습니다.`, 'info');
+      } else {
+        showToast('🏪 매장 연동이 해제되어 참가자 메뉴가 초기화되었습니다.', 'info');
+      }
+    }
+  }, [selectedStore?.id, setMembers, showToast, selectedStore]);
 
   // 슬라이드드래그휠: 가로 마우스 휠 변환 및 배경 전파 차단
   useEffect(() => {
