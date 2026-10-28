@@ -400,7 +400,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>{useRouletteWeight ? '⚡ 가중치 모드 ON' : '👥 균등 모드'}</span>
+              <span>{useRouletteWeight ? '가중치 ON' : '가중치 OFF'}</span>
             </button>
           </div>
           <ElmRng01
@@ -431,7 +431,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           </button>
         </div>
 
-        {/* 추천 프리셋 원터치 슬라이드 */}
+        {/* 추천 프리셋 원터치 슬라이드 (좌우 이동 버튼 제거 및 슬라이드드래그휠 전담) */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400">
@@ -447,7 +447,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             </button>
           </div>
           <ElmSld03
-            showNavButtons={true}
+            showNavButtons={false}
             stepWidth={160}
             className="w-full"
             innerClassName="flex items-center gap-1.5 py-1 px-0.5"
@@ -615,34 +615,39 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               <span>{selectedRouletteWinner.name}</span>
             </div>
 
-            {/* 결과 공유 3대 액션 */}
-            <div className="flex items-center gap-2 w-full pt-1">
-              <button
-                type="button"
-                onClick={handleCopyText}
-                className="flex-1 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>텍스트 복사</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyImageCard}
-                disabled={isGeneratingCard}
-                className="p-2 rounded-xl border border-amber-300 dark:border-amber-700 font-bold text-xs shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer"
-                title="룰렛 카드 이미지 복사"
-              >
-                <Camera className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadImageCard}
-                disabled={isGeneratingCard}
-                className="p-2 rounded-xl border border-amber-300 dark:border-amber-700 font-bold text-xs shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer"
-                title="룰렛 카드 이미지 파일 저장"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </button>
+            {/* 결과 복사 타이틀 및 3건의 아이콘 */}
+            <div className="flex items-center justify-between w-full pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+              <span className="text-xs font-bold text-amber-900/80 dark:text-amber-200/80">
+                결과 복사:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="p-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 font-bold text-xs shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer flex items-center justify-center"
+                  title="룰렛 결과 텍스트 복사"
+                >
+                  <Copy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyImageCard}
+                  disabled={isGeneratingCard}
+                  className="p-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 font-bold text-xs shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40"
+                  title="룰렛 카드 이미지 복사"
+                >
+                  <Camera className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadImageCard}
+                  disabled={isGeneratingCard}
+                  className="p-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 font-bold text-xs shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40"
+                  title="룰렛 카드 이미지 파일 저장"
+                >
+                  <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </button>
+              </div>
             </div>
           </div>
         )}

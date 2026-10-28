@@ -599,7 +599,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>{useLadderWeight ? '⚡ 가중치 모드 ON' : '👥 균등 모드'}</span>
+              <span>{useLadderWeight ? '가중치 ON' : '가중치 OFF'}</span>
             </button>
           </div>
           <ElmRng01
@@ -614,16 +614,16 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           />
         </div>
 
-        {/* 퀵 액션 버튼 바: 속도 조절, 주사위 재배치, 셔플 */}
+        {/* 퀵 액션 버튼 바: 속도 조절(모바일 줄바꿈 방지 슬라이드), 주사위 재배치, 셔플 */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">속도:</span>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap py-0.5 shrink min-w-0 max-w-full">
+            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 shrink-0">속도:</span>
             {LADDER_SPEED_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setLadderSpeed(opt.value)}
-                className={`px-2 py-0.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer shrink-0 ${
                   ladderSpeed === opt.value
                     ? 'bg-indigo-600 text-white border-indigo-700'
                     : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
@@ -864,34 +864,39 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               })}
             </div>
 
-            {/* 3대 공유 액션 */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleCopyText}
-                className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>텍스트 복사</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyImageCard}
-                disabled={isGeneratingCard}
-                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
-                title="사다리 결과 카드 이미지 복사"
-              >
-                <Camera className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadImageCard}
-                disabled={isGeneratingCard}
-                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
-                title="사다리 결과 카드 이미지 파일 저장"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </button>
+            {/* 결과 복사 타이틀 및 3건의 아이콘 */}
+            <div className="flex items-center justify-between pt-1 border-t border-black/5 dark:border-white/5">
+              <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">
+                결과 복사:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center"
+                  title="사다리 결과 텍스트 복사"
+                >
+                  <Copy className="w-4 h-4 text-indigo-500" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyImageCard}
+                  disabled={isGeneratingCard}
+                  className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40"
+                  title="사다리 결과 카드 이미지 복사"
+                >
+                  <Camera className="w-4 h-4 text-indigo-500" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadImageCard}
+                  disabled={isGeneratingCard}
+                  className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40"
+                  title="사다리 결과 카드 이미지 파일 저장"
+                >
+                  <Download className="w-4 h-4 text-emerald-500" />
+                </button>
+              </div>
             </div>
           </div>
         )}

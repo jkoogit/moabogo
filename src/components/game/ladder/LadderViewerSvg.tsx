@@ -172,7 +172,7 @@ export const LadderViewerSvg: React.FC<LadderViewerSvgProps> = ({
               <button
                 type="button"
                 onClick={() => onGoalColClick(colIdx)}
-                className={`w-[76px] py-2 px-1 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer shadow-xs ${
+                className={`w-[92px] py-2 px-1 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer shadow-xs ${
                   hasRevealed
                     ? goal.icon === '🎁' || goal.text.includes('당첨') || goal.text.includes('1등')
                       ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 scale-105'

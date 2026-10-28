@@ -41,7 +41,7 @@ export interface ArrivalPopupData {
   nextMemberName?: string;
 }
 
-export const LADDER_COL_WIDTH = 84; // 사다리 열 고정 폭 (84px 완벽 통일)
+export const LADDER_COL_WIDTH = 104; // 사다리 열 고정 폭 (104px로 넓혀 가독성 및 요소 간격 확보)
 
 export const LADDER_SPEED_OPTIONS: LadderSpeedOption[] = [
   { value: 0.5, label: '0.5x', interval: 40 },
