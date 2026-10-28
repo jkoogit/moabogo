@@ -150,4 +150,5 @@ docs/
 | 2026-10-20 | 0013 | TASK-FLAT-13-01 | AI Studio Agent | 전 화면 플랫 레이아웃(Flat Peer Sections) 리팩토링 및 44px 터치 타겟 모바일 접근성 고도화, alert/confirm 완전 제거 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0013-01_이슈리뷰-전화면_플랫레이아웃_리팩토링_및_44px_터치타겟_모바일접근성_고도화.md |
 | 2026-10-20 | 0013 | TASK-0013-SESSION-CLOSE | AI Studio Agent | 세션 0013 전 화면 플랫 레이아웃 리팩토링 및 44px 터치 타겟 모바일 접근성 고도화 종합 세션 회고 작성 및 원격 승급 종결 | models/gemini-3.8-flash | AI Studio | docs/07.회고/0013-01_세션회고-전화면_플랫레이아웃_리팩토링_및_44px_터치타겟_모바일접근성_고도화.md |
 | 2026-10-27 | 0023 | TASK-0023-01 | AI Studio Agent | SCR-GNT-01 게스트 홈 3대 게임 엔진(사다리, 룰렛, 정산) 구조적 모듈 분리 및 89.2% 슬림화(6,163줄➔667줄) 완료 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0023-01_이슈리뷰-SCR-GNT-01_3대게임엔진_모듈분리_및_슬림화.md |
+| 2026-10-28 | 0024 | TASK-0024-01 | AI Studio Agent | 게스트 홈 3대 게임(정산·사다리·룰렛) UX 고도화, 매장 연동/탭 전환 버그 개선, 아바타 복원 및 시스템 설정 점검 완결 | models/gemini-3.8-flash | AI Studio | docs/08.리뷰/0024-01_이슈리뷰-게스트홈_3대게임_UX고도화_및_사다리_룰렛_정산_개선.md |
 
