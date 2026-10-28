@@ -401,80 +401,93 @@ export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
           </div>
         </div>
 
-        {/* 액션 버튼 바 */}
-        <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onSpinAgain();
-            }}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>재실행</span>
-          </button>
+        {/* 결과 복사 3대 아이콘 및 조작 액션 버튼 바 */}
+        <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 justify-center sm:justify-start">
+            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 mr-1">
+              결과 복사:
+            </span>
+            <button
+              type="button"
+              onClick={onCopyText}
+              className={`p-2 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center cursor-pointer ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
+                  : isDark
+                  ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
+                  : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
+              }`}
+              title="결과 텍스트 클립보드 복사"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onCopyImageCard}
+              className={`p-2 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center cursor-pointer ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
+                  : isDark
+                  ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
+                  : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
+              }`}
+              title="결과 카드 이미지 클립보드 복사"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onDownloadImageCard}
+              className={`p-2 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center cursor-pointer ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-white border-[#bfdbfe] text-emerald-700 hover:bg-emerald-50'
+                  : isDark
+                  ? 'bg-[#222226] border-[#333338] text-emerald-400 hover:bg-[#2c2c32]'
+                  : 'bg-white border-slate-200 text-emerald-600 hover:bg-slate-50'
+              }`}
+              title="결과 카드 이미지 다운로드"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={onInstantResult}
-            className={`py-2.5 px-3 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              resolvedTheme === 'dawn'
-                ? 'bg-amber-100/80 border-amber-300 text-amber-900 hover:bg-amber-200/80'
-                : isDark
-                ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/60'
-                : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-            }`}
-            title="모달 내에서 즉시 새로운 당첨자 재추첨"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>즉시결과</span>
-          </button>
+          <div className="flex items-center gap-1.5 justify-center sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onSpinAgain();
+              }}
+              className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>재실행</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onCopyText}
-            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              resolvedTheme === 'dawn'
-                ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
-                : isDark
-                ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
-                : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
-            }`}
-            title="결과 텍스트 클립보드 복사"
-          >
-            <Copy className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={onInstantResult}
+              className={`py-2 px-3 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-amber-100/80 border-amber-300 text-amber-900 hover:bg-amber-200/80'
+                  : isDark
+                  ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/60'
+                  : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+              }`}
+              title="모달 내에서 즉시 새로운 당첨자 재추첨"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>즉시결과</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onCopyImageCard}
-            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              resolvedTheme === 'dawn'
-                ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
-                : isDark
-                ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
-                : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
-            }`}
-            title="결과 카드 이미지 클립보드 복사"
-          >
-            <Camera className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onClick={onDownloadImageCard}
-            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              resolvedTheme === 'dawn'
-                ? 'bg-white border-[#bfdbfe] text-emerald-700 hover:bg-emerald-50'
-                : isDark
-                ? 'bg-[#222226] border-[#333338] text-emerald-400 hover:bg-[#2c2c32]'
-                : 'bg-white border-slate-200 text-emerald-600 hover:bg-slate-50'
-            }`}
-            title="결과 카드 이미지 다운로드"
-          >
-            <Download className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-2 px-3.5 rounded-xl bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-800 dark:text-slate-100 font-bold text-xs shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       </div>
     </div>

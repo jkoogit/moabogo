@@ -366,7 +366,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>{useSplitWeight ? '⚡ 가중치 정산 ON' : '👥 균등 1/N 정산'}</span>
+              <span>{useSplitWeight ? '가중치 ON' : '가중치 OFF'}</span>
             </button>
           </div>
 
@@ -376,49 +376,40 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
               : '💡 총 금액을 참여 인원수로 나누어 100원 단위로 깔끔하게 절사하여 1인당 송금액을 산출합니다.'}
           </p>
 
-          {/* 3대 공유 액션 버튼 바 */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={handleCopyText}
-              disabled={settlementSummary.total === 0}
-              className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>텍스트 복사</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopyImageCard}
-              disabled={settlementSummary.total === 0 || isGeneratingCard}
-              className={`p-2 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                resolvedTheme === 'dawn'
-                  ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
-                  : isDark
-                  ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
-                  : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
-              }`}
-              title="정산 결과 이미지 카드 클립보드 복사"
-            >
-              <Camera className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadImageCard}
-              disabled={settlementSummary.total === 0 || isGeneratingCard}
-              className={`p-2 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                resolvedTheme === 'dawn'
-                  ? 'bg-white border-[#bfdbfe] text-emerald-700 hover:bg-emerald-50'
-                  : isDark
-                  ? 'bg-[#222226] border-[#333338] text-emerald-400 hover:bg-[#2c2c32]'
-                  : 'bg-white border-slate-200 text-emerald-600 hover:bg-slate-50'
-              }`}
-              title="정산 결과 이미지 파일 다운로드"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
+          {/* 결과 복사 타이틀 및 3건의 아이콘 */}
+          <div className="flex items-center justify-between pt-1 border-t border-black/5 dark:border-white/5">
+            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">
+              결과 복사:
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleCopyText}
+                disabled={settlementSummary.total === 0}
+                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                title="정산 결과 텍스트 클립보드 복사"
+              >
+                <Copy className="w-4 h-4 text-indigo-500" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyImageCard}
+                disabled={settlementSummary.total === 0 || isGeneratingCard}
+                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                title="정산 결과 이미지 카드 클립보드 복사"
+              >
+                <Camera className="w-4 h-4 text-indigo-500" />
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadImageCard}
+                disabled={settlementSummary.total === 0 || isGeneratingCard}
+                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                title="정산 결과 이미지 파일 다운로드"
+              >
+                <Download className="w-4 h-4 text-emerald-500" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
