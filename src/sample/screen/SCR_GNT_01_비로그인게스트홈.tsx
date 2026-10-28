@@ -48,8 +48,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   };
 
   // ---------------------------------------------------------------------------
-  // 1. 공통 참가자 상태 관리 (2 ~ 12명)
+  // 1. 공통 참가자 상태 관리 (2 ~ 12명 기본, 5명씩 확장 가능)
   // ---------------------------------------------------------------------------
+  const [maxMemberLimit, setMaxMemberLimit] = useState<number>(12);
   const [memberCount, setMemberCount] = useState<number>(6);
   const [members, setMembers] = useState<Participant[]>(() =>
     Array.from({ length: 6 }).map((_, i) => {
@@ -98,6 +99,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [useSplitWeight, setUseSplitWeight] = useState<boolean>(false);
 
   const updateSplitMemberWeight = (id: string, delta: number, isAbsolute = false) => {
+    const total = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
+    if (total === 0) {
+      showToast('정산 금액을 먼저 입력해 주세요.', 'warning');
+      return;
+    }
     setMembers((prev) =>
       prev.map((m) => {
         if (m.id !== id) return m;
@@ -118,6 +124,10 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     const cur = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
     const next = Math.max(0, cur + delta);
     setAmount(next > 0 ? next.toString() : '');
+    if (next === 0) {
+      // 금액이 0원이 되면 가중치도 1.0x로 초기화하여 일관성 유지
+      setMembers((prev) => prev.map((m) => ({ ...m, weight: 1 })));
+    }
   };
 
   const settlementSummary = useMemo(() => {
@@ -436,10 +446,17 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 label="참여 인원수"
                 value={memberCount}
                 min={2}
-                max={12}
+                max={maxMemberLimit}
                 step={1}
                 unit="명"
                 onChange={(val) => handleUpdateMemberCount(val)}
+                onAddThreshold={() => {
+                  setMaxMemberLimit((prev) => {
+                    const nextLimit = prev + 5;
+                    showToast(`최대 참여 인원이 5명 추가되었습니다. (최대 ${nextLimit}명)`);
+                    return nextLimit;
+                  });
+                }}
                 colorScheme="indigo"
               />
             </div>

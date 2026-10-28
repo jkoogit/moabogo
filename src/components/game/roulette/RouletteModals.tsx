@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Plus, Trash2, SlidersHorizontal } from 'lucide-react';
+import { X, Plus, Trash2, SlidersHorizontal, RotateCcw, Copy, Camera, Download, Sparkles } from 'lucide-react';
 import { RouletteSliceItem, ROULETTE_ICONS } from '../types';
 
 export interface RouletteHelpModalProps {
@@ -286,6 +286,195 @@ export const RouletteIconPickerModal: React.FC<RouletteIconPickerModalProps> = (
               {icon}
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================================
+   행운의 룰렛 최종 결과 정보 팝업 레이어 (RouletteResultModal)
+   ========================================================================= */
+export interface RouletteResultModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  winner: RouletteSliceItem | null;
+  presetTitle: string;
+  items: RouletteSliceItem[];
+  onSpinAgain: () => void;
+  onInstantResult: () => void;
+  onCopyText: () => void;
+  onCopyImageCard: () => void;
+  onDownloadImageCard: () => void;
+  resolvedTheme: string;
+  isDark: boolean;
+}
+
+export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
+  isOpen,
+  onClose,
+  winner,
+  presetTitle,
+  items,
+  onSpinAgain,
+  onInstantResult,
+  onCopyText,
+  onCopyImageCard,
+  onDownloadImageCard,
+  resolvedTheme,
+  isDark,
+}) => {
+  if (!isOpen || !winner) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+      <div
+        className={`w-full max-w-md p-5 sm:p-6 rounded-2xl border shadow-2xl flex flex-col gap-4 text-center overflow-hidden animate-in zoom-in-95 ${
+          resolvedTheme === 'dawn'
+            ? 'bg-[#f0f7ff] border-[#bfdbfe] text-[#0d2746]'
+            : isDark
+            ? 'bg-[#18181b] border-[#27272a] text-slate-100'
+            : 'bg-white border-slate-200 text-slate-800'
+        }`}
+      >
+        {/* 모달 상단 헤더 */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-lg">
+              🎯
+            </span>
+            <div className="text-left">
+              <h3 className="text-sm sm:text-base font-bold">룰렛 추첨 결과</h3>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                {presetTitle}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 당첨 결과 대형 하이라이트 카드 */}
+        <div
+          className={`py-6 px-4 rounded-2xl border flex flex-col items-center justify-center gap-2 ${
+            resolvedTheme === 'dawn'
+              ? 'bg-gradient-to-b from-indigo-50 to-blue-100/60 border-blue-300'
+              : isDark
+              ? 'bg-gradient-to-b from-indigo-950/60 to-purple-950/40 border-indigo-800'
+              : 'bg-gradient-to-b from-indigo-50/80 to-purple-50/50 border-indigo-200'
+          }`}
+        >
+          <span className="text-5xl animate-bounce">{winner.avatar}</span>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white shadow-xs">
+            🎉 최종 당첨!
+          </span>
+          <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+            {winner.name}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
+            당첨을 축하합니다! 오늘의 주인공입니다.
+          </p>
+        </div>
+
+        {/* 후보군 요약 */}
+        <div className="text-left space-y-1 text-xs">
+          <span className="text-[11px] font-bold text-slate-400">전체 후보 ({items.length}개):</span>
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar py-1">
+            {items.map((it) => (
+              <span
+                key={it.id}
+                className={`px-2 py-1 rounded-lg text-[11px] border flex items-center gap-1 ${
+                  it.id === winner.id
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 font-bold text-indigo-700 dark:text-indigo-300'
+                    : 'border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                <span>{it.avatar}</span>
+                <span>{it.name}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* 액션 버튼 바 */}
+        <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onSpinAgain();
+            }}
+            className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>재실행</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onInstantResult}
+            className={`py-2.5 px-3 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              resolvedTheme === 'dawn'
+                ? 'bg-amber-100/80 border-amber-300 text-amber-900 hover:bg-amber-200/80'
+                : isDark
+                ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/60'
+                : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+            }`}
+            title="모달 내에서 즉시 새로운 당첨자 재추첨"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>즉시결과</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onCopyText}
+            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              resolvedTheme === 'dawn'
+                ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
+                : isDark
+                ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
+                : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
+            }`}
+            title="결과 텍스트 클립보드 복사"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onCopyImageCard}
+            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              resolvedTheme === 'dawn'
+                ? 'bg-white border-[#bfdbfe] text-indigo-700 hover:bg-indigo-50'
+                : isDark
+                ? 'bg-[#222226] border-[#333338] text-indigo-400 hover:bg-[#2c2c32]'
+                : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'
+            }`}
+            title="결과 카드 이미지 클립보드 복사"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onDownloadImageCard}
+            className={`p-2.5 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              resolvedTheme === 'dawn'
+                ? 'bg-white border-[#bfdbfe] text-emerald-700 hover:bg-emerald-50'
+                : isDark
+                ? 'bg-[#222226] border-[#333338] text-emerald-400 hover:bg-[#2c2c32]'
+                : 'bg-white border-slate-200 text-emerald-600 hover:bg-slate-50'
+            }`}
+            title="결과 카드 이미지 다운로드"
+          >
+            <Download className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

@@ -153,18 +153,21 @@ export const LadderViewerSvg: React.FC<LadderViewerSvgProps> = ({
         )}
       </svg>
 
-      {/* 하단 목표 칸들 (Goal Boxes) */}
-      <div className="flex items-center pt-2 select-none" style={{ width: totalSvgWidth }}>
+      {/* 하단 목표 칸들 (Goal Boxes: 홀짝 지그재그 높이 차이 적용) */}
+      <div className="flex items-start pt-2 select-none" style={{ width: totalSvgWidth }}>
         {Array.from({ length: cols }).map((_, colIdx) => {
           const goal = ladderGoals[colIdx] || { text: '통과', icon: '💨' };
           const revealedInfo = revealedGoalCols[colIdx];
           const hasRevealed = !!revealedInfo || !!ladderResult;
+          const isOdd = colIdx % 2 === 1;
 
           return (
             <div
               key={`goal-${colIdx}`}
               style={{ width: colWidth }}
-              className="flex flex-col items-center justify-center shrink-0 px-1"
+              className={`flex flex-col items-center justify-start shrink-0 px-1 transition-all ${
+                isOdd ? 'pt-6' : 'pt-0'
+              }`}
             >
               <button
                 type="button"

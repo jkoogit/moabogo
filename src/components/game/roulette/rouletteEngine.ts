@@ -48,10 +48,12 @@ export function calculateTargetRotation(
   const chosenSlice = slices.find((s) => s.item.id === chosen.id);
   const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
 
+  // 12시 상단 핀 각도(270도)에 슬라이스 중심각(sliceMidAngle)이 정확히 일치하도록 목표 각도 산출
+  const targetAngleMod = (((270 - sliceMidAngle) % 360) + 360) % 360;
+  const currentNorm = ((currentRotation % 360) + 360) % 360;
+
   if (isSkip) {
-    const targetBase = 270 - sliceMidAngle;
-    const currentNorm = ((currentRotation % 360) + 360) % 360;
-    let diff = targetBase - currentNorm;
+    let diff = targetAngleMod - currentNorm;
     while (diff < -180) diff += 360;
     while (diff > 180) diff -= 360;
     return {
@@ -60,9 +62,15 @@ export function calculateTargetRotation(
     };
   }
 
-  const targetDeg = 360 * 7 + (270 - sliceMidAngle);
+  // 룰렛 정회전(시계방향): 최소 6바퀴 회전 후 잉여 위상차를 정밀 보정하여 항상 슬라이스 정중앙에 안착
+  let forwardDiff = targetAngleMod - currentNorm;
+  if (forwardDiff <= 0) {
+    forwardDiff += 360;
+  }
+
+  const nextRotation = currentRotation + 360 * 6 + forwardDiff;
   return {
-    nextRotation: currentRotation + targetDeg,
+    nextRotation,
     duration: 3600,
   };
 }

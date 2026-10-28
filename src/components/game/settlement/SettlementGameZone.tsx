@@ -38,6 +38,7 @@ export interface SettlementGameZoneProps {
 
 export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
   members,
+  setMembers,
   amount,
   setAmount,
   useSplitWeight,
@@ -301,9 +302,13 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
               {/* 우측 초기화 버튼 */}
               <button
                 type="button"
-                onClick={() => setAmount('')}
+                onClick={() => {
+                  setAmount('');
+                  setMembers((prev) => prev.map((m) => ({ ...m, weight: 1 })));
+                  showToast('금액 및 가중치가 초기화되었습니다.');
+                }}
                 className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shrink-0"
-                title="금액 0원 초기화"
+                title="금액 및 가중치 초기화"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -469,8 +474,9 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
           {members.map((m) => {
             const share = settlementSummary.memberShares[m.id];
             const memberAmount = share ? share.amount : settlementSummary.perPerson;
-            const memberWeight = share ? share.weight : 1;
+            const memberWeight = m.weight !== undefined ? m.weight : (share ? share.weight : 1);
             const isExempt = memberWeight === 0;
+            const isAmountEmpty = settlementSummary.total === 0;
 
             return (
               <div
@@ -542,37 +548,61 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
+                        disabled={isAmountEmpty}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isAmountEmpty) {
+                            showToast('정산 금액을 먼저 입력해 주세요.', 'warning');
+                            return;
+                          }
                           updateSplitMemberWeight(m.id, -0.5);
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                        title="0.5배 감소"
+                        className="p-1 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-transform disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        title={isAmountEmpty ? '정산 금액을 먼저 입력해 주세요' : '0.5배 감소'}
+                        aria-label="0.5배 감소"
                       >
                         <Minus className="w-2.5 h-2.5" />
                       </button>
-                      <span className="px-1.5 font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                        {memberWeight}x
+                      {/* 가중치 3자리x 고정 폭 및 독립 값표시 영역 뱃지 */}
+                      <span
+                        className={`w-14 py-0.5 rounded-md border text-center font-bold font-mono text-[11px] tabular-nums inline-block shadow-2xs select-none ${
+                          isAmountEmpty
+                            ? 'bg-slate-100/50 dark:bg-zinc-800/40 border-slate-200/50 dark:border-zinc-800 text-slate-400'
+                            : 'bg-slate-100 dark:bg-zinc-800/90 border-slate-200/90 dark:border-zinc-700 text-indigo-600 dark:text-indigo-400'
+                        }`}
+                      >
+                        {memberWeight.toFixed(1)}x
                       </span>
                       <button
                         type="button"
+                        disabled={isAmountEmpty}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isAmountEmpty) {
+                            showToast('정산 금액을 먼저 입력해 주세요.', 'warning');
+                            return;
+                          }
                           updateSplitMemberWeight(m.id, 0.5);
                         }}
-                        className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                        title="0.5배 증가"
+                        className="p-1 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-transform disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        title={isAmountEmpty ? '정산 금액을 먼저 입력해 주세요' : '0.5배 증가'}
+                        aria-label="0.5배 증가"
                       >
                         <Plus className="w-2.5 h-2.5" />
                       </button>
                       <button
                         type="button"
+                        disabled={isAmountEmpty}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isAmountEmpty) {
+                            showToast('정산 금액을 먼저 입력해 주세요.', 'warning');
+                            return;
+                          }
                           updateSplitMemberWeight(m.id, 0, true);
                         }}
-                        className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:text-rose-500"
-                        title="면제(0배)"
+                        className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        title={isAmountEmpty ? '정산 금액을 먼저 입력해 주세요' : '면제(0.0배)'}
                       >
                         면제
                       </button>

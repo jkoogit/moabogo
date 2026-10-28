@@ -8,6 +8,9 @@ import {
   Dices,
   FastForward,
   Store,
+  Minus,
+  Plus,
+  Trophy,
 } from 'lucide-react';
 import { ElmRng01 } from '../../../sample/elements/Tokens';
 import { Participant, loadUserGoalPresets } from '../types';
@@ -31,6 +34,8 @@ import {
   LadderGoalModal,
   LadderArrivalModal,
   StoreMenuSelectModal,
+  LadderResultModal,
+  getStoreMenuEmoji,
 } from './LadderModals';
 import { StorePreset, StoreMenuItem } from '../../../sample/data/systemStorePool';
 import {
@@ -79,15 +84,23 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [ladderResult, setLadderResult] = useState<LadderResultMap | null>(null);
   const [arrivalPopup, setArrivalPopup] = useState<ArrivalPopupData | null>(null);
   const [isGeneratingCard, setIsGeneratingCard] = useState<boolean>(false);
+  const [useLadderWeight, setUseLadderWeight] = useState<boolean>(false);
+  const [isResultModalOpen, setIsResultModalOpen] = useState<boolean>(false);
 
   // Modals
   const [isGoalModalOpen, setIsGoalModalOpen] = useState<boolean>(false);
   const [editingGoalCol, setEditingGoalCol] = useState<number>(0);
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [storeModalMemberId, setStoreModalMemberId] = useState<string>('');
+  const [storeModalMode, setStoreModalMode] = useState<'STORE_ONLY' | 'MEMBER_MENU'>('STORE_ONLY');
 
   const ladderSliderRef = useRef<HTMLDivElement>(null);
   const stepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 참여인원, 당첨인원, 가중치 변경 감지 키
+  const membersWeightsKey = useMemo(() => {
+    return members.map((m) => `${m.id}:${m.weight || 1}`).join(',');
+  }, [members]);
 
   // 사다리 가로줄 동적 생성
   const ladderRungs = useMemo(() => {
@@ -110,6 +123,76 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       setWinnerCount(Math.max(1, needed - 1));
     }
   }, [members.length, winnerCount, setWinnerCount, setLadderGoals]);
+
+  // 참여인원, 당첨인원, 가중치 변경 시 기존 게임결과 및 상태 자동 초기화
+  useEffect(() => {
+    setLadderResult(null);
+    setRevealedGoals({});
+    setRevealedGoalCols({});
+    setArrivalPopup(null);
+    setIsResultModalOpen(false);
+  }, [members.length, winnerCount, membersWeightsKey]);
+
+  // 슬라이드드래그휠: 가로 마우스 휠 변환 및 배경 전파 차단
+  useEffect(() => {
+    const el = ladderSliderRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const canScroll = el.scrollWidth > el.clientWidth + 2;
+      if (!canScroll) return;
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (rawDelta === 0) return;
+      const isAtStart = el.scrollLeft <= 2;
+      const isAtEnd = el.scrollLeft >= Math.floor(el.scrollWidth - el.clientWidth) - 2;
+      if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      el.scrollLeft += rawDelta * 1.2;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
+  // 마우스/터치 드래그 스크롤 핸들러
+  const isDraggingLadderRef = useRef<boolean>(false);
+  const ladderStartXRef = useRef<number>(0);
+  const ladderScrollLeftRef = useRef<number>(0);
+
+  const handleLadderMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button, input, select')) return;
+    isDraggingLadderRef.current = true;
+    if (ladderSliderRef.current) {
+      ladderStartXRef.current = e.pageX - ladderSliderRef.current.offsetLeft;
+      ladderScrollLeftRef.current = ladderSliderRef.current.scrollLeft;
+    }
+  };
+
+  const handleLadderMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingLadderRef.current || !ladderSliderRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - ladderSliderRef.current.offsetLeft;
+    const walk = (x - ladderStartXRef.current) * 1.5;
+    ladderSliderRef.current.scrollLeft = ladderScrollLeftRef.current - walk;
+  };
+
+  const handleLadderMouseUpOrLeave = () => {
+    isDraggingLadderRef.current = false;
+  };
+
+  const handleUpdateMemberWeight = (memberId: string, delta: number) => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.id !== memberId) return m;
+        const current = m.weight || 1;
+        const next = Math.max(0.5, Math.min(5, Math.round((current + delta) * 10) / 10));
+        return { ...m, weight: next };
+      })
+    );
+  };
 
   const handleReshuffleRungs = () => {
     if (isLadderTracing) return;
@@ -141,6 +224,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
     const { results } = computeLadderPaths(members, ladderGoals, ladderRungs);
     setLadderResult(results);
+    setIsResultModalOpen(true);
 
     const revGoals: Record<string, boolean> = {};
     const revCols: LadderRevealedGoalCols = {};
@@ -263,6 +347,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       setCurrentTracerPosition(null);
       const { results } = computeLadderPaths(members, ladderGoals, ladderRungs);
       setLadderResult(results);
+      setIsResultModalOpen(true);
     } else {
       const { results, paths } = computeLadderPaths(members, ladderGoals, ladderRungs);
       const nextMember = members[nextIdx];
@@ -333,14 +418,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   const handleOpenStoreMenuPicker = (memberId: string) => {
     setStoreModalMemberId(memberId);
+    setStoreModalMode('MEMBER_MENU');
     setIsStoreModalOpen(true);
   };
 
   const handleSelectMenuForMember = (memberId: string, item: StoreMenuItem) => {
+    const menuEmoji = getStoreMenuEmoji(item);
     setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, selectedMenu: item } : m))
+      prev.map((m) =>
+        m.id === memberId
+          ? {
+              ...m,
+              selectedMenu: item,
+              avatar: menuEmoji, // 선택된 메뉴 아이콘을 참가자 이미지에 교체
+            }
+          : m
+      )
     );
-    showToast(`메뉴 '${item.name}'이(가) 선택되었습니다.`);
+    showToast(`'${item.name}' 메뉴가 선택되어 참가자 아이콘이 교체되었습니다.`);
   };
 
   const handleToggleClaimSeat = (memberId: string) => {
@@ -465,6 +560,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           type="button"
           onClick={() => {
             setStoreModalMemberId(members[0]?.id || '');
+            setStoreModalMode('STORE_ONLY');
             setIsStoreModalOpen(true);
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold transition-all cursor-pointer"
@@ -484,10 +580,30 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             : 'bg-slate-50 border-slate-200/80'
         }`}
       >
-        {/* 당첨 인원 슬라이더 */}
-        <div className="w-full">
+        {/* 당첨 인원 슬라이더 & 가중치 모드 토글 */}
+        <div className="w-full space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              당첨 인원수
+            </span>
+            <button
+              type="button"
+              onClick={() => setUseLadderWeight((prev) => !prev)}
+              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                useLadderWeight
+                  ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
+                  : resolvedTheme === 'dawn'
+                  ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                  : isDark
+                  ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>{useLadderWeight ? '⚡ 가중치 모드 ON' : '👥 균등 모드'}</span>
+            </button>
+          </div>
           <ElmRng01
-            label="당첨 인원수"
+            label=""
             value={winnerCount}
             min={1}
             max={Math.max(1, members.length - 1)}
@@ -552,23 +668,30 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             : 'bg-white border-slate-200'
         }`}
       >
-        {/* 참가자 헤더 칩 (상단 출발점) */}
+        {/* 참가자 헤더 칩 (상단 출발점) - 슬라이드드래그휠 복원 */}
         <div
           ref={ladderSliderRef}
-          className="w-full overflow-x-auto no-scrollbar scroll-smooth py-2"
+          onMouseDown={handleLadderMouseDown}
+          onMouseMove={handleLadderMouseMove}
+          onMouseUp={handleLadderMouseUpOrLeave}
+          onMouseLeave={handleLadderMouseUpOrLeave}
+          className="w-full overflow-x-auto no-scrollbar scroll-smooth py-2 cursor-grab active:cursor-grabbing select-none"
         >
           <div
-            className="flex items-center select-none"
+            className="flex items-start select-none"
             style={{ width: members.length * LADDER_COL_WIDTH }}
           >
-            {members.map((m) => {
+            {members.map((m, idx) => {
               const isClaimedByMe = m.claimedBy === currentTabId;
               const isClaimedByOther = m.claimedBy && !isClaimedByMe;
+              const isOdd = idx % 2 === 1;
               return (
                 <div
                   key={m.id}
                   style={{ width: LADDER_COL_WIDTH }}
-                  className="flex flex-col items-center justify-center shrink-0 px-1"
+                  className={`flex flex-col items-center justify-start shrink-0 px-1 transition-all ${
+                    isOdd ? 'pt-7' : 'pt-0'
+                  }`}
                 >
                   <button
                     type="button"
@@ -592,6 +715,36 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                       </span>
                     )}
                   </button>
+
+                  {/* 사다리 가중치 조절 컨트롤 */}
+                  {useLadderWeight && (
+                    <div
+                      className="mt-1 flex items-center justify-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateMemberWeight(m.id, -0.5)}
+                        className="p-1 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                        title="가중치 0.5 감소"
+                        aria-label="0.5 감소"
+                      >
+                        <Minus className="w-2.5 h-2.5" />
+                      </button>
+                      <span className="w-12 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-700 text-[10px] font-mono font-bold text-center text-indigo-600 dark:text-indigo-400 tabular-nums inline-block shadow-2xs select-none">
+                        {(m.weight || 1).toFixed(1)}x
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateMemberWeight(m.id, 0.5)}
+                        className="p-1 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                        title="가중치 0.5 증가"
+                        aria-label="0.5 증가"
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* 매장 메뉴 선택 버튼 */}
                   {selectedStore && (
@@ -628,22 +781,22 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           </div>
         </div>
 
-        {/* 메인 실행 버튼 바 */}
-        <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
+        {/* 메인 실행 버튼 바 (모바일 버튼 텍스트 줄바꿈 방지 및 요소 단위 줄바꿈) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 w-full max-w-lg">
           <button
             type="button"
             onClick={() => handlePlayLadder(false)}
             disabled={isLadderTracing}
-            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer whitespace-nowrap min-w-0"
           >
-            <Play className="w-4 h-4 fill-current" />
-            <span>{isLadderTracing ? '사다리 타는 중...' : '사다리 타기'}</span>
+            <Play className="w-4 h-4 fill-current shrink-0" />
+            <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : '사다리 타기'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => handlePlayLadder(true)}
-            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
               resolvedTheme === 'dawn'
                 ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
                 : isDark
@@ -651,9 +804,20 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                 : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            <FastForward className="w-3.5 h-3.5" />
-            <span>건너뛰기</span>
+            <FastForward className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">즉시 결과</span>
           </button>
+
+          {ladderResult && (
+            <button
+              type="button"
+              onClick={() => setIsResultModalOpen(true)}
+              className="py-3 px-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="whitespace-nowrap">결과 팝업 보기</span>
+            </button>
+          )}
         </div>
 
         {/* 사다리 최종 결과 및 공유 카드 */}
@@ -762,6 +926,21 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         members={members}
         currentMemberId={storeModalMemberId}
         onSelectMenuForMember={handleSelectMenuForMember}
+        mode={storeModalMode}
+        resolvedTheme={resolvedTheme}
+        isDark={isDark}
+      />
+
+      {/* 사다리 최종 결과 전폭 팝업 모달 */}
+      <LadderResultModal
+        isOpen={isResultModalOpen}
+        onClose={() => setIsResultModalOpen(false)}
+        members={members}
+        results={ladderResult}
+        selectedStore={selectedStore}
+        onCopyText={handleCopyText}
+        onCopyImageCard={handleCopyImageCard}
+        onDownloadImageCard={handleDownloadImageCard}
         resolvedTheme={resolvedTheme}
         isDark={isDark}
       />

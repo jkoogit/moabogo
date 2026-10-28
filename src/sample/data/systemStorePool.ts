@@ -52,9 +52,9 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
     id: 'preset_coffee_bet',
     category: 'COFFEE',
     title: '☕ 커피 쏘기 & 픽업 내기 (대표 5인)',
-    description: '1명 결제 독박, 2명 픽업 심부름, 2명 생존',
+    description: '1명 결제 당첨, 2명 픽업 심부름, 2명 생존',
     roles: [
-      { label: '💳 오늘 커피 결제 (독박)', type: 'PAY', color: 'rose', badgeText: '당첨' },
+      { label: '💳 오늘 커피 결제', type: 'PAY', color: 'rose', badgeText: '당첨' },
       { label: '🏃 커피 픽업 심부름', type: 'PICKUP', color: 'amber', badgeText: '심부름' },
       { label: '🏃 커피 픽업 심부름', type: 'PICKUP', color: 'amber', badgeText: '심부름' },
       { label: '🎉 축 통과 (생존)', type: 'PASS', color: 'emerald', badgeText: '면제' },
@@ -77,10 +77,10 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
   {
     id: 'preset_one_buyer',
     category: 'COFFEE',
-    title: '🎯 단 1명만 결제하기 (1인 독박 모드)',
+    title: '🎯 단 1명만 결제하기 (1인 결제 모드)',
     description: '1명만 결제하고 나머지는 모두 통과하는 긴장감 넘치는 모드',
     roles: [
-      { label: '💳 전체 전액 결제', type: 'PAY', color: 'rose', badgeText: '독박' },
+      { label: '💳 전체 전액 결제', type: 'PAY', color: 'rose', badgeText: '당첨' },
       { label: '🎉 생존', type: 'PASS', color: 'emerald', badgeText: '통과' },
       { label: '🎉 생존', type: 'PASS', color: 'emerald', badgeText: '통과' },
       { label: '🎉 생존', type: 'PASS', color: 'emerald', badgeText: '통과' },
@@ -155,11 +155,11 @@ export const ROULETTE_PRESETS: RoulettePreset[] = [
   {
     id: 'roulette_preset_coffee',
     category: 'COFFEE',
-    title: '☕ 커피 쏘기 독박 & 픽업 내기',
+    title: '☕ 커피 쏘기 & 픽업 내기',
     description: '결제자 1명, 픽업자 1명, 면제자 선정',
     icon: '☕',
     items: [
-      { id: 'r_cof_1', name: '💳 오늘 커피 전액 결제 (독박)', icon: '💳', weight: 1 },
+      { id: 'r_cof_1', name: '💳 오늘 커피 전액 결제', icon: '💳', weight: 1 },
       { id: 'r_cof_2', name: '🏃 카페 다녀오기 (픽업 심부름)', icon: '🏃', weight: 1 },
       { id: 'r_cof_3', name: '🎉 축 통과 (편안한 휴식)', icon: '🎉', weight: 1 },
       { id: 'r_cof_4', name: '🎉 축 통과 (편안한 휴식)', icon: '🎉', weight: 1 },

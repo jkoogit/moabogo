@@ -9,6 +9,8 @@ import {
   Download,
   HelpCircle,
   Plus,
+  Minus,
+  Trophy,
 } from 'lucide-react';
 import { ElmRng01, ElmSld03 } from '../../../sample/elements/Tokens';
 import { Participant, RouletteSliceItem } from '../types';
@@ -24,6 +26,7 @@ import {
   RouletteHelpModal,
   RouletteItemSettingModal,
   RouletteIconPickerModal,
+  RouletteResultModal,
 } from './RouletteModals';
 import {
   ROULETTE_PRESETS,
@@ -79,6 +82,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3500);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState<boolean>(false);
+  const [isResultModalOpen, setIsResultModalOpen] = useState<boolean>(false);
 
   // Modals
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
@@ -102,6 +106,8 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   }, [rouletteItems, totalRouletteWeight]);
 
   const handleUpdateRouletteItemCount = (count: number) => {
+    setSelectedRouletteWinner(null);
+    setIsResultModalOpen(false);
     setRouletteItems((prev) => {
       const diff = count - prev.length;
       if (diff === 0) return prev;
@@ -127,6 +133,17 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     );
   };
 
+  const handleUpdateItemWeight = (id: string, delta: number) => {
+    setRouletteItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const current = it.weight || 1;
+        const next = Math.max(1, Math.min(10, current + delta));
+        return { ...it, weight: next };
+      })
+    );
+  };
+
   const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem, forceRestart = false) => {
     if (rouletteItems.length === 0) return;
 
@@ -141,6 +158,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       setRouletteRotation(nextRotation);
       setIsSpinning(false);
       setSelectedRouletteWinner(chosen);
+      setIsResultModalOpen(true);
       if (excludeWinnerMode && rouletteItems.length > 2) {
         setExcludedRouletteItems((prev) => [...prev, chosen]);
         setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
@@ -167,6 +185,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     spinTimerRef.current = setTimeout(() => {
       setIsSpinning(false);
       setSelectedRouletteWinner(chosen);
+      setIsResultModalOpen(true);
       if (excludeWinnerMode && rouletteItems.length > 2) {
         setExcludedRouletteItems((prev) => [...prev, chosen]);
         setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
@@ -179,6 +198,8 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       showToast('참여 멤버가 2명 이상이어야 합니다.', 'warning');
       return;
     }
+    setSelectedRouletteWinner(null);
+    setIsResultModalOpen(false);
     setRoulettePresetTitle('👥 참여 멤버 룰렛');
     setRouletteItems(
       members.map((m) => ({
@@ -192,6 +213,8 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   };
 
   const handleSelectPreset = (preset: RoulettePreset) => {
+    setSelectedRouletteWinner(null);
+    setIsResultModalOpen(false);
     setRoulettePresetTitle(preset.title);
     setRouletteItems(
       preset.items.map((it: RoulettePresetItem) => ({
@@ -309,6 +332,19 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     setNewItemName('');
   };
 
+  const handleInstantResultInModal = () => {
+    const chosen = pickRandomRouletteItem(rouletteItems, totalRouletteWeight);
+    const { nextRotation } = calculateTargetRotation(chosen, rouletteSlices, rouletteRotation, true);
+    setRouletteTransitionDuration(0);
+    setRouletteRotation(nextRotation);
+    setSelectedRouletteWinner(chosen);
+    showToast(`즉시 결과: '${chosen.name}'(이)가 당첨되었습니다!`);
+    if (excludeWinnerMode && rouletteItems.length > 2) {
+      setExcludedRouletteItems((prev) => [...prev, chosen]);
+      setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 상단 프리셋 및 설정 헤더 바 */}
@@ -345,10 +381,30 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           </div>
         </div>
 
-        {/* 룰렛 항목 인디케이터 */}
-        <div className="w-full">
+        {/* 룰렛 항목 인디케이터 & 가중치 모드 토글 */}
+        <div className="w-full space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              설정 항목
+            </span>
+            <button
+              type="button"
+              onClick={() => setUseRouletteWeight((prev) => !prev)}
+              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                useRouletteWeight
+                  ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
+                  : resolvedTheme === 'dawn'
+                  ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                  : isDark
+                  ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>{useRouletteWeight ? '⚡ 가중치 모드 ON' : '👥 균등 모드'}</span>
+            </button>
+          </div>
           <ElmRng01
-            label="설정 항목"
+            label=""
             value={rouletteItems.length}
             min={2}
             max={20}
@@ -462,6 +518,32 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
                   title="클릭하여 항목명 바로 수정"
                 />
                 <span className="text-[10px] opacity-60 font-mono shrink-0">{pct}%</span>
+                {/* 룰렛 가중치 인라인 조절 컨트롤 */}
+                {useRouletteWeight && (
+                  <div className="flex items-center gap-0.5 ml-0.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateItemWeight(item.id, -1)}
+                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                      title="가중치 1 감소"
+                      aria-label="1 감소"
+                    >
+                      <Minus className="w-2.5 h-2.5" />
+                    </button>
+                    <span className="w-8 py-0.2 rounded bg-white dark:bg-zinc-800 border border-slate-200/90 dark:border-zinc-700 text-[10px] font-mono font-bold text-center text-indigo-600 dark:text-indigo-400 tabular-nums select-none">
+                      {weight}x
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateItemWeight(item.id, 1)}
+                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                      title="가중치 1 증가"
+                      aria-label="1 증가"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -476,22 +558,21 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           onCenterClick={() => handleSpinRoulette(false, undefined, true)}
         />
 
-        {/* 룰렛 메인 컨트롤 버튼 바 */}
-        <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
+        {/* 룰렛 메인 컨트롤 버튼 바 (모바일 줄바꿈 방지 및 요소 단위 줄바꿈, 재실행 및 회전중 텍스트 제거) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 w-full max-w-lg">
           <button
             type="button"
-            onClick={() => handleSpinRoulette(false)}
-            disabled={isSpinning}
-            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            onClick={() => handleSpinRoulette(false, undefined, true)}
+            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap min-w-0"
           >
-            <Play className="w-4 h-4 fill-current" />
-            <span>{isSpinning ? '회전 중...' : '룰렛 돌리기'}</span>
+            <Play className="w-4 h-4 fill-current shrink-0" />
+            <span className="whitespace-nowrap">룰렛 돌리기</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSpinRoulette(true)}
-            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
               resolvedTheme === 'dawn'
                 ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
                 : isDark
@@ -499,8 +580,19 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
                 : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            <span>⚡ 즉시 결과</span>
+            <span className="whitespace-nowrap">⚡ 즉시 결과</span>
           </button>
+
+          {selectedRouletteWinner && (
+            <button
+              type="button"
+              onClick={() => setIsResultModalOpen(true)}
+              className="py-3 px-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="whitespace-nowrap">결과 팝업 보기</span>
+            </button>
+          )}
         </div>
 
         {/* 당첨 결과 알림 카드 */}
@@ -587,6 +679,22 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         isOpen={isIconPickerOpen}
         onClose={() => setIsIconPickerOpen(false)}
         onSelectIcon={handleSelectIcon}
+        resolvedTheme={resolvedTheme}
+        isDark={isDark}
+      />
+
+      {/* 룰렛 최종 결과 전폭 팝업 모달 */}
+      <RouletteResultModal
+        isOpen={isResultModalOpen}
+        onClose={() => setIsResultModalOpen(false)}
+        winner={selectedRouletteWinner}
+        presetTitle={roulettePresetTitle}
+        items={rouletteItems}
+        onSpinAgain={() => handleSpinRoulette(false, undefined, true)}
+        onInstantResult={handleInstantResultInModal}
+        onCopyText={handleCopyText}
+        onCopyImageCard={handleCopyImageCard}
+        onDownloadImageCard={handleDownloadImageCard}
         resolvedTheme={resolvedTheme}
         isDark={isDark}
       />
