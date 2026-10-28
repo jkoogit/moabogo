@@ -217,16 +217,37 @@ export const getStoreMenuEmoji = (item: StoreMenuItem): string => {
   if (item.iconName) return item.iconName;
   const cat = item.categoryName || '';
   const name = item.name || '';
-  if (name.includes('아메리카노') || name.includes('콜드브루') || cat.includes('커피') || cat.includes('에스프레소')) return '☕';
-  if (name.includes('라떼') || name.includes('카푸치노') || name.includes('마끼아또') || name.includes('모카')) return '☕';
-  if (name.includes('티') || cat.includes('티') || name.includes('캐모마일') || name.includes('얼그레이')) return '🍵';
-  if (name.includes('에이드') || name.includes('주스') || cat.includes('에이드') || cat.includes('주스') || name.includes('스무디') || name.includes('프라페')) return '🍹';
-  if (name.includes('샌드위치') || name.includes('토스트') || name.includes('파니니') || cat.includes('샌드위치')) return '🥪';
-  if (name.includes('케이크') || name.includes('타르트') || name.includes('마카롱') || cat.includes('디저트') || cat.includes('베이커리')) return '🍰';
-  if (name.includes('버거') || cat.includes('버거')) return '🍔';
+
+  if (name.includes('딸기') || name.includes('스트로베리')) return '🍓';
+  if (name.includes('망고')) return '🥭';
+  if (name.includes('바나나')) return '🍌';
+  if (name.includes('레몬') || name.includes('유자')) return '🍋';
+  if (name.includes('자몽') || name.includes('오렌지')) return '🍊';
+  if (name.includes('사과') || name.includes('애플')) return '🍎';
+  if (name.includes('초코') || name.includes('모카')) return '🍫';
+  if (name.includes('카라멜') || name.includes('바닐라')) return '🍯';
+  if (name.includes('녹차') || name.includes('말차')) return '🍵';
+  if (name.includes('얼그레이') || name.includes('캐모마일') || name.includes('페퍼민트') || name.includes('블랙티') || cat.includes('티')) return '🫖';
+  if (name.includes('콜드브루') || (name.includes('아메리카노') && name.includes('ICE'))) return '🧊';
+  if (name.includes('스무디') || name.includes('프라푸치노') || name.includes('블렌디드') || name.includes('쉐이크') || name.includes('프라페')) return '🥤';
+  if (name.includes('에이드') || name.includes('주스') || name.includes('피지오')) return '🍹';
+  if (name.includes('라떼') || name.includes('카푸치노') || name.includes('마키아또') || name.includes('밀크')) return '🥛';
+  if (name.includes('아메리카노') || name.includes('에스프레소') || cat.includes('커피')) return '☕';
+  if (name.includes('케이크') || name.includes('타르트') || name.includes('카스텔라')) return '🍰';
+  if (name.includes('베이글') || name.includes('크루아상') || name.includes('소금빵')) return '🥯';
+  if (name.includes('마카롱') || name.includes('까눌레')) return '🧁';
+  if (name.includes('쿠키') || name.includes('스콘')) return '🍪';
+  if (name.includes('샌드위치') || name.includes('토스트') || name.includes('파니니')) return '🥪';
+  if (name.includes('버거')) return '🍔';
   if (name.includes('피자')) return '🍕';
+  if (name.includes('파스타') || name.includes('스파게티')) return '🍝';
   if (name.includes('샐러드')) return '🥗';
-  if (name.includes('빙수')) return '🍧';
+  if (name.includes('빙수') || name.includes('아이스크림')) return '🍧';
+  if (name.includes('떡볶이') || name.includes('순대') || name.includes('튀김')) return '🍢';
+  if (name.includes('김치찌개') || name.includes('된장찌개') || name.includes('국밥')) return '🍲';
+  if (name.includes('돈까스') || name.includes('카레')) return '🍛';
+  if (name.includes('짜장') || name.includes('짬뽕')) return '🍜';
+  if (name.includes('치킨')) return '🍗';
   return '☕';
 };
 
@@ -343,11 +364,7 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
                   type="button"
                   onClick={() => {
                     onSelectStore(store);
-                    if (isStoreOnly) {
-                      onClose();
-                    } else {
-                      setActiveTab('menu');
-                    }
+                    setActiveTab('menu');
                   }}
                   className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
                     isSelected
@@ -480,6 +497,20 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
                 </button>
               );
             })}
+            {isStoreOnly && (
+              <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2 shrink-0">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  {selectedStore?.name} 매장으로 연동되었습니다.
+                </span>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer"
+                >
+                  매장 연동 완료
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

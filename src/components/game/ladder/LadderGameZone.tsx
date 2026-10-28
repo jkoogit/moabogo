@@ -283,8 +283,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       }
 
       const memberPoints = paths[currentMember.id] || [];
-      const trailHistory: { x: number; y: number }[] = [];
-      let stepIdx = 0;
+      const startPt = memberPoints[0] || null;
+      // 이전 마커와 선을 완전히 끊고 새 주자의 최상단 시작점에서 정밀 출발
+      setCurrentTracerPosition(startPt);
+      setCurrentTracedTrail(startPt ? [startPt] : []);
+      const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
+      let stepIdx = 1;
 
       const speedInterval =
         LADDER_SPEED_OPTIONS.find((s) => s.value === ladderSpeed)?.interval || 20;
@@ -302,6 +306,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             clearInterval(stepIntervalRef.current);
             stepIntervalRef.current = null;
           }
+
+          // 골인 지점에 안착
+          const finalPt = memberPoints[memberPoints.length - 1] || null;
+          setCurrentTracerPosition(finalPt);
 
           setRevealedGoals((prev) => ({ ...prev, [currentMember.id]: true }));
           const currentResult = results[currentMember.id];
@@ -339,6 +347,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     const nextIdx = arrivalPopup.memberIndex + 1;
     const isLast = nextIdx >= members.length;
     setArrivalPopup(null);
+    // 골인 후 다음 주자 출발 전 이전 마커와 트레일을 완전히 끊음!
+    setCurrentTracerPosition(null);
     setCurrentTracedTrail([]);
 
     if (isLast) {
@@ -353,9 +363,23 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       const nextMember = members[nextIdx];
       setActiveTracingMemberIndex(nextIdx);
 
+      if (ladderSliderRef.current) {
+        const el = ladderSliderRef.current;
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (maxScroll > 0) {
+          const startX = nextIdx * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
+          const targetScroll = Math.max(0, Math.min(maxScroll, startX - el.clientWidth / 2));
+          el.scrollTo({ left: targetScroll, behavior: 'smooth' });
+        }
+      }
+
       const memberPoints = paths[nextMember.id] || [];
-      const trailHistory: { x: number; y: number }[] = [];
-      let stepIdx = 0;
+      const startPt = memberPoints[0] || null;
+      // 다음 주자의 사다리 최상단 시작점에서 정밀 출발
+      setCurrentTracerPosition(startPt);
+      setCurrentTracedTrail(startPt ? [startPt] : []);
+      const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
+      let stepIdx = 1;
 
       const speedInterval =
         LADDER_SPEED_OPTIONS.find((s) => s.value === ladderSpeed)?.interval || 20;
@@ -373,6 +397,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             clearInterval(stepIntervalRef.current);
             stepIntervalRef.current = null;
           }
+
+          // 골인 지점에 안착
+          const finalPt = memberPoints[memberPoints.length - 1] || null;
+          setCurrentTracerPosition(finalPt);
 
           setRevealedGoals((prev) => ({ ...prev, [nextMember.id]: true }));
           const res = results[nextMember.id];
@@ -705,7 +733,27 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                     }`}
                     title={isClaimedByMe ? '내 자리 (클릭 시 점유 해제)' : '자리 찜하기'}
                   >
-                    <span className="text-xl">{m.avatar}</span>
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shrink-0 shadow-2xs">
+                      {m.selectedMenu?.imageUrl ? (
+                        <img
+                          src={m.selectedMenu.imageUrl}
+                          alt={m.selectedMenu.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              const span = document.createElement('span');
+                              span.className = 'text-xl';
+                              span.innerText = m.avatar || '☕';
+                              parent.appendChild(span);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="text-xl">{m.avatar}</span>
+                      )}
+                    </div>
                     <span className="text-[11px] font-bold truncate max-w-full text-center">
                       {m.name}
                     </span>

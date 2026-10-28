@@ -121,12 +121,9 @@ export const LadderViewerSvg: React.FC<LadderViewerSvgProps> = ({
           />
         )}
 
-        {/* 실시간 이동 마커 (이모지 아바타 + 글로우 원) */}
+        {/* 실시간 이동 마커 (골인 및 출발 시 끊어짐 없이 동기화) */}
         {currentTracerPosition && activeMember && (
-          <g
-            transform={`translate(${currentTracerPosition.x}, ${currentTracerPosition.y})`}
-            className="transition-transform"
-          >
+          <g transform={`translate(${currentTracerPosition.x}, ${currentTracerPosition.y})`}>
             <circle
               r="16"
               fill="#ec4899"
@@ -140,15 +137,31 @@ export const LadderViewerSvg: React.FC<LadderViewerSvgProps> = ({
               strokeWidth="2.5"
               className="shadow-lg"
             />
-            <text
-              x="0"
-              y="1"
-              fontSize="14"
-              textAnchor="middle"
-              dominantBaseline="central"
-            >
-              {activeMember.avatar}
-            </text>
+            {activeMember.selectedMenu?.imageUrl ? (
+              <>
+                <clipPath id={`tracer-clip-${activeMember.id}`}>
+                  <circle cx="0" cy="0" r="11" />
+                </clipPath>
+                <image
+                  href={activeMember.selectedMenu.imageUrl}
+                  x="-11"
+                  y="-11"
+                  width="22"
+                  height="22"
+                  clipPath={`url(#tracer-clip-${activeMember.id})`}
+                />
+              </>
+            ) : (
+              <text
+                x="0"
+                y="1"
+                fontSize="14"
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {activeMember.avatar}
+              </text>
+            )}
           </g>
         )}
       </svg>
