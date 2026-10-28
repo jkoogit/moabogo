@@ -10,13 +10,20 @@ export function calculateSettlementSummary(
   const count = members.length;
 
   if (count === 0 || total === 0) {
+    const rawTotalWeight = members.reduce((sum, m) => sum + Math.max(0, m.weight ?? 1), 0);
+    const totalWeight = Math.round(rawTotalWeight * 10) / 10;
+    const memberShares: Record<string, SettlementMemberShare> = {};
+    members.forEach((m) => {
+      const w = Math.max(0, m.weight ?? 1);
+      memberShares[m.id] = { amount: 0, weight: w, ratio: totalWeight > 0 ? w / totalWeight : 0 };
+    });
     return {
       perPerson: 0,
       baseUnitAmount: 0,
       remainder: 0,
       total: 0,
-      totalWeight: 0,
-      memberShares: {},
+      totalWeight,
+      memberShares,
     };
   }
 
