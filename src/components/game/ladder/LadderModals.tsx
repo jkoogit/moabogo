@@ -269,10 +269,13 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
     isStoreOnly ? 'store' : selectedStore ? 'menu' : 'store'
   );
 
+  const prevIsOpenRef = React.useRef(false);
   React.useEffect(() => {
-    if (isOpen) {
+    // 팝업이 최초 열릴 때만 초기 탭 결정 (isOpen false -> true 전환 시 1회만 실행)
+    if (isOpen && !prevIsOpenRef.current) {
       setActiveTab(isStoreOnly ? 'store' : selectedStore ? 'menu' : 'store');
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, isStoreOnly, selectedStore]);
 
   if (!isOpen) return null;
