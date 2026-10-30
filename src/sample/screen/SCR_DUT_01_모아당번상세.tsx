@@ -26,6 +26,7 @@ import {
   Calendar,
   ShieldCheck,
   Coins,
+  ChevronLeft,
   ChevronRight,
   UserCheck,
   Check,
@@ -88,7 +89,8 @@ import {
 export const SCR_DUT_01_모아당번상세: React.FC<{
   onOpenQuickRegister?: () => void;
   onNavigateToGoal?: () => void;
-}> = ({ onOpenQuickRegister, onNavigateToGoal }) => {
+  onBack?: () => void;
+}> = ({ onOpenQuickRegister, onNavigateToGoal, onBack }) => {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark' || resolvedTheme === 'dawn';
 
@@ -557,6 +559,16 @@ export const SCR_DUT_01_모아당번상세: React.FC<{
       <div className="border-b border-slate-200 dark:border-zinc-800 pb-3.5 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 flex-wrap">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="min-h-[44px] min-w-[44px] p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs shrink-0"
+                title="메인 대시보드로 돌아가기"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
             <div className="w-9 h-9 rounded-xl bg-purple-600/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>

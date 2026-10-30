@@ -22,12 +22,14 @@ import {
   Flame,
   Award,
   Check,
+  ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
 export const SCR_GOL_01_모아목표상세: React.FC<{
   onNavigateToDuty?: () => void;
-}> = ({ onNavigateToDuty }) => {
+  onBack?: () => void;
+}> = ({ onNavigateToDuty, onBack }) => {
   const [goalTitle, setGoalTitle] = useState('가족 건강 1만보 걷기 챌린지');
   const [currentStep, setCurrentStep] = useState(2);
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false);
@@ -78,7 +80,17 @@ export const SCR_GOL_01_모아목표상세: React.FC<{
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* Section 1: Header (Flat Peer 1) */}
       <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3.5">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs shrink-0"
+              title="메인 대시보드로 돌아가기"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <ElmTyp01
             title="모아목표 상세 관리"
             badge="SCR-GOL-01"

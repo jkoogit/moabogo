@@ -1544,8 +1544,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
               </div>
 
-              {/* 첫줄 우측: [+ 정산·머니 요청 버튼] + [토글버튼] */}
-              <div className="flex items-center gap-2 shrink-0">
+              {/* 첫줄 우측: [+ 정산·머니 요청 버튼] + [상세 관리 이동] + [토글버튼] */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsNewRequestModalOpen(true)}
@@ -1559,6 +1559,23 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 >
                   <Plus className="w-3.5 h-3.5 shrink-0" />
                   <span className="whitespace-nowrap">+ 정산·머니 요청</span>
+                </button>
+
+                {/* 모아머니 상세 관리 화면 (SCR-MON-01) 딥링크 이동 */}
+                <button
+                  type="button"
+                  onClick={() => onNavigate && onNavigate('SCR-MON-01')}
+                  className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0 ${
+                    resolvedTheme === 'dawn'
+                      ? 'border-[#1e3a6d] bg-[#101e42] text-amber-300 hover:text-white'
+                      : isDark
+                      ? 'border-zinc-700 bg-zinc-800 text-amber-300 hover:text-white'
+                      : 'border-slate-200 bg-white text-amber-700 hover:bg-slate-50'
+                  }`}
+                  title="모아머니 통합 이동관리 화면으로 이동"
+                >
+                  <span className="whitespace-nowrap">상세 관리</span>
+                  <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                 </button>
 
                 {/* 표준 아코디언 토글 버튼 */}
