@@ -500,26 +500,56 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
                 </button>
               );
             })}
-            {isStoreOnly && (
-              <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2 shrink-0">
-                <span className="text-[11px] text-slate-500 dark:text-zinc-400">
-                  {selectedStore?.name} 매장으로 연동되었습니다.
-                </span>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer"
-                >
-                  매장 연동 완료
-                </button>
-              </div>
-            )}
           </div>
         )}
+
+        {/* 하단 고정 푸터: 스크롤 영역 외부로 격리하여 상시 접근성 보장 */}
+        <div className="shrink-0 pt-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 truncate">
+            {selectedStore ? (
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="text-sm shrink-0">
+                  {selectedStore.category === 'CAFE' ? '☕' : '🍽️'}
+                </span>
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                  {selectedStore.name}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-medium shrink-0">
+                  {selectedStore.menus.length}개 메뉴
+                </span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-slate-400 dark:text-zinc-500">
+                연동된 매장 없음 (기본 사다리)
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-2 px-3.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            >
+              닫기
+            </button>
+            {isStoreOnly && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>매장 연동 완료</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
 
 /* =========================================================================
    사다리타기 최종 결과 정보 팝업 레이어 (LadderResultModal)
