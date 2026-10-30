@@ -277,6 +277,36 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setRevealedGoalCols(revCols);
   };
 
+  // 선제적 오토 가로 스크롤 엔진 (진행 방향 선제 시야 확보 & 실시간 스프링 댐핑 추적)
+  const ensureTracerVisible = (ptX: number, nextPtX?: number, immediate = false) => {
+    const el = ladderSliderRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+
+    const viewWidth = el.clientWidth;
+    // 진행 방향 선제 시야 예측 (사다리 가로줄 이동 시 해당 방향으로 최대 140px 미리 뷰포트 확보)
+    const lookAheadDir = nextPtX !== undefined ? Math.sign(nextPtX - ptX) : 0;
+    const forwardMargin = lookAheadDir * Math.min(140, viewWidth * 0.25);
+
+    // 트레이서와 진행 방향을 뷰포트 중심 구역에 선제 배치
+    const desiredCenter = ptX + forwardMargin;
+    const targetScroll = Math.max(0, Math.min(maxScroll, desiredCenter - viewWidth / 2));
+
+    if (immediate) {
+      el.scrollLeft = targetScroll;
+      return;
+    }
+
+    const currentScroll = el.scrollLeft;
+    const diff = targetScroll - currentScroll;
+
+    if (Math.abs(diff) > 2) {
+      // 브라우저 smooth의 지연/취소 현상을 방지하고 매 틱마다 즉각 40%씩 부드럽게 전진 수렴
+      el.scrollLeft = currentScroll + diff * 0.4;
+    }
+  };
+
   const handlePlayLadder = (skipTrace = false) => {
     if (skipTrace) {
       handleSkipToResult();
@@ -306,21 +336,15 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       const currentMember = members[idx];
       setActiveTracingMemberIndex(idx);
 
-      if (ladderSliderRef.current) {
-        const el = ladderSliderRef.current;
-        const maxScroll = el.scrollWidth - el.clientWidth;
-        if (maxScroll > 0) {
-          const startX = idx * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
-          const targetScroll = Math.max(0, Math.min(maxScroll, startX - el.clientWidth / 2));
-          el.scrollTo({ left: targetScroll, behavior: 'smooth' });
-        }
-      }
-
       const memberPoints = paths[currentMember.id] || [];
       const startPt = memberPoints[0] || null;
       // 이전 마커와 선을 완전히 끊고 새 주자의 최상단 시작점에서 정밀 출발
       setCurrentTracerPosition(startPt);
       setCurrentTracedTrail(startPt ? [startPt] : []);
+      if (startPt) {
+        // 주자 출발 시 해당 기둥으로 선제 즉각 포커싱
+        ensureTracerVisible(startPt.x, undefined, true);
+      }
       const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
       let stepIdx = 1;
 
@@ -331,9 +355,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       stepIntervalRef.current = setInterval(() => {
         if (stepIdx < memberPoints.length) {
           const pt = memberPoints[stepIdx];
+          const nextPt = stepIdx + 3 < memberPoints.length ? memberPoints[stepIdx + 3] : memberPoints[stepIdx + 1];
           setCurrentTracerPosition(pt);
           trailHistory.push(pt);
           setCurrentTracedTrail([...trailHistory]);
+          // 트레이서 이동 경로 및 진행 방향에 맞추어 선제적 시야 확보
+          ensureTracerVisible(pt.x, nextPt?.x);
           stepIdx++;
         } else {
           if (stepIntervalRef.current) {
@@ -344,6 +371,9 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           // 골인 지점에 안착
           const finalPt = memberPoints[memberPoints.length - 1] || null;
           setCurrentTracerPosition(finalPt);
+          if (finalPt) {
+            ensureTracerVisible(finalPt.x);
+          }
 
           setRevealedGoals((prev) => ({ ...prev, [currentMember.id]: true }));
           const currentResult = results[currentMember.id];
@@ -397,21 +427,14 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       const nextMember = members[nextIdx];
       setActiveTracingMemberIndex(nextIdx);
 
-      if (ladderSliderRef.current) {
-        const el = ladderSliderRef.current;
-        const maxScroll = el.scrollWidth - el.clientWidth;
-        if (maxScroll > 0) {
-          const startX = nextIdx * LADDER_COL_WIDTH + LADDER_COL_WIDTH / 2;
-          const targetScroll = Math.max(0, Math.min(maxScroll, startX - el.clientWidth / 2));
-          el.scrollTo({ left: targetScroll, behavior: 'smooth' });
-        }
-      }
-
       const memberPoints = paths[nextMember.id] || [];
       const startPt = memberPoints[0] || null;
-      // 다음 주자의 사다리 최상단 시작점에서 정밀 출발
+      // 다음 주자의 사다리 최상단 시작점에서 정밀 출발 및 선제 포커싱
       setCurrentTracerPosition(startPt);
       setCurrentTracedTrail(startPt ? [startPt] : []);
+      if (startPt) {
+        ensureTracerVisible(startPt.x, undefined, true);
+      }
       const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
       let stepIdx = 1;
 
@@ -422,9 +445,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       stepIntervalRef.current = setInterval(() => {
         if (stepIdx < memberPoints.length) {
           const pt = memberPoints[stepIdx];
+          const nextPt = stepIdx + 3 < memberPoints.length ? memberPoints[stepIdx + 3] : memberPoints[stepIdx + 1];
           setCurrentTracerPosition(pt);
           trailHistory.push(pt);
           setCurrentTracedTrail([...trailHistory]);
+          // 트레이서 이동 경로 및 진행 방향에 맞추어 선제적 시야 확보
+          ensureTracerVisible(pt.x, nextPt?.x);
           stepIdx++;
         } else {
           if (stepIntervalRef.current) {
@@ -435,6 +461,9 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           // 골인 지점에 안착
           const finalPt = memberPoints[memberPoints.length - 1] || null;
           setCurrentTracerPosition(finalPt);
+          if (finalPt) {
+            ensureTracerVisible(finalPt.x);
+          }
 
           setRevealedGoals((prev) => ({ ...prev, [nextMember.id]: true }));
           const res = results[nextMember.id];
