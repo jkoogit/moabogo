@@ -201,6 +201,7 @@ export default function App() {
       category: '라이프 서비스',
       comp: (
         <SCR_DUT_01_모아당번상세
+          onBack={() => setCurrentScreen('SCR-DSH-01')}
           onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
           onNavigateToGoal={() => setCurrentScreen('SCR-GOL-01')}
         />
@@ -210,13 +211,18 @@ export default function App() {
       id: 'SCR-GOL-01',
       name: '모아목표 상세 (동행원 vs 관람원)',
       category: '라이프 서비스',
-      comp: <SCR_GOL_01_모아목표상세 onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')} />,
+      comp: (
+        <SCR_GOL_01_모아목표상세
+          onBack={() => setCurrentScreen('SCR-DSH-01')}
+          onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')}
+        />
+      ),
     },
     {
       id: 'SCR-MON-01',
       name: '모아머니 이동관리 (요구/요청머니)',
       category: '라이프 서비스',
-      comp: <SCR_MON_01_모아머니이동관리 />,
+      comp: <SCR_MON_01_모아머니이동관리 onBack={() => setCurrentScreen('SCR-DSH-01')} />,
     },
     {
       id: 'SCR-QCK-01',
