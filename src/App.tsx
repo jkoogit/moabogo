@@ -13,7 +13,8 @@ import { SCR_AUT_01_회원가입 } from './sample/screen/SCR_AUT_01_회원가입
 import { SCR_AUT_02_로그인오프라인세션 } from './sample/screen/SCR_AUT_02_로그인오프라인세션';
 import { SCR_DSH_01_로그인메인대시보드 } from './sample/screen/SCR_DSH_01_로그인메인대시보드';
 import { SCR_LED_01_그룹가계부관리상세 } from './sample/screen/SCR_LED_01_그룹가계부관리상세';
-import { SCR_GOL_01_모아목표상세 } from './sample/screen/SCR_GOL_01_모아목표상세';
+import { SCR_GOL_01_모아목표관리 } from './sample/screen/SCR_GOL_01_모아목표관리';
+import { SCR_GOL_02_모아목표상세 } from './sample/screen/SCR_GOL_02_모아목표상세';
 import { SCR_DUT_01_모아당번상세 } from './sample/screen/SCR_DUT_01_모아당번상세';
 import { SCR_MON_01_모아머니이동관리 } from './sample/screen/SCR_MON_01_모아머니이동관리';
 import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른머니등록';
@@ -55,6 +56,7 @@ export default function App() {
   const mainRef = React.useRef<HTMLElement>(null);
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
   const [isScrollMenuExpanded, setIsScrollMenuExpanded] = useState<boolean>(false);
+  const [selectedGoalId, setSelectedGoalId] = useState<string>('goal-1');
 
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState<boolean>(false);
   const deviceMenuRef = React.useRef<HTMLDivElement>(null);
@@ -92,37 +94,51 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Global Scroll-to-Top tracking
+  // Global Scroll-to-Top tracking (window + mainRef 듀얼 감지)
   useEffect(() => {
-    const mainEl = mainRef.current;
-    if (!mainEl) return;
     const checkScroll = () => {
-      if (mainEl.scrollTop > 140) {
+      const winY = window.scrollY || document.documentElement.scrollTop || 0;
+      const mainY = mainRef.current ? mainRef.current.scrollTop : 0;
+      const currentY = Math.max(winY, mainY);
+      if (currentY > 80) {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
         setIsScrollMenuExpanded(false);
       }
     };
-    mainEl.addEventListener('scroll', checkScroll, { passive: true });
+
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    const mainEl = mainRef.current;
+    if (mainEl) {
+      mainEl.addEventListener('scroll', checkScroll, { passive: true });
+    }
     checkScroll();
-    return () => mainEl.removeEventListener('scroll', checkScroll);
+    return () => {
+      window.removeEventListener('scroll', checkScroll);
+      if (mainEl) mainEl.removeEventListener('scroll', checkScroll);
+    };
   }, [currentScreen]);
 
   // 화면 전환 시 스크롤 최상단 리셋
   useEffect(() => {
+    window.scrollTo({ top: 0 });
+    document.documentElement.scrollTo({ top: 0 });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0 });
     }
   }, [currentScreen]);
 
   const handleScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handleScrollToBottom = () => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: mainRef.current.scrollHeight, behavior: 'smooth' });
     }
@@ -209,12 +225,26 @@ export default function App() {
     },
     {
       id: 'SCR-GOL-01',
-      name: '모아목표 상세 (동행원 vs 관람원)',
+      name: '모아목표 관리 (목록/검색/등록)',
       category: '라이프 서비스',
       comp: (
-        <SCR_GOL_01_모아목표상세
+        <SCR_GOL_01_모아목표관리
+          onSelectGoal={(goalId) => {
+            setSelectedGoalId(goalId);
+            setCurrentScreen('SCR-GOL-02');
+          }}
           onBack={() => setCurrentScreen('SCR-DSH-01')}
-          onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-GOL-02',
+      name: '모아목표 상세 (3대탭 & 용돈이체)',
+      category: '라이프 서비스',
+      comp: (
+        <SCR_GOL_02_모아목표상세
+          goalId={selectedGoalId}
+          onBack={() => setCurrentScreen('SCR-GOL-01')}
         />
       ),
     },
