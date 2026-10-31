@@ -79,37 +79,37 @@ export const ElmInp01: React.FC<{
   inputMode,
   lang,
 }) => (
-  <div className={`w-full ${className}`}>
-    {label && (
-      <label className="block text-xs font-semibold text-slate-700 mb-1 leading-none">
-        {label}
-      </label>
-    )}
-    <div className="relative flex items-center min-h-[40px]">
-      <input
-        type={type}
-        value={value}
-        disabled={disabled}
-        lang={lang}
-        inputMode={inputMode}
-        onFocus={onFocus}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full h-10 pl-3 pr-8 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed leading-normal"
-      />
-      {value && !disabled && (
-        <button
-          type="button"
-          onClick={() => onChange('')}
-          className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          title="입력 내용 지우기"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+    <div className={`w-full ${className}`}>
+      {label && (
+        <label className="block text-xs font-semibold text-slate-700 mb-1 leading-none">
+          {label}
+        </label>
       )}
+      <div className="relative flex items-center min-h-[40px]">
+        <input
+          type={type}
+          value={value}
+          disabled={disabled}
+          lang={lang}
+          inputMode={inputMode}
+          onFocus={onFocus}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full h-10 pl-3 pr-8 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed leading-normal"
+        />
+        {value && !disabled && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            title="입력 내용 지우기"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 
 /* =========================================================================
    ELM-INP-04 : 검색 입력필드 (Search 아이콘 + 상시 X 클리어 버튼)
@@ -193,117 +193,116 @@ export const ElmSel02: React.FC<{
   placeholder = '검색 또는 선택...',
   className = '',
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [filterText, setFilterText] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [filterText, setFilterText] = useState('');
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find((o) => o.value === value);
+    const selectedOption = options.find((o) => o.value === value);
 
-  const filteredOptions = options.filter(
-    (opt) =>
-      opt.label.toLowerCase().includes(filterText.toLowerCase()) ||
-      (opt.subtext && opt.subtext.toLowerCase().includes(filterText.toLowerCase()))
-  );
+    const filteredOptions = options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(filterText.toLowerCase()) ||
+        (opt.subtext && opt.subtext.toLowerCase().includes(filterText.toLowerCase()))
+    );
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleSelect = (optVal: string, optLabel: string) => {
+      onChange(optVal);
+      setFilterText(optLabel);
+      setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
-  const handleSelect = (optVal: string, optLabel: string) => {
-    onChange(optVal);
-    setFilterText(optLabel);
-    setIsOpen(false);
-  };
+    const handleClear = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onChange('');
+      setFilterText('');
+    };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange('');
-    setFilterText('');
-  };
+    return (
+      <div ref={containerRef} className={`w-full relative ${className}`}>
+        {label && (
+          <label className="block text-xs font-semibold text-slate-700 mb-1 leading-none">
+            {label}
+          </label>
+        )}
+        <div className="relative flex items-center min-h-[40px]">
+          <input
+            type="text"
+            value={isOpen ? filterText : selectedOption ? selectedOption.label : filterText}
+            onChange={(e) => {
+              setFilterText(e.target.value);
+              if (!isOpen) setIsOpen(true);
+            }}
+            onFocus={() => {
+              setIsOpen(true);
+              if (selectedOption) setFilterText(selectedOption.label);
+            }}
+            placeholder={placeholder}
+            className="w-full h-10 pl-3 pr-16 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 leading-normal"
+          />
 
-  return (
-    <div ref={containerRef} className={`w-full relative ${className}`}>
-      {label && (
-        <label className="block text-xs font-semibold text-slate-700 mb-1 leading-none">
-          {label}
-        </label>
-      )}
-      <div className="relative flex items-center min-h-[40px]">
-        <input
-          type="text"
-          value={isOpen ? filterText : selectedOption ? selectedOption.label : filterText}
-          onChange={(e) => {
-            setFilterText(e.target.value);
-            if (!isOpen) setIsOpen(true);
-          }}
-          onFocus={() => {
-            setIsOpen(true);
-            if (selectedOption) setFilterText(selectedOption.label);
-          }}
-          placeholder={placeholder}
-          className="w-full h-10 pl-3 pr-16 text-sm text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 leading-normal"
-        />
-
-        <div className="absolute right-2 flex items-center gap-1">
-          {(value || filterText) && (
+          <div className="absolute right-2 flex items-center gap-1">
+            {(value || filterText) && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="선택 초기화"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleClear}
-              className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              title="선택 초기화"
+              onClick={() => setIsOpen(!isOpen)}
+              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <ChevronDown
+                className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-          >
-            <ChevronDown
-              className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
+          </div>
         </div>
-      </div>
 
-      {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 scroll-smooth">
-          {filteredOptions.length > 0 ? (
-            filteredOptions.map((opt) => {
-              const isSelected = opt.value === value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => handleSelect(opt.value, opt.label)}
-                  className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between gap-2 hover:bg-indigo-50/70 transition-colors cursor-pointer ${
-                    isSelected ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'
-                  }`}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {opt.subtext && (
-                    <span className="text-[10px] text-slate-400 shrink-0">{opt.subtext}</span>
-                  )}
-                </button>
-              );
-            })
-          ) : (
-            <div className="px-3 py-3 text-xs text-slate-400 text-center">
-              일치하는 목록이 없습니다
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+        {isOpen && (
+          <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 scroll-smooth">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelect(opt.value, opt.label)}
+                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between gap-2 hover:bg-indigo-50/70 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'
+                      }`}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {opt.subtext && (
+                      <span className="text-[10px] text-slate-400 shrink-0">{opt.subtext}</span>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                일치하는 목록이 없습니다
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
 /* =========================================================================
    ELM-CMB-01 : 선택 및 직접입력 콤보박스 (Editable Combobox / 목록 선택 + 자유 직접입력)
@@ -344,199 +343,192 @@ export const ElmCmb01: React.FC<{
   size = 'md',
   onActionClick,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({
-    top: 0,
-    left: 0,
-    width: 250,
-  });
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({
+      top: 0,
+      left: 0,
+      width: 250,
+    });
 
-  const isSmall = size === 'sm';
+    const isSmall = size === 'sm';
 
-  const updateDropdownPos = () => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const targetWidth = isSmall ? 250 : Math.max(250, rect.width);
-      let left = isSmall ? rect.left - (targetWidth - rect.width) / 2 : rect.left;
-      // 화면 밖으로 벗어나지 않도록 좌우 마진 12px 방어
-      left = Math.max(12, Math.min(window.innerWidth - targetWidth - 12, left));
+    const updateDropdownPos = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const targetWidth = isSmall ? 250 : Math.max(250, rect.width);
+        let left = isSmall ? rect.left - (targetWidth - rect.width) / 2 : rect.left;
+        // 화면 밖으로 벗어나지 않도록 좌우 마진 12px 방어
+        left = Math.max(12, Math.min(window.innerWidth - targetWidth - 12, left));
 
-      // 화면 하단 넘침 방지 (공간 부족 시 상단으로 전개)
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const top = spaceBelow < 240 && rect.top > 240 ? rect.top - 240 - 4 : rect.bottom + 4;
+        // 화면 하단 넘침 방지 (공간 부족 시 상단으로 전개)
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const top = spaceBelow < 240 && rect.top > 240 ? rect.top - 240 - 4 : rect.bottom + 4;
 
-      setDropdownPos({ top, left, width: targetWidth });
-    }
-  };
-
-  const handleToggleOpen = () => {
-    if (disabled) return;
-    if (!isOpen) {
-      updateDropdownPos();
-    }
-    setIsOpen(!isOpen);
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleReposition = () => {
-      updateDropdownPos();
+        setDropdownPos({ top, left, width: targetWidth });
+      }
     };
-    window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
-    window.addEventListener('resize', handleReposition);
-    return () => {
-      window.removeEventListener('scroll', handleReposition, { capture: true });
-      window.removeEventListener('resize', handleReposition);
-    };
-  }, [isOpen, isSmall]);
 
-  const handleSelect = (opt: ElmCmbOption) => {
-    if (opt.isAction) {
-      if (onActionClick) onActionClick(opt.value);
+    const handleToggleOpen = () => {
+      if (disabled) return;
+      if (!isOpen) {
+        updateDropdownPos();
+      }
+      setIsOpen(!isOpen);
+    };
+
+    useEffect(() => {
+      if (!isOpen) return;
+      const handleReposition = () => {
+        updateDropdownPos();
+      };
+      window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
+      window.addEventListener('resize', handleReposition);
+      return () => {
+        window.removeEventListener('scroll', handleReposition, { capture: true });
+        window.removeEventListener('resize', handleReposition);
+      };
+    }, [isOpen, isSmall]);
+
+    const handleSelect = (opt: ElmCmbOption) => {
+      if (opt.isAction) {
+        if (onActionClick) onActionClick(opt.value);
+        setIsOpen(false);
+        return;
+      }
+      onChange(opt.label);
+      if (opt.icon && onIconChange) {
+        onIconChange(opt.icon);
+      }
+      if (onSelectOption) {
+        onSelectOption(opt);
+      }
       setIsOpen(false);
-      return;
-    }
-    onChange(opt.label);
-    if (opt.icon && onIconChange) {
-      onIconChange(opt.icon);
-    }
-    if (onSelectOption) {
-      onSelectOption(opt);
-    }
-    setIsOpen(false);
-  };
+    };
 
-  return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      {label && (
-        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1 leading-none">
-          {label}
-        </label>
-      )}
-      <div
-        className={`relative flex items-center bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg transition-all focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 ${
-          isSmall ? 'min-h-[28px] h-7' : 'min-h-[40px] h-10'
-        } ${disabled ? 'bg-slate-100 dark:bg-zinc-900 opacity-60 cursor-not-allowed' : ''}`}
-      >
-        {/* 선두 아이콘 (아이콘 목록 불필요로 단독 깔끔 표시) */}
-        {selectedIcon && (
-          <div className="relative shrink-0 flex items-center">
-            <span
-              className={`flex items-center justify-center select-none ${
-                isSmall ? 'pl-1.5 pr-0.5 text-xs' : 'pl-2.5 pr-1 text-sm'
-              }`}
-            >
-              {selectedIcon}
-            </span>
-          </div>
+    return (
+      <div ref={containerRef} className={`relative ${className}`}>
+        {label && (
+          <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1 leading-none">
+            {label}
+          </label>
         )}
-
-        {/* 직접 입력 인풋 필드 */}
-        <input
-          type="text"
-          disabled={disabled}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={`flex-1 min-w-0 h-full bg-transparent text-slate-900 dark:text-zinc-100 outline-none leading-normal font-medium ${
-            isSmall
-              ? `text-[10px] ${selectedIcon ? 'pl-0.5 pr-7' : 'px-1.5 pr-7'}`
-              : `text-sm ${selectedIcon ? 'pl-1 pr-12' : 'pl-3 pr-12'}`
-          } placeholder-slate-400 dark:placeholder-zinc-500`}
-        />
-
-        {/* 우측 클리어 및 드롭다운 토글 버튼 */}
-        <div className={`absolute right-1 flex items-center ${isSmall ? 'gap-0.5' : 'gap-1'}`}>
-          {value && !disabled && (
-            <button
-              type="button"
-              onClick={() => onChange('')}
-              className={`flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${
-                isSmall ? 'w-3.5 h-3.5' : 'w-5 h-5'
-              }`}
-              title="지우기"
-            >
-              <X className={isSmall ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} />
-            </button>
+        <div
+          className={`relative flex items-center bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg transition-all focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 ${isSmall ? 'min-h-[28px] h-7' : 'min-h-[40px] h-10'
+            } ${disabled ? 'bg-slate-100 dark:bg-zinc-900 opacity-60 cursor-not-allowed' : ''}`}
+        >
+          {/* 선두 아이콘 (아이콘 목록 불필요로 단독 깔끔 표시) */}
+          {selectedIcon && (
+            <div className="relative shrink-0 flex items-center">
+              <span
+                className={`flex items-center justify-center select-none ${isSmall ? 'pl-1.5 pr-0.5 text-xs' : 'pl-2.5 pr-1 text-sm'
+                  }`}
+              >
+                {selectedIcon}
+              </span>
+            </div>
           )}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleToggleOpen}
-            className={`flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${
-              isSmall ? 'w-3.5 h-3.5' : 'w-6 h-6'
-            }`}
-            title="목록 열기/닫기"
-          >
-            <ChevronDown
-              className={`${isSmall ? 'w-3 h-3' : 'w-4 h-4'} transition-transform ${
-                isOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-        </div>
-      </div>
 
-      {/* 선택목록 드롭다운 (가로 250px 확장 & position:fixed + z-[100]으로 아래 영역에 절대 가려지지 않음) */}
-      {isOpen && (
-        <>
-          {/* 외부 클릭 감지 백드롭 */}
-          <div
-            className="fixed inset-0 z-[90]"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen(false);
-            }}
+          {/* 직접 입력 인풋 필드 */}
+          <input
+            type="text"
+            disabled={disabled}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className={`flex-1 min-w-0 h-full bg-transparent text-slate-900 dark:text-zinc-100 outline-none leading-normal font-medium ${isSmall
+                ? `text-[10px] ${selectedIcon ? 'pl-0.5 pr-7' : 'px-1.5 pr-7'}`
+                : `text-sm ${selectedIcon ? 'pl-1 pr-12' : 'pl-3 pr-12'}`
+              } placeholder-slate-400 dark:placeholder-zinc-500`}
           />
 
-          <div
-            style={{
-              position: 'fixed',
-              top: `${dropdownPos.top}px`,
-              left: `${dropdownPos.left}px`,
-              width: `${dropdownPos.width}px`,
-              zIndex: 100,
-            }}
-            className="max-h-60 overflow-y-auto bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl py-1 scroll-smooth animate-in fade-in zoom-in-95"
-          >
-            {options.length > 0 ? (
-              options.map((opt) => {
-                const isSelected = opt.label === value;
-                return (
-                  <button
-                    key={opt.value || opt.label}
-                    type="button"
-                    onClick={() => handleSelect(opt)}
-                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between gap-2 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer ${
-                      opt.isAction
-                        ? 'border-t border-slate-100 dark:border-zinc-700 text-indigo-600 dark:text-indigo-400 font-bold mt-1 pt-2'
-                        : isSelected
-                        ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold'
-                        : 'text-slate-700 dark:text-zinc-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {opt.icon && <span className="text-base shrink-0">{opt.icon}</span>}
-                      <span className="font-semibold truncate">{opt.label}</span>
-                    </div>
-                    {opt.subtext && (
-                      <span className="text-[10px] text-slate-400 dark:text-zinc-500 shrink-0 font-normal">
-                        {opt.subtext}
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="px-3 py-2 text-xs text-slate-400 text-center">선택 목록이 없습니다</div>
+          {/* 우측 클리어 및 드롭다운 토글 버튼 */}
+          <div className={`absolute right-1 flex items-center ${isSmall ? 'gap-0.5' : 'gap-1'}`}>
+            {value && !disabled && (
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className={`flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${isSmall ? 'w-3.5 h-3.5' : 'w-5 h-5'
+                  }`}
+                title="지우기"
+              >
+                <X className={isSmall ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} />
+              </button>
             )}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={handleToggleOpen}
+              className={`flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer ${isSmall ? 'w-3.5 h-3.5' : 'w-6 h-6'
+                }`}
+              title="목록 열기/닫기"
+            >
+              <ChevronDown
+                className={`${isSmall ? 'w-3 h-3' : 'w-4 h-4'} transition-transform ${isOpen ? 'rotate-180' : ''
+                  }`}
+              />
+            </button>
           </div>
-        </>
-      )}
-    </div>
-  );
-};
+        </div>
+
+        {/* 선택목록 드롭다운 (가로 250px 확장 & position:fixed + z-[100]으로 아래 영역에 절대 가려지지 않음) */}
+        {isOpen && (
+          <>
+            {/* 외부 클릭 감지 백드롭 */}
+            <div
+              className="fixed inset-0 z-[90]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+            />
+
+            <div
+              style={{
+                position: 'fixed',
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
+                width: `${dropdownPos.width}px`,
+                zIndex: 100,
+              }}
+              className="max-h-60 overflow-y-auto bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl py-1 scroll-smooth animate-in fade-in zoom-in-95"
+            >
+              {options.length > 0 ? (
+                options.map((opt) => {
+                  const isSelected = opt.label === value;
+                  return (
+                    <button
+                      key={opt.value || opt.label}
+                      type="button"
+                      onClick={() => handleSelect(opt)}
+                      className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between gap-2 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer ${opt.isAction
+                          ? 'border-t border-slate-100 dark:border-zinc-700 text-indigo-600 dark:text-indigo-400 font-bold mt-1 pt-2'
+                          : isSelected
+                            ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold'
+                            : 'text-slate-700 dark:text-zinc-300'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {opt.icon && <span className="text-base shrink-0">{opt.icon}</span>}
+                        <span className="font-semibold truncate">{opt.label}</span>
+                      </div>
+                      {opt.subtext && (
+                        <span className="text-[10px] text-slate-400 dark:text-zinc-500 shrink-0 font-normal">
+                          {opt.subtext}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="px-3 py-2 text-xs text-slate-400 text-center">선택 목록이 없습니다</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
 /* =========================================================================
    ELM-FLT-01 : 필터 선택 칩 (whitespace-nowrap, 수직 100% 중앙 정렬)
@@ -551,18 +543,16 @@ export const ElmFlt01: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-full border transition-all whitespace-nowrap cursor-pointer select-none leading-none ${
-      selected
+    className={`inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-full border transition-all whitespace-nowrap cursor-pointer select-none leading-none ${selected
         ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold shadow-xs'
         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
-    } ${className}`}
+      } ${className}`}
   >
     <span className="leading-none">{label}</span>
     {typeof count === 'number' && (
       <span
-        className={`px-1.5 py-0.2 rounded-full text-[10px] leading-tight font-bold ${
-          selected ? 'bg-indigo-200 text-indigo-900' : 'bg-slate-100 text-slate-600'
-        }`}
+        className={`px-1.5 py-0.2 rounded-full text-[10px] leading-tight font-bold ${selected ? 'bg-indigo-200 text-indigo-900' : 'bg-slate-100 text-slate-600'
+          }`}
       >
         {count}
       </span>
@@ -583,16 +573,14 @@ export const ElmChk01: React.FC<{
 }> = ({ checked, onChange, label, description, disabled = false, className = '' }) => (
   <label
     onClick={() => !disabled && onChange(!checked)}
-    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${
-      disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'
-    } ${className}`}
+    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'
+      } ${className}`}
   >
     <div
-      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-        checked
+      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${checked
           ? 'bg-indigo-600 border-indigo-600 text-white'
           : 'bg-white border-slate-300 hover:border-indigo-400'
-      }`}
+        }`}
     >
       {checked && <Check className="w-3 h-3 stroke-[3]" />}
     </div>
@@ -615,17 +603,15 @@ export const ElmRad01: React.FC<{
   className?: string;
 }> = ({ selected, onSelect, label, disabled = false, className = '' }) => (
   <label
-    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${
-      disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'
-    } ${className}`}
+    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'
+      } ${className}`}
     onClick={() => !disabled && onSelect()}
   >
     <div
-      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors shrink-0 ${
-        selected
+      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors shrink-0 ${selected
           ? 'border-indigo-600 bg-white'
           : 'border-slate-300 bg-white hover:border-indigo-400'
-      }`}
+        }`}
     >
       {selected && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
     </div>
@@ -662,14 +648,12 @@ export const ElmSwt01: React.FC<{
     <div
       role="switch"
       aria-checked={checked}
-      className={`w-9 h-5 rounded-full transition-colors relative focus:outline-none focus:ring-2 focus:ring-indigo-500/30 shrink-0 ${
-        checked ? 'bg-indigo-600' : 'bg-slate-300'
-      }`}
+      className={`w-9 h-5 rounded-full transition-colors relative focus:outline-none focus:ring-2 focus:ring-indigo-500/30 shrink-0 ${checked ? 'bg-indigo-600' : 'bg-slate-300'
+        }`}
     >
       <div
-        className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute top-0.5 left-0.5 ${
-          checked ? 'translate-x-4' : 'translate-x-0'
-        }`}
+        className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute top-0.5 left-0.5 ${checked ? 'translate-x-4' : 'translate-x-0'
+          }`}
       />
     </div>
   </label>
@@ -947,17 +931,15 @@ export const ElmTre01: React.FC<{
               if (onMoveNode) onMoveNode(draggedNodeId, targetId, position);
               if (onDataChange) onDataChange(newTree);
             }}
-            className={`flex items-center justify-between p-2 rounded-lg border transition-all text-xs relative ${
-              depth > 0 ? 'ml-4' : ''
-            } ${
-              isBeingDragged
+            className={`flex items-center justify-between p-2 rounded-lg border transition-all text-xs relative ${depth > 0 ? 'ml-4' : ''
+              } ${isBeingDragged
                 ? 'opacity-40 bg-slate-100 dark:bg-zinc-800 border-dashed border-indigo-400'
                 : isDragOver && dropPos === 'inside' && !isInvalidDrop
-                ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 shadow-sm'
-                : isDragOver && isInvalidDrop
-                ? 'border-rose-400 bg-rose-50/60 dark:bg-rose-950/30'
-                : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800/60'
-            }`}
+                  ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 shadow-sm'
+                  : isDragOver && isInvalidDrop
+                    ? 'border-rose-400 bg-rose-50/60 dark:bg-rose-950/30'
+                    : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800/60'
+              }`}
           >
             {/* 3. 하위 자식 노드로 편입 플래그 (↳ 자식 노드로 이동) */}
             {isDragOver && dropPos === 'inside' && !isInvalidDrop && (
@@ -1102,81 +1084,106 @@ export const ElmTre01: React.FC<{
 
 /* =========================================================================
    ELM-FAB-01 : 우측 하단 펼침기능 맨위로 FAB (Speed Dial + Top 🔝)
+   - +x 회전 토글 빠른메뉴
+   - 옆의 위로이동 화살표는 스크롤 발생(showScrollTop) 시 표시, 상단에서는 숨김
    ========================================================================= */
 export const ElmFab01: React.FC<{
   onTopClick?: () => void;
   onOcrClick?: () => void;
   onQuickExpenseClick?: () => void;
   onQuickDutyClick?: () => void;
-}> = ({ onTopClick, onOcrClick, onQuickExpenseClick, onQuickDutyClick }) => {
-  const [expanded, setExpanded] = useState(false);
+  showScrollTop?: boolean;
+  className?: string;
+}> = ({
+  onTopClick,
+  onOcrClick,
+  onQuickExpenseClick,
+  onQuickDutyClick,
+  showScrollTop = true,
+  className = '',
+}) => {
+    const [expanded, setExpanded] = useState(false);
 
-  const scrollToTop = () => {
-    if (onTopClick) onTopClick();
-    else window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    const scrollToTop = () => {
+      if (onTopClick) onTopClick();
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
-  return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2.5">
-      {/* Speed Dial Menu Items */}
-      {expanded && (
-        <div className="flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    return (
+      <aside
+        aria-label="빠른 실행 및 스크롤 플로팅 버튼"
+        className={`fixed z-[9999] flex flex-col items-end gap-2.5 select-none ${className || 'bottom-20 sm:bottom-6 right-3 sm:right-6'
+          }`}
+      >
+        {/* Speed Dial Menu Items */}
+        {expanded && (
+          <div className="flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button
+              type="button"
+              onClick={() => {
+                setExpanded(false);
+                onOcrClick && onOcrClick();
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white/95 dark:bg-zinc-800/95 text-slate-800 dark:text-zinc-100 text-xs font-bold rounded-full shadow-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700/80 transition-transform hover:scale-105 cursor-pointer backdrop-blur-md"
+            >
+              <Camera className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>📷 OCR 영수증 스캔</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExpanded(false);
+                onQuickExpenseClick && onQuickExpenseClick();
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white/95 dark:bg-zinc-800/95 text-slate-800 dark:text-zinc-100 text-xs font-bold rounded-full shadow-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700/80 transition-transform hover:scale-105 cursor-pointer backdrop-blur-md"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>➕ 빠른 머니/지출 등록</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExpanded(false);
+                onQuickDutyClick && onQuickDutyClick();
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white/95 dark:bg-zinc-800/95 text-slate-800 dark:text-zinc-100 text-xs font-bold rounded-full shadow-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700/80 transition-transform hover:scale-105 cursor-pointer backdrop-blur-md"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>🧹 당번 빠른수행</span>
+            </button>
+          </div>
+        )}
+
+        {/* Main Action Group: [맨 위로 화살표 (스크롤 시 노출)] + [+x 빠른메뉴 전환 FAB] */}
+        <div className="flex items-center gap-2">
+          {/* 옆에 있는 위로이동 화살표: 스크롤이 생기면(showScrollTop) 표시하고 상단에서는 숨김 */}
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              title="화면 맨 위로"
+              className="w-10 h-10 rounded-full bg-white/95 dark:bg-zinc-800/95 text-slate-700 dark:text-zinc-200 shadow-md border border-slate-200 dark:border-zinc-700 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            >
+              <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+
+          {/* +x 전환 빠른메뉴 메인 토글 버튼 */}
           <button
-            onClick={() => {
-              setExpanded(false);
-              onOcrClick && onOcrClick();
-            }}
-            className="flex items-center gap-2 px-3 py-2 bg-white text-slate-800 text-xs font-semibold rounded-full shadow-lg border border-slate-200 hover:bg-slate-50 transition-transform hover:scale-105"
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className={`w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-white transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${expanded
+                ? 'bg-slate-800 dark:bg-zinc-700 rotate-45'
+                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/25'
+              }`}
+            title={expanded ? '빠른 메뉴 닫기' : '빠른 메뉴 열기'}
           >
-            <Camera className="w-3.5 h-3.5 text-blue-600" />
-            <span>📷 OCR 영수증 스캔</span>
-          </button>
-          <button
-            onClick={() => {
-              setExpanded(false);
-              onQuickExpenseClick && onQuickExpenseClick();
-            }}
-            className="flex items-center gap-2 px-3 py-2 bg-white text-slate-800 text-xs font-semibold rounded-full shadow-lg border border-slate-200 hover:bg-slate-50 transition-transform hover:scale-105"
-          >
-            <Plus className="w-3.5 h-3.5 text-emerald-600" />
-            <span>➕ 빠른 지출등록</span>
-          </button>
-          <button
-            onClick={() => {
-              setExpanded(false);
-              onQuickDutyClick && onQuickDutyClick();
-            }}
-            className="flex items-center gap-2 px-3 py-2 bg-white text-slate-800 text-xs font-semibold rounded-full shadow-lg border border-slate-200 hover:bg-slate-50 transition-transform hover:scale-105"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            <span>🧹 당번 빠른수행</span>
+            <Plus className="w-6 h-6 stroke-[2.5] transition-transform duration-200" />
           </button>
         </div>
-      )}
-
-      {/* Main Action Circle Button */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={scrollToTop}
-          title="화면 맨 위로"
-          className="w-10 h-10 rounded-full bg-white text-slate-700 shadow-md border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-all hover:scale-105"
-        >
-          <ArrowUp className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className={`w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-white transition-all transform hover:scale-105 ${
-            expanded ? 'bg-slate-800 rotate-45' : 'bg-indigo-600 hover:bg-indigo-700'
-          }`}
-          title="빠른 기능 열기"
-        >
-          <Plus className="w-6 h-6 stroke-[2.5]" />
-        </button>
-      </div>
-    </div>
-  );
-};
+      </aside>
+    );
+  };
 
 /* =========================================================================
    ELM-PRF-01 / ELM-PRF-02 : 프로필 아바타 그룹 (32px, 48px, 64px + 수정 뱃지)
@@ -1246,50 +1253,47 @@ export const ElmStp01: React.FC<{
   ],
   className = '',
 }) => (
-  <div className={`w-full flex items-center justify-between gap-1 sm:gap-2 ${className}`}>
-    {steps.map((st, idx) => {
-      const isCompleted = currentStep > st.number;
-      const isCurrent = currentStep === st.number;
+    <div className={`w-full flex items-center justify-between gap-1 sm:gap-2 ${className}`}>
+      {steps.map((st, idx) => {
+        const isCompleted = currentStep > st.number;
+        const isCurrent = currentStep === st.number;
 
-      return (
-        <React.Fragment key={st.number}>
-          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 shrink-0">
-            <div
-              className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all shrink-0 ${
-                isCompleted
-                  ? 'bg-emerald-600 text-white'
-                  : isCurrent
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-200 text-slate-600'
-              }`}
-            >
-              {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : st.number}
+        return (
+          <React.Fragment key={st.number}>
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 shrink-0">
+              <div
+                className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all shrink-0 ${isCompleted
+                    ? 'bg-emerald-600 text-white'
+                    : isCurrent
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+              >
+                {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : st.number}
+              </div>
+              <span
+                className={`text-[10px] sm:text-xs text-center sm:text-left break-keep sm:whitespace-nowrap leading-tight max-w-[76px] sm:max-w-none ${isCurrent
+                    ? 'font-bold text-slate-900'
+                    : isCompleted
+                      ? 'text-slate-700 font-medium'
+                      : 'text-slate-400'
+                  }`}
+              >
+                {st.label}
+              </span>
             </div>
-            <span
-              className={`text-[10px] sm:text-xs text-center sm:text-left break-keep sm:whitespace-nowrap leading-tight max-w-[76px] sm:max-w-none ${
-                isCurrent
-                  ? 'font-bold text-slate-900'
-                  : isCompleted
-                  ? 'text-slate-700 font-medium'
-                  : 'text-slate-400'
-              }`}
-            >
-              {st.label}
-            </span>
-          </div>
 
-          {idx < steps.length - 1 && (
-            <div
-              className={`flex-1 h-0.5 min-w-[10px] mx-1 sm:mx-2 rounded transition-colors ${
-                currentStep > idx + 1 ? 'bg-emerald-500' : 'bg-slate-200'
-              }`}
-            />
-          )}
-        </React.Fragment>
-      );
-    })}
-  </div>
-);
+            {idx < steps.length - 1 && (
+              <div
+                className={`flex-1 h-0.5 min-w-[10px] mx-1 sm:mx-2 rounded transition-colors ${currentStep > idx + 1 ? 'bg-emerald-500' : 'bg-slate-200'
+                  }`}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 
 /* =========================================================================
    ELM-TAB-01 : 탭 네비게이션 컨텐츠 (모바일 가로폭주 방지: overflow-x-auto no-scrollbar)
@@ -1339,16 +1343,14 @@ export const ElmTab01: React.FC<{
             key={tab.id}
             type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`relative px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-              isActive ? 'text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-900'
-            }`}
+            className={`relative px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${isActive ? 'text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+              }`}
           >
             <span>{tab.label}</span>
             {typeof tab.count === 'number' && (
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
-                }`}
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                  }`}
               >
                 {tab.count}
               </span>
@@ -1435,213 +1437,212 @@ export const ElmSld03: React.FC<{
   innerClassName = '',
   externalRef,
 }) => {
-  const localContainerRef = useRef<HTMLDivElement>(null);
-  const [node, setNode] = useState<HTMLDivElement | null>(null);
+    const localContainerRef = useRef<HTMLDivElement>(null);
+    const [node, setNode] = useState<HTMLDivElement | null>(null);
 
-  const setRef = (el: HTMLDivElement | null) => {
-    (localContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    if (externalRef && 'current' in externalRef) {
-      (externalRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    }
-    setNode(el);
-  };
-
-  const [isDragging, setIsDragging] = useState(false);
-  const isDown = useRef(false);
-  const startXRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-  const hasDraggedRef = useRef(false);
-
-  // 휠 이벤트: DOM 레벨에서 { passive: false }로 리스너를 바인딩하여 정밀 제어
-  useEffect(() => {
-    if (!node) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // 1. 수평 스크롤 필요성 검사: 전체 노드가 한 화면에 다 보여서 좌우 스크롤할 여지가 없는 경우
-      // 브라우저 기본 화면 상하 스크롤이 자연스럽게 동작하도록 즉시 통과
-      const canScroll = node.scrollWidth > node.clientWidth + 2;
-      if (!canScroll) {
-        return;
+    const setRef = (el: HTMLDivElement | null) => {
+      (localContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      if (externalRef && 'current' in externalRef) {
+        (externalRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }
-
-      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (rawDelta === 0) return;
-
-      const isAtStart = node.scrollLeft <= 2;
-      const isAtEnd = node.scrollLeft >= Math.floor(node.scrollWidth - node.clientWidth) - 2;
-
-      // 2. 휠 이벤트 시 첫 항목(위/좌측) 또는 마지막 항목(아래/우측) 도달한 경우 화면 스크롤 이벤트로 통과
-      if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
-        return;
-      }
-
-      // 3. 첫 항목, 마지막 항목에 도달하지 않은 슬라이드 구간에서는 화면 스크롤 차단 및 수평 슬라이드 수행
-      e.preventDefault();
-      e.stopPropagation();
-
-      const multiplier = e.deltaMode === 1 ? 24 : 1;
-      node.scrollLeft += rawDelta * multiplier;
+      setNode(el);
     };
 
-    node.addEventListener('wheel', handleWheel, { passive: false });
+    const [isDragging, setIsDragging] = useState(false);
+    const isDown = useRef(false);
+    const startXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    const hasDraggedRef = useRef(false);
 
-    return () => {
-      node.removeEventListener('wheel', handleWheel);
+    // 휠 이벤트: DOM 레벨에서 { passive: false }로 리스너를 바인딩하여 정밀 제어
+    useEffect(() => {
+      if (!node) return;
+
+      const handleWheel = (e: WheelEvent) => {
+        // 1. 수평 스크롤 필요성 검사: 전체 노드가 한 화면에 다 보여서 좌우 스크롤할 여지가 없는 경우
+        // 브라우저 기본 화면 상하 스크롤이 자연스럽게 동작하도록 즉시 통과
+        const canScroll = node.scrollWidth > node.clientWidth + 2;
+        if (!canScroll) {
+          return;
+        }
+
+        const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (rawDelta === 0) return;
+
+        const isAtStart = node.scrollLeft <= 2;
+        const isAtEnd = node.scrollLeft >= Math.floor(node.scrollWidth - node.clientWidth) - 2;
+
+        // 2. 휠 이벤트 시 첫 항목(위/좌측) 또는 마지막 항목(아래/우측) 도달한 경우 화면 스크롤 이벤트로 통과
+        if ((isAtStart && rawDelta < 0) || (isAtEnd && rawDelta > 0)) {
+          return;
+        }
+
+        // 3. 첫 항목, 마지막 항목에 도달하지 않은 슬라이드 구간에서는 화면 스크롤 차단 및 수평 슬라이드 수행
+        e.preventDefault();
+        e.stopPropagation();
+
+        const multiplier = e.deltaMode === 1 ? 24 : 1;
+        node.scrollLeft += rawDelta * multiplier;
+      };
+
+      node.addEventListener('wheel', handleWheel, { passive: false });
+
+      return () => {
+        node.removeEventListener('wheel', handleWheel);
+      };
+    }, [node]);
+
+    // 전역 마우스 업 감지 (컨테이너 밖에서 마우스 뗄 때 안전 복원)
+    useEffect(() => {
+      const onWindowMouseUp = () => {
+        if (isDown.current) {
+          isDown.current = false;
+          setIsDragging(false);
+        }
+      };
+      window.addEventListener('mouseup', onWindowMouseUp);
+      return () => window.removeEventListener('mouseup', onWindowMouseUp);
+    }, []);
+
+    // 마우스 드래그 핸들러 (자석 기능 해제: 드래그한 위치에 자연스럽게 유지)
+    const handleMouseDown = (e: React.MouseEvent) => {
+      isDown.current = true;
+      hasDraggedRef.current = false;
+      setIsDragging(true);
+      if (!node) return;
+      startXRef.current = e.pageX - node.offsetLeft;
+      scrollLeftRef.current = node.scrollLeft;
     };
-  }, [node]);
 
-  // 전역 마우스 업 감지 (컨테이너 밖에서 마우스 뗄 때 안전 복원)
-  useEffect(() => {
-    const onWindowMouseUp = () => {
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!isDown.current || !node) return;
+      const x = e.pageX - node.offsetLeft;
+      const walk = (x - startXRef.current) * 1.5;
+      if (Math.abs(walk) > 4) {
+        hasDraggedRef.current = true;
+        node.scrollLeft = scrollLeftRef.current - walk;
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!isDown.current) return;
+      isDown.current = false;
+      setIsDragging(false);
+    };
+
+    const handleMouseLeave = () => {
       if (isDown.current) {
         isDown.current = false;
         setIsDragging(false);
       }
     };
-    window.addEventListener('mouseup', onWindowMouseUp);
-    return () => window.removeEventListener('mouseup', onWindowMouseUp);
-  }, []);
 
-  // 마우스 드래그 핸들러 (자석 기능 해제: 드래그한 위치에 자연스럽게 유지)
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDown.current = true;
-    hasDraggedRef.current = false;
-    setIsDragging(true);
-    if (!node) return;
-    startXRef.current = e.pageX - node.offsetLeft;
-    scrollLeftRef.current = node.scrollLeft;
-  };
+    // 터치(모바일) 드래그 핸들러
+    const touchStartX = useRef(0);
+    const touchStartY = useRef(0);
+    const touchScrollLeft = useRef(0);
+    const isHorizontalTouch = useRef<boolean | null>(null);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDown.current || !node) return;
-    const x = e.pageX - node.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5;
-    if (Math.abs(walk) > 4) {
-      hasDraggedRef.current = true;
-      node.scrollLeft = scrollLeftRef.current - walk;
-    }
-  };
+    const handleTouchStart = (e: React.TouchEvent) => {
+      if (!node) return;
+      touchStartX.current = e.touches[0].pageX;
+      touchStartY.current = e.touches[0].pageY;
+      touchScrollLeft.current = node.scrollLeft;
+      hasDraggedRef.current = false;
+      isHorizontalTouch.current = null;
+    };
 
-  const handleMouseUp = () => {
-    if (!isDown.current) return;
-    isDown.current = false;
-    setIsDragging(false);
-  };
+    const handleTouchMove = (e: React.TouchEvent) => {
+      if (!node) return;
+      const x = e.touches[0].pageX;
+      const y = e.touches[0].pageY;
+      const diffX = x - touchStartX.current;
+      const diffY = y - touchStartY.current;
 
-  const handleMouseLeave = () => {
-    if (isDown.current) {
-      isDown.current = false;
-      setIsDragging(false);
-    }
-  };
+      if (isHorizontalTouch.current === null && (Math.abs(diffX) > 5 || Math.abs(diffY) > 5)) {
+        isHorizontalTouch.current = Math.abs(diffX) > Math.abs(diffY);
+      }
 
-  // 터치(모바일) 드래그 핸들러
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const touchScrollLeft = useRef(0);
-  const isHorizontalTouch = useRef<boolean | null>(null);
+      if (isHorizontalTouch.current) {
+        hasDraggedRef.current = true;
+        node.scrollLeft = touchScrollLeft.current - diffX * 1.2;
+      }
+    };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!node) return;
-    touchStartX.current = e.touches[0].pageX;
-    touchStartY.current = e.touches[0].pageY;
-    touchScrollLeft.current = node.scrollLeft;
-    hasDraggedRef.current = false;
-    isHorizontalTouch.current = null;
-  };
+    const handleTouchEnd = () => {
+      isHorizontalTouch.current = null;
+    };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!node) return;
-    const x = e.touches[0].pageX;
-    const y = e.touches[0].pageY;
-    const diffX = x - touchStartX.current;
-    const diffY = y - touchStartY.current;
+    // 버튼 명시적 클릭 이동 (한 개 요소/stepWidth 단위)
+    const handleNavPrev = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (node) {
+        node.scrollBy({ left: -stepWidth, behavior: 'smooth' });
+      }
+    };
 
-    if (isHorizontalTouch.current === null && (Math.abs(diffX) > 5 || Math.abs(diffY) > 5)) {
-      isHorizontalTouch.current = Math.abs(diffX) > Math.abs(diffY);
-    }
+    const handleNavNext = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (node) {
+        node.scrollBy({ left: stepWidth, behavior: 'smooth' });
+      }
+    };
 
-    if (isHorizontalTouch.current) {
-      hasDraggedRef.current = true;
-      node.scrollLeft = touchScrollLeft.current - diffX * 1.2;
-    }
-  };
-
-  const handleTouchEnd = () => {
-    isHorizontalTouch.current = null;
-  };
-
-  // 버튼 명시적 클릭 이동 (한 개 요소/stepWidth 단위)
-  const handleNavPrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (node) {
-      node.scrollBy({ left: -stepWidth, behavior: 'smooth' });
-    }
-  };
-
-  const handleNavNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (node) {
-      node.scrollBy({ left: stepWidth, behavior: 'smooth' });
-    }
-  };
-
-  return (
-    <div
-      onClick={(e) => e.stopPropagation()}
-      className={`relative w-full group select-none ${className}`}
-    >
-      {showNavButtons && (
-        <>
-          <button
-            type="button"
-            onClick={handleNavPrev}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
-            title="이전 항목 (1개 이동)"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleNavNext}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
-            title="다음 항목 (1개 이동)"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </>
-      )}
-
-      {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 해제, 드래그 & 휠 즉각 반영, 경계 도달 시 상하 스크롤 연동 */}
+    return (
       <div
-        ref={setRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onClickCapture={(e) => {
-          if (hasDraggedRef.current) {
-            e.stopPropagation();
-            e.preventDefault();
-            hasDraggedRef.current = false;
-          }
-        }}
-        className={`w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none touch-pan-x ${
-          isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
-        } ${innerClassName}`}
-        style={{
-          scrollBehavior: 'auto',
-          scrollSnapType: 'none',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className={`relative w-full group select-none ${className}`}
       >
-        {children}
+        {showNavButtons && (
+          <>
+            <button
+              type="button"
+              onClick={handleNavPrev}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
+              title="이전 항목 (1개 이동)"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleNavNext}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 z-20 w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1e] shadow-lg border border-slate-200 dark:border-[#27272a] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-[#27272a] transition-all opacity-85 group-hover:opacity-100 cursor-pointer"
+              title="다음 항목 (1개 이동)"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
+
+        {/* 가로스크롤바 표시 완전 제거 (no-scrollbar), 자석 snap 해제, 드래그 & 휠 즉각 반영, 경계 도달 시 상하 스크롤 연동 */}
+        <div
+          ref={setRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onClickCapture={(e) => {
+            if (hasDraggedRef.current) {
+              e.stopPropagation();
+              e.preventDefault();
+              hasDraggedRef.current = false;
+            }
+          }}
+          className={`w-full flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:none] snap-none touch-pan-x ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
+            } ${innerClassName}`}
+          style={{
+            scrollBehavior: 'auto',
+            scrollSnapType: 'none',
+          }}
+        >
+          {children}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 /* =========================================================================
    ELM-RNG-01 : 상태바 증감드래그휠 컴포넌트 (표준화)
@@ -1682,148 +1683,148 @@ export const ElmRng01: React.FC<{
   title,
   onAddThreshold,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  // 휠 이벤트: DOM passive: false 리스너로 브라우저 상하 스크롤 원천 차단 + 값 증감
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    // 휠 이벤트: DOM passive: false 리스너로 브라우저 상하 스크롤 원천 차단 + 값 증감
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (disabled) return;
-      if (e.deltaY < 0) {
-        onChange(Math.min(max, value + step));
-      } else if (e.deltaY > 0) {
-        onChange(Math.max(min, value - step));
-      }
-    };
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (disabled) return;
+        if (e.deltaY < 0) {
+          onChange(Math.min(max, value + step));
+        } else if (e.deltaY > 0) {
+          onChange(Math.max(min, value - step));
+        }
+      };
 
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-    };
-  }, [value, min, max, step, disabled, onChange]);
+      el.addEventListener('wheel', onWheel, { passive: false });
+      return () => {
+        el.removeEventListener('wheel', onWheel);
+      };
+    }, [value, min, max, step, disabled, onChange]);
 
-  const colorStyles = {
-    indigo: {
-      accent: 'accent-indigo-600',
-      text: 'text-indigo-600 dark:text-indigo-400',
-      btnHover: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400',
-      activeBorder: 'focus:border-indigo-500',
-    },
-    rose: {
-      accent: 'accent-rose-600',
-      text: 'text-rose-600 dark:text-rose-400',
-      btnHover: 'hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-400',
-      activeBorder: 'focus:border-rose-500',
-    },
-    emerald: {
-      accent: 'accent-emerald-600',
-      text: 'text-emerald-600 dark:text-emerald-400',
-      btnHover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-400',
-      activeBorder: 'focus:border-emerald-500',
-    },
-    sky: {
-      accent: 'accent-sky-600',
-      text: 'text-sky-600 dark:text-sky-400',
-      btnHover: 'hover:bg-sky-50 dark:hover:bg-sky-950/40 hover:border-sky-400',
-      activeBorder: 'focus:border-sky-500',
-    },
-  }[colorScheme];
+    const colorStyles = {
+      indigo: {
+        accent: 'accent-indigo-600',
+        text: 'text-indigo-600 dark:text-indigo-400',
+        btnHover: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400',
+        activeBorder: 'focus:border-indigo-500',
+      },
+      rose: {
+        accent: 'accent-rose-600',
+        text: 'text-rose-600 dark:text-rose-400',
+        btnHover: 'hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-400',
+        activeBorder: 'focus:border-rose-500',
+      },
+      emerald: {
+        accent: 'accent-emerald-600',
+        text: 'text-emerald-600 dark:text-emerald-400',
+        btnHover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-400',
+        activeBorder: 'focus:border-emerald-500',
+      },
+      sky: {
+        accent: 'accent-sky-600',
+        text: 'text-sky-600 dark:text-sky-400',
+        btnHover: 'hover:bg-sky-50 dark:hover:bg-sky-950/40 hover:border-sky-400',
+        activeBorder: 'focus:border-sky-500',
+      },
+    }[colorScheme];
 
-  return (
-    <div className={`space-y-1.5 ${className}`}>
-      {label && (
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
-            {labelExtra}
-          </div>
-          {showInput && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <input
-                type="number"
-                min={min}
-                max={max}
-                value={value}
-                disabled={disabled}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (!isNaN(val)) onChange(Math.max(min, Math.min(max, val)));
-                }}
-                className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 ${colorStyles.text} ${colorStyles.activeBorder} outline-none`}
-              />
-              <span className={`text-xs font-bold ${colorStyles.text}`}>{unit}</span>
-              {onAddThreshold && (
-                <button
-                  type="button"
-                  onClick={onAddThreshold}
-                  className="p-1 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center shrink-0"
-                  title="최대 인원수 5명 추가 (+5명)"
-                  aria-label="최대 인원수 5명 추가"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              )}
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        {label && (
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
+              {labelExtra}
             </div>
-          )}
+            {showInput && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  value={value}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val)) onChange(Math.max(min, Math.min(max, val)));
+                  }}
+                  className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 ${colorStyles.text} ${colorStyles.activeBorder} outline-none`}
+                />
+                <span className={`text-xs font-bold ${colorStyles.text}`}>{unit}</span>
+                {onAddThreshold && (
+                  <button
+                    type="button"
+                    onClick={onAddThreshold}
+                    className="p-1 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center shrink-0"
+                    title="최대 인원수 5명 추가 (+5명)"
+                    aria-label="최대 인원수 5명 추가"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div
+          ref={containerRef}
+          title={title || '마우스 휠을 굴리거나 좌우로 드래그하여 조절할 수 있습니다'}
+          onWheel={(e) => {
+            e.stopPropagation();
+            if (disabled) return;
+            if (e.deltaY < 0) {
+              onChange(Math.min(max, value + step));
+            } else if (e.deltaY > 0) {
+              onChange(Math.max(min, value - step));
+            }
+          }}
+          className="flex items-center gap-2 select-none"
+        >
+          <button
+            type="button"
+            onClick={() => onChange(Math.max(min, value - step))}
+            disabled={disabled || value <= min}
+            className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
+            title={`${step} 감소`}
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(Number(e.target.value))}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            style={{ touchAction: 'pan-x' }}
+            className={`flex-1 ${colorStyles.accent} cursor-ew-resize`}
+          />
+
+          <button
+            type="button"
+            onClick={() => onChange(Math.min(max, value + step))}
+            disabled={disabled || value >= max}
+            className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
+            title={`${step} 증가`}
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
-      )}
-
-      <div
-        ref={containerRef}
-        title={title || '마우스 휠을 굴리거나 좌우로 드래그하여 조절할 수 있습니다'}
-        onWheel={(e) => {
-          e.stopPropagation();
-          if (disabled) return;
-          if (e.deltaY < 0) {
-            onChange(Math.min(max, value + step));
-          } else if (e.deltaY > 0) {
-            onChange(Math.max(min, value - step));
-          }
-        }}
-        className="flex items-center gap-2 select-none"
-      >
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(min, value - step))}
-          disabled={disabled || value <= min}
-          className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
-          title={`${step} 감소`}
-        >
-          <Minus className="w-4 h-4" />
-        </button>
-
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          style={{ touchAction: 'pan-x' }}
-          className={`flex-1 ${colorStyles.accent} cursor-ew-resize`}
-        />
-
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(max, value + step))}
-          disabled={disabled || value >= max}
-          className={`p-2 rounded-lg border bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95 cursor-pointer shadow-2xs ${colorStyles.btnHover}`}
-          title={`${step} 증가`}
-        >
-          <Plus className="w-4 h-4" />
-        </button>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 /* =========================================================================
    ELM-BSH-01 : 모바일 바텀시트 모달 (프로그레시브 디스클로저)
@@ -1876,11 +1877,10 @@ export const ElmNav01: React.FC<{
           key={item.id}
           type="button"
           onClick={() => onSelect(item.id)}
-          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[44px] transition-colors ${
-            isActive
+          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[44px] transition-colors ${isActive
               ? 'text-indigo-600 dark:text-indigo-400 font-bold'
               : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
-          }`}
+            }`}
         >
           <div className="w-5 h-5 flex items-center justify-center">{item.icon}</div>
           <span className="text-[10px] mt-1 leading-none">{item.label}</span>
@@ -2062,143 +2062,142 @@ export const ElmHlp01: React.FC<{
   isOpen: controlledIsOpen,
   onToggle,
 }) => {
-  const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const isControlled = controlledIsOpen !== undefined;
-  const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
-  const containerRef = useRef<HTMLDivElement>(null);
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+    const isControlled = controlledIsOpen !== undefined;
+    const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  const setIsOpen = (open: boolean) => {
-    if (!isControlled) {
-      setInternalIsOpen(open);
-    }
-    if (onToggle) {
-      onToggle(open);
-    }
-  };
-
-  // 바깥 클릭 및 Esc 키 닫기 이벤트 핸들러
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    const setIsOpen = (open: boolean) => {
+      if (!isControlled) {
+        setInternalIsOpen(open);
+      }
+      if (onToggle) {
+        onToggle(open);
       }
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
+    // 바깥 클릭 및 Esc 키 닫기 이벤트 핸들러
+    useEffect(() => {
+      if (!isOpen) return;
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
+      const handleClickOutside = (event: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
 
-  const colorStyles = {
-    indigo: {
-      activeBtn: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 shadow-2xs',
-      hoverBtn: 'hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-indigo-600 dark:text-indigo-400',
-    },
-    sky: {
-      activeBtn: 'bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 shadow-2xs',
-      hoverBtn: 'hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-sky-600 dark:text-sky-400',
-    },
-    emerald: {
-      activeBtn: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 shadow-2xs',
-      hoverBtn: 'hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-emerald-600 dark:text-emerald-400',
-    },
-    amber: {
-      activeBtn: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 shadow-2xs',
-      hoverBtn: 'hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-amber-600 dark:text-amber-400',
-    },
-    purple: {
-      activeBtn: 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 shadow-2xs',
-      hoverBtn: 'hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-purple-700 dark:text-purple-300',
-    },
-    slate: {
-      activeBtn: 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 shadow-2xs',
-      hoverBtn: 'hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
-      headerText: 'text-slate-700 dark:text-zinc-200',
-    },
-  }[colorScheme];
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setIsOpen(false);
+        }
+      };
 
-  const EffectiveHeaderIcon = HeaderIconComponent || IconComponent;
-  const alignClass = align === 'left' ? 'sm:left-0' : 'sm:right-0';
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [isOpen]);
 
-  return (
-    <div ref={containerRef} className={`relative inline-flex items-center ${className}`}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold select-none ${
-          isOpen
-            ? colorStyles.activeBtn
-            : `text-slate-400 dark:text-slate-400 ${colorStyles.hoverBtn}`
-        } ${buttonClassName}`}
-        title={tooltip || `${title} 안내보기`}
-      >
-        <IconComponent className="w-4 h-4 shrink-0" />
-        {buttonText && <span className="text-[11px] font-semibold break-keep hidden sm:inline">{buttonText}</span>}
-      </button>
+    const colorStyles = {
+      indigo: {
+        activeBtn: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 shadow-2xs',
+        hoverBtn: 'hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-indigo-600 dark:text-indigo-400',
+      },
+      sky: {
+        activeBtn: 'bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 shadow-2xs',
+        hoverBtn: 'hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-sky-600 dark:text-sky-400',
+      },
+      emerald: {
+        activeBtn: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 shadow-2xs',
+        hoverBtn: 'hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-emerald-600 dark:text-emerald-400',
+      },
+      amber: {
+        activeBtn: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 shadow-2xs',
+        hoverBtn: 'hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-amber-600 dark:text-amber-400',
+      },
+      purple: {
+        activeBtn: 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 shadow-2xs',
+        hoverBtn: 'hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-purple-700 dark:text-purple-300',
+      },
+      slate: {
+        activeBtn: 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 shadow-2xs',
+        hoverBtn: 'hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#1c1e26]',
+        headerText: 'text-slate-700 dark:text-zinc-200',
+      },
+    }[colorScheme];
 
-      {isOpen && (
-        <>
-          {/* 모바일 화면 밖 클릭 시 닫기 백드롭 */}
-          <div
-            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] sm:hidden"
-            onClick={() => setIsOpen(false)}
-          />
+    const EffectiveHeaderIcon = HeaderIconComponent || IconComponent;
+    const alignClass = align === 'left' ? 'sm:left-0' : 'sm:right-0';
 
-          {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 드롭다운) */}
-          <div
-            className={`fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#1e2029] font-extrabold text-slate-900 dark:text-white">
-              <span className={`flex items-center gap-1.5 ${colorStyles.headerText} break-keep`}>
-                <EffectiveHeaderIcon className="w-4 h-4 shrink-0" />
-                <span className="text-xs sm:text-sm font-bold tracking-tight">{title}</span>
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                {badge && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-[#1c1e26] text-slate-500 dark:text-slate-400">
-                    {badge}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1c1e26] cursor-pointer transition-colors"
-                  title="닫기"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+    return (
+      <div ref={containerRef} className={`relative inline-flex items-center ${className}`}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={`p-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold select-none ${isOpen
+              ? colorStyles.activeBtn
+              : `text-slate-400 dark:text-slate-400 ${colorStyles.hoverBtn}`
+            } ${buttonClassName}`}
+          title={tooltip || `${title} 안내보기`}
+        >
+          <IconComponent className="w-4 h-4 shrink-0" />
+          {buttonText && <span className="text-[11px] font-semibold break-keep hidden sm:inline">{buttonText}</span>}
+        </button>
+
+        {isOpen && (
+          <>
+            {/* 모바일 화면 밖 클릭 시 닫기 백드롭 */}
+            <div
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] sm:hidden"
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 드롭다운) */}
+            <div
+              className={`fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#1e2029] font-extrabold text-slate-900 dark:text-white">
+                <span className={`flex items-center gap-1.5 ${colorStyles.headerText} break-keep`}>
+                  <EffectiveHeaderIcon className="w-4 h-4 shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold tracking-tight">{title}</span>
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {badge && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-[#1c1e26] text-slate-500 dark:text-slate-400">
+                      {badge}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1c1e26] cursor-pointer transition-colors"
+                    title="닫기"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300 break-keep space-y-2">
+                {children}
               </div>
             </div>
-
-            <div className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300 break-keep space-y-2">
-              {children}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+          </>
+        )}
+      </div>
+    );
+  };
 
 /* =========================================================================
-   ELM-QCK-01 : 전역 플로팅 빠른등록 도크 (단일 번개 접힘, 상단 핸들, 136px 상한선)
+   ELM-QCK-01 : 전역 플로팅 빠른등록 도크 (단일 번개 접힘, 상단 핸들, 136px 상한선, 가로 50% 슬림화)
    ========================================================================= */
 export const ElmQck01: React.FC<{
   onOpenMoney: () => void;
@@ -2214,58 +2213,62 @@ export const ElmQck01: React.FC<{
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
     dragStartY.current = e.clientY;
     initialTopRef.current = topPos;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  useEffect(() => {
     if (!isDragging) return;
-    const deltaY = e.clientY - dragStartY.current;
-    // 136px(대시보드 타이틀 기준선)을 상한선(Ceiling)으로 제한하고, 화면 하단 80px 내에서만 이동
-    const maxTop = typeof window !== 'undefined' ? window.innerHeight - 80 : 600;
-    const newTop = Math.max(136, Math.min(maxTop, initialTopRef.current + deltaY));
-    setTopPos(newTop);
-  };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging) {
+    const handlePointerMove = (e: PointerEvent) => {
+      const deltaY = e.clientY - dragStartY.current;
+      // 상단 헤더 경계선(136px) 상한선 엄격 제한 유지, 하단 뷰포트 높이 - 80px 내 자유 드래그 허용
+      const maxTop = typeof window !== 'undefined' ? Math.max(200, window.innerHeight - 80) : 600;
+      const newTop = Math.max(136, Math.min(maxTop, initialTopRef.current + deltaY));
+      setTopPos(newTop);
+    };
+
+    const handlePointerUp = () => {
       setIsDragging(false);
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {}
-    }
-  };
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isDragging]);
 
   return (
     <aside
       aria-label="빠른등록 플로팅 메뉴"
       style={{ top: `${topPos}px` }}
-      className={`fixed right-3 sm:right-5 z-40 flex flex-col items-end select-none transition-shadow ${className}`}
+      className={`fixed right-1 sm:right-2 z-[9999] flex flex-col items-end select-none transition-shadow ${className}`}
     >
-      {/* 1.2 위치이동 핸들: 접고 펼치는 영역 상단에 배치 (컴팩트 너비) */}
+      {/* 1.2 위치이동 핸들: 슬림 규격(20px)에 맞춘 컴팩트 핸들 (touch-none으로 브라우저 스크롤 간섭 원천 차단) */}
       <div
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="w-8 h-4 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/80 hover:bg-slate-900 text-slate-300 hover:text-white rounded-full shadow-md backdrop-blur-md transition-all active:scale-95"
-        title="상하 위치 이동 핸들 (상한선: 화면 타이틀선)"
+        className="w-5 h-3.5 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/85 hover:bg-slate-900 text-slate-300 hover:text-white rounded-md shadow-md backdrop-blur-md transition-all active:scale-95 touch-none"
+        title="상하 위치 이동 핸들 (상단 헤더 경계선 상한 유지)"
       >
         <GripHorizontal className="w-3 h-3" />
       </div>
 
       {/* 접힘 / 펼침 영역 */}
       {!isExpanded ? (
-        /* 1.1 접었을 때: 처음 번개(Zap) 아이콘 하나만 컴팩트하게 표시 */
+        /* 1.1 접었을 때: 가로 너비 50% 슬림화 (w-5, 20px 컴팩트 규격 적용) */
         <button
           type="button"
           onClick={() => setIsExpanded(true)}
-          className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
-          title="빠른등록 열기"
+          className="w-5 h-9 rounded-l-lg bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:w-6 active:scale-95 cursor-pointer"
+          title="빠른등록 열기 (가로 슬림 컴팩트)"
         >
-          <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+          <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
         </button>
       ) : (
         /* 펼쳤을 때: 빠른 머니/수행 등록 및 접기 버튼 */
@@ -2278,7 +2281,7 @@ export const ElmQck01: React.FC<{
             <button
               type="button"
               onClick={() => setIsExpanded(false)}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               title="접기"
             >
               <X className="w-3.5 h-3.5" />
@@ -2291,7 +2294,7 @@ export const ElmQck01: React.FC<{
               onOpenMoney();
               setIsExpanded(false);
             }}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px]"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer"
           >
             <Coins className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>빠른 머니 등록</span>
@@ -2303,7 +2306,7 @@ export const ElmQck01: React.FC<{
               onOpenDuty();
               setIsExpanded(false);
             }}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px]"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer"
           >
             <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
             <span>빠른 수행 등록</span>

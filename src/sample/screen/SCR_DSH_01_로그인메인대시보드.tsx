@@ -8,6 +8,7 @@ import {
   ElmCnt01,
   ElmSld03,
   ElmFab01,
+  ElmSel02,
 } from '../elements/Tokens';
 import {
   Wallet,
@@ -35,6 +36,7 @@ import {
   Clock,
   UserCheck,
   AlertCircle,
+  XCircle,
   HelpCircle,
   ExternalLink,
   Shuffle,
@@ -423,6 +425,10 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
     batchItems?: InboundRequestItem[];
   }>({ open: false });
 
+  // 송금 마감 모달 내 거절 사유 토글 및 입력 상태
+  const [isRejectSectionOpen, setIsRejectSectionOpen] = useState<boolean>(false);
+  const [rejectReasonText, setRejectReasonText] = useState<string>('');
+
   // 4. 모아당번 위젯 상태 (직교 3상태머신)
   const [dutyList, setDutyList] = useState([
     {
@@ -780,6 +786,58 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
       showToast(`✓ [${itm.requester_name}] ₩${itm.amount.toLocaleString()} 송금 및 승인 마감 완료!`);
     }
     setRemittanceModalData({ open: false });
+    setIsRejectSectionOpen(false);
+    setRejectReasonText('');
+  };
+
+  // 거절 메시지와 함께 요청 마감 (거절마감)
+  const handleFinalizeRejectRemittance = () => {
+    const reason = rejectReasonText.trim() || '관리자 검토에 따른 거절';
+    if (remittanceModalData.isBatch) {
+      setInboundRequests((prev) =>
+        prev.map((req) =>
+          req.status === 'PENDING'
+            ? { ...req, status: 'REJECTED', memo: req.memo ? `${req.memo} (거절사유: ${reason})` : `거절사유: ${reason}` }
+            : req
+        )
+      );
+      setActivityFeed((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          service: '요청머니',
+          title: '대기 중인 요청 머니 일괄 거절 마감',
+          detail: `${remittanceModalData.batchItems?.length || 0}건 반려 처리 (${reason})`,
+          timestamp: '방금 전',
+          badgeType: 'ROSE',
+        },
+        ...prev,
+      ]);
+      showToast('요청 머니가 거절마감되었습니다.');
+    } else if (remittanceModalData.item) {
+      const itm = remittanceModalData.item;
+      setInboundRequests((prev) =>
+        prev.map((req) =>
+          req.id === itm.id
+            ? { ...req, status: 'REJECTED', memo: req.memo ? `${req.memo} (거절사유: ${reason})` : `거절사유: ${reason}` }
+            : req
+        )
+      );
+      setActivityFeed((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          service: '요청머니',
+          title: `[${itm.requester_name}] ${itm.title} 거절 마감`,
+          detail: `거절 사유: ${reason}`,
+          timestamp: '방금 전',
+          badgeType: 'ROSE',
+        },
+        ...prev,
+      ]);
+      showToast(`✓ [${itm.requester_name}] 님의 요청을 거절마감했습니다.`);
+    }
+    setRemittanceModalData({ open: false });
+    setIsRejectSectionOpen(false);
+    setRejectReasonText('');
   };
 
   // 요청된 머니 보류
@@ -2945,6 +3003,21 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 />
               </div>
 
+              <div>
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  내용 및 상세 사유
+                </label>
+                <textarea
+                  rows={2}
+                  value={newRequestForm.memo}
+                  onChange={(e) =>
+                    setNewRequestForm({ ...newRequestForm, memo: e.target.value })
+                  }
+                  placeholder="추가 전달사항이나 사용 사유, 영수증 메모"
+                  className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-transparent text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-zinc-300">
@@ -3005,21 +3078,6 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-zinc-300">
-                  요청 메모
-                </label>
-                <textarea
-                  rows={2}
-                  value={newRequestForm.memo}
-                  onChange={(e) =>
-                    setNewRequestForm({ ...newRequestForm, memo: e.target.value })
-                  }
-                  placeholder="추가 전달사항이나 영수증 메모"
-                  className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-transparent text-slate-900 dark:text-white outline-none focus:border-amber-500"
-                />
-              </div>
-
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
@@ -3048,7 +3106,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               <div className="flex items-center gap-2">
                 <Send className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  간편 송금 딥링크 및 승인 마감
+                  송금 처리
                 </h3>
               </div>
               <button
@@ -3117,7 +3175,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     onClick={() => showToast('토스 송금 앱으로 연결을 시도합니다.')}
                     className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all"
                   >
-                    <span>토스 송금 링크</span>
+                    <span>토스 송금</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   <button
@@ -3132,21 +3190,92 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
+            {/* 이체/승인 버튼 다음 위치 */}
             <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRemittanceModalData({ open: false })}
-                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                className="min-h-[38px] px-4 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer shadow-2xs"
               >
                 닫기
               </button>
               <button
                 type="button"
                 onClick={handleFinalizeRemittance}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs"
+                className="min-h-[38px] px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white cursor-pointer shadow-xs transition-all"
               >
-                송금 완료 & 승인 마감 ✓
+                송금마감
               </button>
+            </div>
+
+            {/* 이체/승인 버튼 다음 위치: 구분선과 함께 '거절마감' 토글 영역 */}
+            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 space-y-2.5">
+              <button
+                type="button"
+                onClick={() => setIsRejectSectionOpen(!isRejectSectionOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer border border-rose-200/60 dark:border-rose-900/40"
+              >
+                <span className="flex items-center gap-1.5">
+                  <XCircle className="w-4 h-4 text-rose-500" />
+                  <span>거절마감</span>
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isRejectSectionOpen ? 'rotate-180 text-rose-600 dark:text-rose-400' : ''
+                  }`}
+                />
+              </button>
+
+              {isRejectSectionOpen && (
+                <div className="p-3.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 space-y-2.5 animate-in fade-in zoom-in-95">
+                  {/* 거절 사유 선택 필터 드롭다운 목록 (ELM-SEL-02) */}
+                  <ElmSel02
+                    value={rejectReasonText}
+                    onChange={(val) => setRejectReasonText(val)}
+                    options={[
+                      { value: '이번 달 용돈 한도 초과', label: '이번 달 용돈 한도 초과', subtext: '지출 예산 한도 초과' },
+                      { value: '영수증/증빙 첨부 필요', label: '영수증/증빙 첨부 필요', subtext: '구매 내역 증빙 요망' },
+                      { value: '중복 청구 확인 필요', label: '중복 청구 확인 필요', subtext: '동일 거래 내역 재검토' },
+                      { value: '추후 정산 협의 요망', label: '추후 정산 협의 요망', subtext: '모임원 간 대면 협의' },
+                      { value: '상세 사유 기재 요망', label: '상세 사유 기재 요망', subtext: '사용 목적 불명확' },
+                    ]}
+                    placeholder="거절 사유 검색 또는 목록 선택 (ELM-SEL-02)..."
+                    className="text-xs"
+                  />
+                  <textarea
+                    rows={2}
+                    value={rejectReasonText}
+                    onChange={(e) => setRejectReasonText(e.target.value)}
+                    placeholder="직접 거절 사유를 입력하거나 위 목록에서 선택하세요"
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-white dark:bg-zinc-900 text-xs text-slate-800 dark:text-zinc-200 outline-none focus:border-rose-500 font-medium"
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    {/* 왼쪽 정렬: 초기화 아이콘 버튼 */}
+                    <button
+                      type="button"
+                      onClick={() => setRejectReasonText('')}
+                      disabled={!rejectReasonText}
+                      className={`p-2 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                        rejectReasonText
+                          ? 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 active:scale-95 shadow-2xs'
+                          : 'border-slate-200 dark:border-zinc-800 bg-transparent text-slate-300 dark:text-zinc-600 cursor-not-allowed opacity-50'
+                      }`}
+                      title="거절 사유 초기화"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* 오른쪽 정렬: 거절마감 버튼 */}
+                    <button
+                      type="button"
+                      onClick={handleFinalizeRejectRemittance}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 active:scale-95 text-white cursor-pointer shadow-xs transition-all"
+                    >
+                      거절마감
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -38,8 +38,9 @@ export const SCR_MON_01_모아머니이동관리: React.FC<{ onBack?: () => void
   } | null>(null);
 
   // Form states
+  const [reqTitle, setReqTitle] = useState('수학 문제집 및 학습 교재 구입');
+  const [reqReason, setReqReason] = useState('중간고사 대비 실전 모의고사 및 독서실 이용');
   const [reqAmount, setReqAmount] = useState('30000');
-  const [reqReason, setReqReason] = useState('중간고사 수학 문제집 구입');
   const [deductFromAllowance, setDeductFromAllowance] = useState(true);
 
   // Demanded money (요구머니) list
@@ -135,7 +136,7 @@ export const SCR_MON_01_모아머니이동관리: React.FC<{ onBack?: () => void
       id: `d${Date.now()}`,
       requester: '구본영(나)',
       amount: num,
-      reason: reqReason || '일반 머니 요청',
+      reason: reqTitle ? `${reqTitle} - ${reqReason}` : (reqReason || '일반 머니 요청'),
       deductAllowance: deductFromAllowance,
       status: 'APPROVED',
       date: new Date().toISOString().slice(0, 10),
@@ -405,16 +406,22 @@ export const SCR_MON_01_모아머니이동관리: React.FC<{ onBack?: () => void
       >
         <div className="space-y-4">
           <ElmInp01
+            label="요청 제목"
+            value={reqTitle}
+            onChange={setReqTitle}
+            placeholder="예: 문제집 구입, 식대 1/N 정산 요청"
+          />
+          <ElmInp01
+            label="사용 사유 (상세 내용)"
+            value={reqReason}
+            onChange={setReqReason}
+            placeholder="자세한 사유와 메모를 입력하세요..."
+          />
+          <ElmInp01
             label="요청 금액 (원)"
             type="number"
             value={reqAmount}
             onChange={setReqAmount}
-          />
-          <ElmInp01
-            label="사용 사유"
-            value={reqReason}
-            onChange={setReqReason}
-            placeholder="자세한 사유를 입력하세요..."
           />
           <ElmChk01
             checked={deductFromAllowance}
