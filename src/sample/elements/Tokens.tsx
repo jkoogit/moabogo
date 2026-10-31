@@ -1099,14 +1099,31 @@ export const ElmFab01: React.FC<{
   onOcrClick,
   onQuickExpenseClick,
   onQuickDutyClick,
-  showScrollTop = true,
+  showScrollTop,
   className = '',
 }) => {
     const [expanded, setExpanded] = useState(false);
+    const [internalScrolled, setInternalScrolled] = useState(false);
+
+    useEffect(() => {
+      const handleScroll = () => {
+        const y = window.scrollY || document.documentElement.scrollTop || 0;
+        setInternalScrolled(y > 80);
+      };
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      handleScroll();
+      return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // 외부에서 showScrollTop prop을 넘겼다면 우선하고, 없으면 자체 스크롤 감지 사용
+    const isVisibleTop = showScrollTop !== undefined ? showScrollTop : internalScrolled;
 
     const scrollToTop = () => {
       if (onTopClick) onTopClick();
-      else window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainEl = document.querySelector('main');
+      if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     return (
@@ -1156,8 +1173,8 @@ export const ElmFab01: React.FC<{
 
         {/* Main Action Group: [맨 위로 화살표 (스크롤 시 노출)] + [+x 빠른메뉴 전환 FAB] */}
         <div className="flex items-center gap-2">
-          {/* 옆에 있는 위로이동 화살표: 스크롤이 생기면(showScrollTop) 표시하고 상단에서는 숨김 */}
-          {showScrollTop && (
+          {/* 옆에 있는 위로이동 화살표: 스크롤이 생기면(isVisibleTop) 표시하고 상단에서는 숨김 */}
+          {isVisibleTop && (
             <button
               type="button"
               onClick={scrollToTop}

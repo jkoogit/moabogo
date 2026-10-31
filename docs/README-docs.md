@@ -160,4 +160,5 @@ docs/
 | 2026-10-30 | 0025 | TASK-0025-CLOSE | Antigravity | 세션 0025 게스트홈 2대 보상작업 및 대시보드·상세화면 전수 리뷰 완료 및 회고 발행 | Gemini 3.8 Flash | Antigravity | docs/07.회고/0025-01_세션회고-게스트홈_2대보상작업_및_메인대시보드_상세화면_전수리뷰.md |
 | 2026-10-31 | 0026 | SESSION-INIT | Antigravity | [0026] 플로팅 위젯 2종 고도화·머니요청 폼 개선 및 모아목표(SCR-GOL-01) 전면 구조 개편 세션 착수 | Gemini 3.8 Flash | Antigravity | #70 |
 | 2026-11-01 | 0026 | TASK-0026-01 | Antigravity | 플로팅 위젯 고도화(ElmQck01 z-index/드래그버그수정/슬림화), 머니요청 폼(제목-사유순), 송금처리 팝업 8대 개선 및 ELM-SEL-02 거절목록·초기화 완료 | Gemini 3.8 Flash | Antigravity | docs/08.리뷰/0026-01_이슈리뷰-플로팅위젯_고도화_및_머니요청_송금처리_팝업_개선.md |
+| 2026-11-01 | 0026 | TASK-0026-02 | Antigravity | 모아목표 관리(SCR-GOL-01)·상세(SCR-GOL-02) 화면 분리, 검색툴바·뷰전환·등록팝업(ELM-SEL-02), 3대탭(인증제출 파일첨부, 자녀 용돈이체 모달 연동, RBAC), 플로팅 탑버튼 듀얼감지 완료 | Gemini 3.8 Flash | Antigravity | docs/08.리뷰/0026-02_이슈리뷰-모아목표_화면분리_및_플로팅탑버튼_고도화.md |
 
