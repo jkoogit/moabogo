@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ElmTyp01,
   ElmInp01,
+  ElmSel01,
   ElmStt01,
   ElmCnt01,
   ElmPrf01,
@@ -13,6 +14,11 @@ import {
   ExecutionRecord,
   INITIAL_GOAL_LIST,
 } from '../data/goal-mock-data';
+import {
+  getMemberAllowanceAccount,
+  loadUserBankAccounts,
+  maskAccountNo,
+} from '../data/accountStorePool';
 import {
   Target,
   Users,
@@ -36,6 +42,7 @@ import {
   ExternalLink,
   Check,
   RotateCcw,
+  AlertCircle,
 } from 'lucide-react';
 
 export const SCR_GOL_02_모아목표상세: React.FC<{
@@ -68,6 +75,14 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
   const [selectedRecordForTransfer, setSelectedRecordForTransfer] = useState<ExecutionRecord | null>(null);
   const [transferAmount, setTransferAmount] = useState('5000');
   const [transferMemo, setTransferMemo] = useState('목표 달성 축하 용돈');
+
+  // 송금 계좌 상태 (accountStorePool 연동)
+  const myAccounts = loadUserBankAccounts('u-1001-koo');
+  const hasSenderAccount = myAccounts.length > 0;
+  const [transferBank, setTransferBank] = useState('토스뱅크');
+  const [transferAccountNo, setTransferAccountNo] = useState('');
+  const [transferAccountHolder, setTransferAccountHolder] = useState('');
+  const [isManualAccountMode, setIsManualAccountMode] = useState(false);
 
   // 피드백 알림 상태
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
@@ -281,13 +296,31 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
     showToast('✓ 이력 피드에 댓글을 남겼습니다.');
   };
 
-  // 용돈이체 팝업 열기
+  // 용돈이체 팝업 열기 (대표계좌 자동 로드)
   const handleOpenTransferModal = (record: ExecutionRecord) => {
     setSelectedRecordForTransfer(record);
+    const allowance = getMemberAllowanceAccount('led-group-01', record.companionName);
+    if (allowance.hasAccount && allowance.account && allowance.account.accountNo) {
+      setTransferBank(allowance.account.bankName);
+      setTransferAccountNo(allowance.account.accountNo);
+      setTransferAccountHolder(allowance.account.accountHolder);
+      setIsManualAccountMode(false);
+    } else if (record.allowanceAccount) {
+      const parts = record.allowanceAccount.split(' ');
+      setTransferBank(parts[0] || '토스뱅크');
+      setTransferAccountNo(parts[1] || record.allowanceAccount);
+      setTransferAccountHolder(record.companionName.replace(/\(.*\)/, '').trim());
+      setIsManualAccountMode(false);
+    } else {
+      setTransferBank('토스뱅크');
+      setTransferAccountNo('');
+      setTransferAccountHolder(record.companionName.replace(/\(.*\)/, '').trim());
+      setIsManualAccountMode(true);
+    }
     setTransferModalOpen(true);
   };
 
-  // 용돈이체 송금마감 완료 핸들러
+  // 용돈이체 송금마감 완료 핸들러 (실제 송금 후 완료)
   const handleCompleteTransfer = () => {
     if (!selectedRecordForTransfer) return;
     const targetName = selectedRecordForTransfer.companionName;
@@ -298,7 +331,7 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
       id: `tcm-${Date.now()}`,
       author: '구본영(나)',
       role: currentGoal.myRole,
-      text: `💸 [용돈이체 완료] ${targetName}에게 ${amountNum.toLocaleString()}원을 송금했습니다! (${transferMemo})`,
+      text: `💸 [용돈이체 완료] ${targetName}에게 ${amountNum.toLocaleString()}원을 송금했습니다! (${transferBank} ${maskAccountNo(transferAccountNo)} / ${transferMemo})`,
       createdAt: '방금 전',
     };
 
@@ -324,6 +357,44 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
 
     setTransferModalOpen(false);
     showToast(`✓ ${targetName}에게 ${amountNum.toLocaleString()}원 용돈 송금이 완료되었습니다!`);
+  };
+
+  // 2.1 이체없이 종료처리 (현금전달 등 이체 없이 종료)
+  const handleCompleteWithoutTransfer = () => {
+    if (!selectedRecordForTransfer) return;
+    const targetName = selectedRecordForTransfer.companionName;
+    const amountNum = parseInt(transferAmount, 10) || 5000;
+
+    const cashNoticeComment: GoalComment = {
+      id: `ccm-${Date.now()}`,
+      author: '구본영(나)',
+      role: currentGoal.myRole,
+      text: `💵 [현금전달 완료] ${targetName}에게 ${amountNum.toLocaleString()}원을 직접 현금으로 전달했습니다! (${transferMemo})`,
+      createdAt: '방금 전',
+    };
+
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (g.id === currentGoal.id) {
+          return {
+            ...g,
+            records: g.records.map((r) => {
+              if (r.id === selectedRecordForTransfer.id) {
+                return {
+                  ...r,
+                  comments: [...r.comments, cashNoticeComment],
+                };
+              }
+              return r;
+            }),
+          };
+        }
+        return g;
+      })
+    );
+
+    setTransferModalOpen(false);
+    showToast(`✓ ${targetName}에게 현금으로 전달하고 이체 없이 종료했습니다.`);
   };
 
   // 역할 뱃지 스타일 매핑
@@ -807,17 +878,46 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
                       <span>응원 {rec.cheerCount}</span>
                     </button>
 
-                    {/* 용돈이체 버튼: 참가자/관람자 역할이고 대상자가 용돈 수령 대상인 경우 노출 */}
-                    {rec.isAllowanceTarget && currentGoal.myRole !== 'MANAGER' && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenTransferModal(rec)}
-                        className="min-h-[38px] px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
-                      >
-                        <Coins className="w-3.5 h-3.5" />
-                        <span>용돈이체 💰</span>
-                      </button>
-                    )}
+                    {/* 용돈/응원 이체 버튼 (1.1 받는사람 계좌 없으면 버튼 미노출, 1.2 주는사람 계좌 없으면 비활성화) */}
+                    {(() => {
+                      if (!rec.isAllowanceTarget || currentGoal.myRole === 'MANAGER') return null;
+                      const targetAllowance = getMemberAllowanceAccount('led-group-01', rec.companionName);
+                      const hasRecipientAccount =
+                        (targetAllowance.hasAccount && Boolean(targetAllowance.account?.accountNo)) ||
+                        Boolean(rec.allowanceAccount);
+
+                      // 1.1 받는사람이 계좌가 없을 경우: 응원/이체 버튼을 완전히 없앰 (미노출)
+                      if (!hasRecipientAccount) {
+                        return null;
+                      }
+
+                      // 1.2 주는사람(로그인한 사용자)이 계좌가 없을 경우: 비활성화 표시
+                      if (!hasSenderAccount) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            title="송금할 내 계좌가 없습니다. [설정 > 계좌 관리]에서 계좌를 먼저 등록해주세요."
+                            className="min-h-[38px] px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-70 border border-slate-300 dark:border-zinc-700"
+                          >
+                            <Coins className="w-3.5 h-3.5" />
+                            <span>응원 송금 (계좌필요) 💰</span>
+                          </button>
+                        );
+                      }
+
+                      // 정상 활성화 상태
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTransferModal(rec)}
+                          className="min-h-[38px] px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
+                        >
+                          <Coins className="w-3.5 h-3.5" />
+                          <span>응원 송금 💰</span>
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   <span className="text-xs text-slate-400">
@@ -1015,17 +1115,85 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
-                <span className="text-[11px] text-amber-800 dark:text-amber-300 font-bold block">
-                  받는 사람 및 대표계좌
-                </span>
-                <span className="text-sm font-bold text-slate-900 dark:text-zinc-100 block">
-                  {selectedRecordForTransfer.companionName}
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-zinc-400 block font-mono">
-                  {selectedRecordForTransfer.allowanceAccount || '토스뱅크 1000-8821-3942'}
-                </span>
-              </div>
+              {/* 받는 사람 및 대표계좌 정보 / 미등록 시 직접 입력 폼 */}
+              {!isManualAccountMode && transferAccountNo ? (
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-amber-800 dark:text-amber-300 font-bold">
+                      받는 사람 및 대표입금계좌
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsManualAccountMode(true)}
+                      className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold underline hover:text-amber-900 cursor-pointer"
+                    >
+                      직접 입력
+                    </button>
+                  </div>
+                  <span className="text-sm font-bold text-slate-900 dark:text-zinc-100 block">
+                    {selectedRecordForTransfer.companionName}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 font-sans font-bold">
+                      {transferBank}
+                    </span>
+                    <span>{maskAccountNo(transferAccountNo)}</span>
+                    <span className="text-slate-400 font-sans">({transferAccountHolder})</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-300/80 dark:border-amber-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
+                      ⚠️ 받는 사람 계좌 직접 입력
+                    </span>
+                    {transferAccountNo && (
+                      <button
+                        type="button"
+                        onClick={() => setIsManualAccountMode(false)}
+                        className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold underline hover:text-amber-900 cursor-pointer"
+                      >
+                        등록계좌 불러오기
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    받는 사람({selectedRecordForTransfer.companionName})의 대표계좌가 없거나 변경이 필요합니다. 송금받을 계좌를 입력해주세요.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-1 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-zinc-400">은행</label>
+                      <input
+                        type="text"
+                        value={transferBank}
+                        onChange={(e) => setTransferBank(e.target.value)}
+                        placeholder="예: 토스뱅크"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-200"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-zinc-400">계좌번호 (- 없이 입력 가능)</label>
+                      <input
+                        type="text"
+                        value={transferAccountNo}
+                        onChange={(e) => setTransferAccountNo(e.target.value)}
+                        placeholder="1000-xxxx-xxxx"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-mono font-semibold text-slate-800 dark:text-zinc-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 dark:text-zinc-400">예금주명</label>
+                    <input
+                      type="text"
+                      value={transferAccountHolder}
+                      onChange={(e) => setTransferAccountHolder(e.target.value)}
+                      placeholder="예금주 성명"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-200"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* 금액 선택 칩 */}
               <div className="space-y-1.5">
@@ -1058,34 +1226,45 @@ export const SCR_GOL_02_모아목표상세: React.FC<{
               />
             </div>
 
-            {/* 송금 액션 버튼 (토스 송금 링크 & 송금마감) */}
-            <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+            {/* 송금 액션 버튼 (토스 송금 링크, 이체없이 종료, 송금마감) */}
+            <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => {
                   window.open(
-                    `https://toss.im/_m/open?bank=toss&amount=${transferAmount}`,
+                    `https://toss.im/_m/open?bank=${encodeURIComponent(transferBank)}&accountNo=${encodeURIComponent(
+                      transferAccountNo
+                    )}&amount=${transferAmount}`,
                     '_blank'
                   );
                 }}
-                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold text-xs flex items-center gap-1.5 hover:bg-blue-100 cursor-pointer"
+                className="min-h-[42px] px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold text-xs flex items-center gap-1.5 hover:bg-blue-100 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>토스 송금</span>
+                <span>토스 송금열기</span>
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setTransferModalOpen(false)}
-                  className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-semibold hover:bg-slate-100 cursor-pointer"
+                  className="min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   닫기
+                </button>
+                {/* 2.1 이체없이 종료처리 (현금전달) */}
+                <button
+                  type="button"
+                  onClick={handleCompleteWithoutTransfer}
+                  title="실제 은행 계좌 이체 없이 현금으로 직접 지급하고 종료합니다."
+                  className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-bold border border-slate-300 dark:border-zinc-700 cursor-pointer transition-all"
+                >
+                  이체없이 종료 (현금전달) 💵
                 </button>
                 <button
                   type="button"
                   onClick={handleCompleteTransfer}
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs cursor-pointer transition-all"
+                  className="min-h-[42px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs cursor-pointer transition-all"
                 >
                   송금마감 ✓
                 </button>
