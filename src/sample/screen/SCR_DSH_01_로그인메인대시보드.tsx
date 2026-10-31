@@ -52,6 +52,7 @@ import {
   CreditCard,
   Flame,
 } from 'lucide-react';
+import { getMemberAllowanceAccount, maskAccountNo } from '../data/accountStorePool';
 import { SCR_QCK_01_빠른머니등록 } from './SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './SCR_QCK_02_빠른수행등록';
 import { NewLedgerModal } from '../../components/NewLedgerModal';
@@ -425,6 +426,10 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
     batchItems?: InboundRequestItem[];
   }>({ open: false });
 
+  // 수취 계좌 미등록 시 인라인 직접 입력 상태
+  const [manualBankName, setManualBankName] = useState<string>('토스뱅크');
+  const [manualAccountNo, setManualAccountNo] = useState<string>('');
+
   // 송금 마감 모달 내 거절 사유 토글 및 입력 상태
   const [isRejectSectionOpen, setIsRejectSectionOpen] = useState<boolean>(false);
   const [rejectReasonText, setRejectReasonText] = useState<string>('');
@@ -730,6 +735,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
   // 요청된 머니 단건 승인 -> 송금 딥링크 모달 오픈
   const handleInitiateApproveInbound = (item: InboundRequestItem) => {
+    // 수취 계좌가 비어있으면 하네스 풀에서 대표계좌 조회
+    const allowance = getMemberAllowanceAccount('led-group-01', item.requester_name);
+    if (allowance.hasAccount && allowance.account && allowance.account.accountNo) {
+      setManualBankName(allowance.account.bankName);
+      setManualAccountNo(allowance.account.accountNo);
+    } else {
+      setManualBankName(item.bank_name || '토스뱅크');
+      setManualAccountNo(item.account_number || '');
+    }
+
     setRemittanceModalData({
       open: true,
       item,
@@ -746,6 +761,48 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
       isBatch: true,
       batchItems: pendingList,
     });
+  };
+
+  // 2.1 이체없이 종료처리 (현금전달 등 이체 없이 완료 마감)
+  const handleFinishWithoutRemittance = () => {
+    if (remittanceModalData.isBatch) {
+      setInboundRequests((prev) =>
+        prev.map((req) => (req.status === 'PENDING' ? { ...req, status: 'APPROVED' } : req))
+      );
+      setActivityFeed((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          service: '요청머니',
+          title: '대기 중인 요청 머니 일괄 현금 정산 및 마감',
+          detail: `${remittanceModalData.batchItems?.length || 0}건 계좌 이체 없이 직접 현금 전달로 완료`,
+          timestamp: '방금 전',
+          badgeType: 'AMBER',
+        },
+        ...prev,
+      ]);
+      showToast('✓ 모든 요청 건을 계좌 이체 없이 직접 정산 완료하고 종료했습니다.');
+    } else if (remittanceModalData.item) {
+      const itm = remittanceModalData.item;
+      setInboundRequests((prev) =>
+        prev.map((req) => (req.id === itm.id ? { ...req, status: 'APPROVED' } : req))
+      );
+      setActivityFeed((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          service: '요청머니',
+          title: `[${itm.requester_name}] ${itm.title} 현금 정산 마감`,
+          detail: `₩${itm.amount.toLocaleString()} 계좌 이체 없이 직접 현금 전달 완료`,
+          timestamp: '방금 전',
+          badgeType: 'AMBER',
+          amount: itm.amount,
+        },
+        ...prev,
+      ]);
+      showToast(`✓ [${itm.requester_name}] ₩${itm.amount.toLocaleString()} 현금 전달 처리 후 마감되었습니다.`);
+    }
+    setRemittanceModalData({ open: false });
+    setIsRejectSectionOpen(false);
+    setRejectReasonText('');
   };
 
   // 송금 링크 확인 후 최종 승인 완료 마감
@@ -3137,26 +3194,56 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     : remittanceModalData.item?.amount.toLocaleString()}
                   원
                 </div>
-                {!remittanceModalData.isBatch && remittanceModalData.item?.account_number && (
-                  <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 dark:border-amber-900/40 text-[11px]">
-                    <span className="text-slate-600 dark:text-zinc-400">
-                      수취 계좌: {remittanceModalData.item.bank_name}{' '}
-                      {remittanceModalData.item.account_number}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(
-                          `${remittanceModalData.item?.bank_name} ${remittanceModalData.item?.account_number}`
-                        );
-                        showToast('계좌번호가 클립보드에 복사되었습니다.');
-                      }}
-                      className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center gap-0.5"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>복사</span>
-                    </button>
-                  </div>
+                {!remittanceModalData.isBatch && (
+                  <>
+                    {remittanceModalData.item?.account_number || manualAccountNo ? (
+                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 dark:border-amber-900/40 text-[11px]">
+                        <span className="text-slate-600 dark:text-zinc-400 font-mono">
+                          수취 계좌: {remittanceModalData.item?.bank_name || manualBankName}{' '}
+                          {maskAccountNo(remittanceModalData.item?.account_number || manualAccountNo)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const accStr = `${remittanceModalData.item?.bank_name || manualBankName} ${
+                              remittanceModalData.item?.account_number || manualAccountNo
+                            }`;
+                            navigator.clipboard?.writeText(accStr);
+                            showToast('계좌번호가 클립보드에 복사되었습니다.');
+                          }}
+                          className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>복사</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 space-y-2">
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
+                          ⚠️ 수취 계좌 직접 입력
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          요청자의 등록된 계좌가 없습니다. 송금할 계좌를 직접 입력하거나 현금으로 전달할 수 있습니다.
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <input
+                            type="text"
+                            value={manualBankName}
+                            onChange={(e) => setManualBankName(e.target.value)}
+                            placeholder="은행명"
+                            className="col-span-1 px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold"
+                          />
+                          <input
+                            type="text"
+                            value={manualAccountNo}
+                            onChange={(e) => setManualAccountNo(e.target.value)}
+                            placeholder="계좌번호 (- 없이 가능)"
+                            className="col-span-2 px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-mono font-semibold"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -3167,7 +3254,11 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <a
-                    href={`supertoss://send?amount=${
+                    href={`supertoss://send?bank=${encodeURIComponent(
+                      remittanceModalData.item?.bank_name || manualBankName
+                    )}&accountNo=${encodeURIComponent(
+                      remittanceModalData.item?.account_number || manualAccountNo
+                    )}&amount=${
                       remittanceModalData.isBatch
                         ? remittanceModalData.batchItems?.reduce((s, x) => s + x.amount, 0)
                         : remittanceModalData.item?.amount || 0
@@ -3190,21 +3281,30 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
-            {/* 이체/승인 버튼 다음 위치 */}
-            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-2">
+            {/* 이체/승인 버튼 다음 위치: 닫기 / 이체없이 종료 / 송금마감 */}
+            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRemittanceModalData({ open: false })}
-                className="min-h-[38px] px-4 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer shadow-2xs"
+                className="min-h-[38px] px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer shadow-2xs"
               >
                 닫기
+              </button>
+              {/* 2.1 이체없이 종료처리 (현금전달) */}
+              <button
+                type="button"
+                onClick={handleFinishWithoutRemittance}
+                title="실제 계좌 이체 없이 현금으로 직접 정산하고 완료 마감합니다."
+                className="min-h-[38px] px-3.5 py-2 rounded-xl text-xs font-bold border border-amber-300 dark:border-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer shadow-2xs"
+              >
+                이체없이 종료 (현금전달) 💵
               </button>
               <button
                 type="button"
                 onClick={handleFinalizeRemittance}
-                className="min-h-[38px] px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white cursor-pointer shadow-xs transition-all"
+                className="min-h-[38px] px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white cursor-pointer shadow-xs transition-all"
               >
-                송금마감
+                송금마감 ✓
               </button>
             </div>
 
