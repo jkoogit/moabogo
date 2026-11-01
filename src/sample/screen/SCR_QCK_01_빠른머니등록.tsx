@@ -19,7 +19,15 @@ import {
   X,
   ArrowRight,
   ShieldCheck,
+  Building2,
+  Tag,
 } from 'lucide-react';
+import {
+  ExternalTransactionAccount,
+  searchExternalAccounts,
+  loadExternalAccounts,
+  recordAccountUsage,
+} from '../data/externalAccountStorePool';
 
 export const SCR_QCK_01_빠른머니등록: React.FC<{
   onClose?: () => void;
@@ -35,6 +43,21 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
   const [payer, setPayer] = useState('구본영(호스트)');
   const [consumer, setConsumer] = useState('가족 전체');
   const [isAssetTransfer, setIsAssetTransfer] = useState(false);
+
+  // 거래계좌 1초 자동완성 및 추천 상태 (BKL-ACC-11)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedAccountNotice, setSelectedAccountNotice] = useState<string | null>(null);
+  const quickAccounts = loadExternalAccounts().sort((a, b) => b.usageCount - a.usageCount).slice(0, 4);
+
+  const handleSelectAccount = (acc: ExternalTransactionAccount) => {
+    setMerchant(acc.accountHolder);
+    recordAccountUsage(acc.id);
+    setIsDropdownOpen(false);
+    setSelectedAccountNotice(
+      `✓ 거래계좌 자동연계: "${acc.accountHolder}" (${acc.memo || '기타'}${acc.bankName ? ` • ${acc.bankName}` : ''})`
+    );
+    setTimeout(() => setSelectedAccountNotice(null), 3000);
+  };
 
   // 2단계 OCR 가상 스캔 시뮬레이션 상태
   const [isScanning, setIsScanning] = useState(false);
@@ -269,11 +292,95 @@ export const SCR_QCK_01_빠른머니등록: React.FC<{
 
         {/* Parsed Fields Form */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
-          <ElmInp01
-            label="가맹점 / 수신처"
-            value={merchant}
-            onChange={setMerchant}
-          />
+          {/* 거래계좌 1초 자동완성 및 가맹점 입력 (BKL-ACC-11) */}
+          <div className="space-y-1.5 relative">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-200">
+                가맹점 / 수신처
+              </label>
+              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                ⚡ 거래계좌 1초 자동완성
+              </span>
+            </div>
+
+            {/* 빠른 추천 거래계좌 칩 */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+              <span className="text-[10px] text-slate-400 shrink-0">추천:</span>
+              {quickAccounts.map((acc) => (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => handleSelectAccount(acc)}
+                  className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-indigo-50 dark:bg-zinc-800 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-zinc-700 hover:border-indigo-300 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span>{acc.accountHolder}</span>
+                  <span className="text-[9px] font-mono text-slate-400">({acc.memo || '기타'})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 가맹점 입력 인풋 & 검색 드롭다운 */}
+            <div className="relative">
+              <input
+                type="text"
+                value={merchant}
+                onChange={(e) => {
+                  setMerchant(e.target.value);
+                  setIsDropdownOpen(true);
+                }}
+                onFocus={() => setIsDropdownOpen(true)}
+                placeholder="가맹점 또는 거래계좌명 입력 시 자동완성..."
+                className="w-full min-h-[42px] px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+              />
+
+              {isDropdownOpen && merchant.trim().length > 0 && (
+                <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 dark:divide-zinc-800 animate-in fade-in">
+                  <div className="p-2 bg-slate-50 dark:bg-zinc-800/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+                    <span className="font-bold">매칭된 거래계좌 (클릭 시 1초 매핑)</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {searchExternalAccounts(merchant).slice(0, 5).map((acc) => (
+                    <button
+                      key={acc.id}
+                      type="button"
+                      onClick={() => handleSelectAccount(acc)}
+                      className="w-full p-2.5 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-0.5 truncate">
+                        <div className="font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                          <span>{acc.accountHolder}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
+                            {acc.memo || '기타'}
+                          </span>
+                        </div>
+                        {acc.bankName && (
+                          <div className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono">
+                            🏦 {acc.bankName} {acc.accountHolder ? `(${acc.accountHolder})` : ""}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                        ⚡ 선택
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedAccountNotice && (
+              <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold animate-in fade-in">
+                {selectedAccountNotice}
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ElmInp01
