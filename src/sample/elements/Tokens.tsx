@@ -25,6 +25,15 @@ import {
   AlertCircle,
   Flag,
   CornerDownRight,
+  FolderTree,
+  Folder,
+  FolderOpen,
+  GripVertical,
+  ChevronsUpDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Route,
+  Settings2,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -2403,5 +2412,598 @@ export const ElmToast01: React.FC<{
         </button>
       )}
     </div>
+  );
+};
+
+
+export const ElmToa01 = ElmToast01;
+
+/* =========================================================================
+   ELM-TRE-02 : 트리목록 뷰 / 접기 / 인라인편집 / 드래그이동 (거래계좌/카테고리 관리)
+   ========================================================================= */
+
+export interface TreeNodeItem {
+  id: string;
+  name: string;
+  icon?: string;
+  parentId?: string | null;
+  children?: TreeNodeItem[];
+  count?: number; // 소속 컨텐츠(계좌) 수
+}
+
+export interface ElmTre02Props {
+  nodes: TreeNodeItem[];
+  selectedNodeId: string;
+  onSelectNode: (nodeId: string) => void;
+  onAddNode?: (parentId: string, name: string) => void;
+  onUpdateNode?: (nodeId: string, newName: string) => void;
+  onDeleteNode?: (nodeId: string) => { success: boolean; reason?: string };
+  onMoveNode?: (draggedId: string, targetId: string, position: 'inside' | 'before' | 'after') => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const ElmTre02: React.FC<ElmTre02Props> = ({
+  nodes,
+  selectedNodeId,
+  onSelectNode,
+  onAddNode,
+  onUpdateNode,
+  onDeleteNode,
+  onMoveNode,
+  isCollapsed = false,
+  onToggleCollapse,
+  className = '',
+  style,
+}) => {
+  // 2.1 트리보기 vs 경로보기 모드
+  const [viewMode, setViewMode] = useState<'TREE' | 'PATH'>('TREE');
+  // 2.2 노드 개별 펼침/접힘 상태
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(['root', 'fld-edu', 'fld-living']));
+  // 2.4/2.5 편집 모드 및 하단 편집 패널 펼침 상태
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
+  // 편집 입력 상태
+  const [isAdding, setIsAdding] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [inputText, setInputText] = useState('');
+
+  // 3.4 하단 ELM-TOA-01 토스트 알림 상태
+  const [toastNotice, setToastNotice] = useState<{ msg: string; type: 'success' | 'warning' | 'error' | 'info' } | null>(null);
+
+  // 3.1 노드 사이 드롭 & 뎁스 선택 상태
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
+  const [dropIndent, setDropIndent] = useState<'same' | 'child' | null>(null);
+
+  const toggleNodeExpand = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    const allIds = new Set<string>();
+    const traverse = (items: TreeNodeItem[]) => {
+      items.forEach((item) => {
+        allIds.add(item.id);
+        if (item.children) traverse(item.children);
+      });
+    };
+    traverse(nodes);
+    setExpandedIds(allIds);
+  };
+
+  const collapseAll = () => {
+    setExpandedIds(new Set());
+  };
+
+  // 노드 재귀 탐색 헬퍼
+  const findNode = (items: TreeNodeItem[], id: string): TreeNodeItem | null => {
+    for (const item of items) {
+      if (item.id === id) return item;
+      if (item.children) {
+        const found = findNode(item.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const selectedNode = findNode(nodes, selectedNodeId);
+
+  // 경로 목록 생성 (경로보기 모드용)
+  const getPathList = (items: TreeNodeItem[], currentPath = ''): { node: TreeNodeItem; fullPath: string }[] => {
+    let result: { node: TreeNodeItem; fullPath: string }[] = [];
+    items.forEach((item) => {
+      const p = currentPath ? `${currentPath} / ${item.name}` : item.name;
+      result.push({ node: item, fullPath: p });
+      if (item.children && item.children.length > 0) {
+        result = result.concat(getPathList(item.children, p));
+      }
+    });
+    return result;
+  };
+
+  // 2.6.5 노드 추가 저장
+  const handleSaveAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim()) return;
+    if (onAddNode) {
+      onAddNode(selectedNodeId, inputText.trim());
+      setToastNotice({ msg: `✓ "${inputText.trim()}" 하위 노드가 추가되었습니다.`, type: 'success' });
+    }
+    setInputText('');
+    setIsAdding(false);
+  };
+
+  // 노드 이름 수정 저장
+  const handleSaveRename = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim()) return;
+    if (selectedNodeId === 'root') {
+      setToastNotice({ msg: '루트(전체) 노드는 이름을 변경할 수 없습니다.', type: 'warning' });
+      setIsRenaming(false);
+      return;
+    }
+    if (onUpdateNode) {
+      onUpdateNode(selectedNodeId, inputText.trim());
+      setToastNotice({ msg: `✓ 노드명이 "${inputText.trim()}"으로 변경되었습니다.`, type: 'success' });
+    }
+    setInputText('');
+    setIsRenaming(false);
+  };
+
+  // 2.6.6 노드 삭제 (3.4 안내토스트 연동)
+  const handleDelete = () => {
+    if (!selectedNode) return;
+    if (selectedNode.id === 'root') {
+      setToastNotice({ msg: '루트(전체) 노드는 삭제할 수 없습니다.', type: 'warning' });
+      return;
+    }
+    if (onDeleteNode) {
+      const res = onDeleteNode(selectedNode.id);
+      if (!res.success) {
+        setToastNotice({ msg: res.reason || '하위 노드 또는 등록된 계좌가 존재하여 삭제할 수 없습니다.', type: 'warning' });
+      } else {
+        setToastNotice({ msg: `✓ "${selectedNode.name}" 노드가 삭제되었습니다.`, type: 'success' });
+      }
+    }
+  };
+
+  // 3.1 노드 사이 드래그 앤 드롭 핸들러
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.stopPropagation();
+    setDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string, depth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedId || draggedId === targetId) return;
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const offsetX = e.clientX - rect.left;
+    const height = rect.height;
+
+    // 상단 50%는 before(위 경계선), 하단 50%는 after(아래 경계선)
+    const pos: 'before' | 'after' = offsetY < height * 0.5 ? 'before' : 'after';
+
+    // 수평 마우스 위치에 따른 뎁스 판별: 기준 들여쓰기보다 오른쪽이면 하위 자식 노드로 삽입
+    const baseIndent = depth * 14 + 10;
+    const isChild = offsetX > baseIndent + 18;
+
+    setDragOverTargetId(targetId);
+    setDropPosition(pos);
+    setDropIndent(isChild ? 'child' : 'same');
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedId && draggedId !== targetId && dropPosition && onMoveNode) {
+      const finalPosition: 'inside' | 'before' | 'after' = dropIndent === 'child' ? 'inside' : dropPosition;
+      onMoveNode(draggedId, targetId, finalPosition);
+      setToastNotice({
+        msg: `✓ 분류 위치가 이동되었습니다 (${finalPosition === 'inside' ? '하위 자식으로 삽입' : finalPosition === 'before' ? '상단 형제로 배치' : '하단 형제로 배치'}).`,
+        type: 'success',
+      });
+    }
+    setDraggedId(null);
+    setDragOverTargetId(null);
+    setDropPosition(null);
+    setDropIndent(null);
+  };
+
+  // 트리 재귀 렌더러
+  const renderTreeNodes = (items: TreeNodeItem[], depth = 0) => {
+    return (
+      <ul className="space-y-0.5">
+        {items.map((node) => {
+          const isSelected = selectedNodeId === node.id;
+          const hasChildren = node.children && node.children.length > 0;
+          const isExpanded = expandedIds.has(node.id);
+          const isDraggingThis = draggedId === node.id;
+          const isOverThis = dragOverTargetId === node.id;
+
+          return (
+            <li key={node.id} className="relative select-none">
+              {/* 3.1 상단 노드 사이 드롭 인디케이터 (before) */}
+              {isOverThis && dropPosition === 'before' && (
+                <div
+                  className="absolute top-0 -translate-y-1/2 inset-x-0 z-20 flex items-center pointer-events-none transition-all duration-75"
+                  style={{ paddingLeft: `${dropIndent === 'child' ? (depth + 1) * 14 + 12 : depth * 14 + 8}px` }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shadow-sm shrink-0" />
+                  <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 flex-1 shadow-sm" />
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-600 text-white font-bold tracking-tight shadow-sm shrink-0 mr-2">
+                    {dropIndent === 'child' ? '↳ 하위(자식) 이동' : '↑ 상단에 배치'}
+                  </span>
+                </div>
+              )}
+
+              <div
+                draggable={isEditMode && node.id !== 'root'}
+                onDragStart={(e) => handleDragStart(e, node.id)}
+                onDragOver={(e) => handleDragOver(e, node.id, depth)}
+                onDrop={(e) => handleDrop(e, node.id)}
+                onClick={() => onSelectNode(node.id)}
+                style={{ paddingLeft: `${depth * 14 + 8}px` }}
+                className={`min-h-[38px] pr-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-1.5 cursor-pointer transition-all border ${
+                  isSelected
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-2xs font-bold'
+                    : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/60 border-transparent'
+                } ${isDraggingThis ? 'opacity-30' : ''}`}
+              >
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {/* 편집모드 핸들 vs 펼침아이콘 */}
+                  {isEditMode && node.id !== 'root' ? (
+                    <span className="p-0.5 text-slate-400 hover:text-indigo-600 cursor-grab active:cursor-grabbing shrink-0" title="드래그하여 노드 사이로 이동">
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </span>
+                  ) : hasChildren ? (
+                    <button
+                      type="button"
+                      onClick={(e) => toggleNodeExpand(node.id, e)}
+                      className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-transform shrink-0"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  ) : (
+                    <span className="w-4 shrink-0 text-slate-300 dark:text-zinc-600">•</span>
+                  )}
+
+                  {/* 노드 아이콘 */}
+                  <span className="text-sm shrink-0">
+                    {node.icon ? (
+                      node.icon
+                    ) : isExpanded ? (
+                      <FolderOpen className="w-4 h-4 text-amber-500 inline" />
+                    ) : (
+                      <Folder className="w-4 h-4 text-amber-500 inline" />
+                    )}
+                  </span>
+
+                  {/* 노드명 */}
+                  <span className="truncate">{node.name}</span>
+                </div>
+
+                {/* 소속 컨텐츠 수 뱃지 */}
+                {typeof node.count === 'number' && (
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full shrink-0 ${
+                      isSelected
+                        ? 'bg-indigo-200/70 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-bold'
+                        : 'bg-slate-200/70 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {node.count}
+                  </span>
+                )}
+              </div>
+
+              {/* 3.1 하단 노드 사이 드롭 인디케이터 (after) */}
+              {isOverThis && dropPosition === 'after' && (
+                <div
+                  className="absolute bottom-0 translate-y-1/2 inset-x-0 z-20 flex items-center pointer-events-none transition-all duration-75"
+                  style={{ paddingLeft: `${dropIndent === 'child' ? (depth + 1) * 14 + 12 : depth * 14 + 8}px` }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shadow-sm shrink-0" />
+                  <div className="h-0.5 bg-indigo-600 dark:bg-indigo-400 flex-1 shadow-sm" />
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-600 text-white font-bold tracking-tight shadow-sm shrink-0 mr-2">
+                    {dropIndent === 'child' ? '↳ 하위(자식) 이동' : '↓ 하단에 배치'}
+                  </span>
+                </div>
+              )}
+
+              {/* 자식 노드 재귀 */}
+              {hasChildren && isExpanded && (
+                <div className="mt-0.5">{renderTreeNodes(node.children!, depth + 1)}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
+
+  // 접힘 상태일 때 심플 토글 탭만 노출
+  if (isCollapsed) {
+    return (
+      <aside className={`w-12 border-r border-slate-200 dark:border-zinc-800 flex flex-col items-center py-3 bg-slate-50 dark:bg-[#0B0F17] transition-all ${className}`}>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-white rounded-xl hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
+          title="트리 패널 펼치기"
+        >
+          <PanelLeftOpen className="w-5 h-5" />
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside
+      style={style}
+      className={`w-full ${style?.width ? '' : 'sm:w-72 md:w-80'} border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0f172a] flex flex-col shrink-0 ${className}`}
+    >
+      {/* 2.1 ~ 2.4 상단 트리 툴바 */}
+      <div className="p-3 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-zinc-900/60">
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+            <FolderTree className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>분류 체계</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* 2.1 트리보기 / 경로보기 토글 */}
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === 'TREE' ? 'PATH' : 'TREE')}
+            className={`p-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              viewMode === 'PATH'
+                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                : 'text-slate-500 hover:bg-slate-200 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+            title={viewMode === 'TREE' ? '경로보기(Path View)로 전환' : '트리보기(Tree View)로 전환'}
+          >
+            {viewMode === 'TREE' ? <Route className="w-3.5 h-3.5" /> : <FolderTree className="w-3.5 h-3.5" />}
+          </button>
+
+          {/* 2.2 트리 전체 펼침/접힘 토글 */}
+          {viewMode === 'TREE' && (
+            <button
+              type="button"
+              onClick={expandedIds.size > 1 ? collapseAll : expandAll}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={expandedIds.size > 1 ? '전체 접기' : '전체 펼치기'}
+            >
+              <ChevronsUpDown className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* 2.4 편집모드 토글 */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditMode(!isEditMode);
+              setIsEditPanelOpen(!isEditMode);
+            }}
+            className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+              isEditMode
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-slate-500 hover:bg-slate-200 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+            title="트리 편집/드래그 모드 토글"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* 2.3 패널 접기 아이콘 */}
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="트리 패널 접어서 우측 컨텐츠 집중 조회"
+            >
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 1. 노드 목록 영역: 자체 내부 스크롤을 없애고 전체 펼쳐 페이지 휠 스크롤 보장 */}
+      <div className="p-2 overflow-visible">
+        {viewMode === 'TREE' ? (
+          renderTreeNodes(nodes)
+        ) : (
+          /* 2.1 경로보기 (Path View) */
+          <div className="space-y-1">
+            {getPathList(nodes).map(({ node, fullPath }) => {
+              const isSelected = selectedNodeId === node.id;
+              return (
+                <div
+                  key={node.id}
+                  onClick={() => onSelectNode(node.id)}
+                  className={`p-2 rounded-xl text-xs flex items-center justify-between gap-1 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800'
+                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="truncate">{fullPath}</span>
+                  {typeof node.count === 'number' && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-zinc-700">
+                      {node.count}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 3.2 트리 분류 편집 / 관리 영역: 트리 높이 바로 아래에 배치 */}
+      <div className="border-t border-slate-200 dark:border-zinc-800 bg-slate-50/90 dark:bg-zinc-900/90">
+        {!isEditPanelOpen ? (
+          <div className="p-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditPanelOpen(true);
+                setIsEditMode(true);
+              }}
+              className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <Settings2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>트리 분류 편집 / 관리</span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 space-y-2.5 animate-in slide-in-from-bottom-2">
+            {/* 2.6.1 [1열] 영역타이틀 & 완료버튼 */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
+              <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1">
+                <span>🛠️ 트리 분류 편집</span>
+                <span className="text-[10px] text-slate-400 font-normal">(노드 사이 드래그)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditPanelOpen(false);
+                  setIsEditMode(false);
+                  setIsAdding(false);
+                  setIsRenaming(false);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700 transition-colors cursor-pointer"
+              >
+                완료
+              </button>
+            </div>
+
+            {/* 2.6.2 [2열] 선택된 노드명 */}
+            <div className="flex items-center justify-between text-xs bg-white dark:bg-zinc-800 p-2 rounded-lg border border-slate-200 dark:border-zinc-700">
+              <span className="text-slate-400 text-[11px]">선택 노드:</span>
+              <span className="font-bold text-slate-800 dark:text-zinc-100 truncate max-w-[170px]">
+                {selectedNode ? `${selectedNode.icon || '📁'} ${selectedNode.name}` : '선택 없음'}
+              </span>
+            </div>
+
+            {/* 2.6.3 [3열] 추가, 삭제, 수정 버튼 */}
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdding(true);
+                  setIsRenaming(false);
+                  setInputText('');
+                }}
+                className="min-h-[34px] px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>하위 추가</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedNode || selectedNode.id === 'root') return;
+                  setIsRenaming(true);
+                  setIsAdding(false);
+                  setInputText(selectedNode.name);
+                }}
+                disabled={!selectedNode || selectedNode.id === 'root'}
+                className="min-h-[34px] px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-[11px] font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+              >
+                <Edit2 className="w-3 h-3" />
+                <span>이름 수정</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={!selectedNode || selectedNode.id === 'root'}
+                className="min-h-[34px] px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 text-[11px] font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>삭제</span>
+              </button>
+            </div>
+
+            {/* 2.6.4 ~ 2.6.5 [4열] 하위 추가 / 이름 수정 인라인 입력 필드 (3.3 x 아이콘 초기화 반영) */}
+            {(isAdding || isRenaming) && (
+              <form onSubmit={isAdding ? handleSaveAdd : handleSaveRename} className="space-y-1.5 pt-1 animate-in fade-in">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                  <CornerDownRight className="w-3 h-3 text-indigo-500" />
+                  <span>{isAdding ? '새 하위 노드명 입력:' : '변경할 노드명 입력:'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder={isAdding ? '예: 심화수학, 단골카페' : '노드명 입력'}
+                      autoFocus
+                      className="w-full min-h-[34px] pl-2.5 pr-7 py-1 text-xs bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-zinc-100"
+                    />
+                    {inputText && (
+                      <button
+                        type="button"
+                        onClick={() => setInputText('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+                        title="입력 내용 초기화"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    className="min-h-[34px] px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shrink-0 cursor-pointer"
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdding(false);
+                      setIsRenaming(false);
+                    }}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-bold hover:bg-slate-300 transition-colors cursor-pointer"
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3.4 화면 하단 ELM-TOA-01 토스트 알림 연동 */}
+      <ElmToast01
+        message={toastNotice?.msg || null}
+        type={toastNotice?.type || 'warning'}
+        onClose={() => setToastNotice(null)}
+      />
+    </aside>
   );
 };
