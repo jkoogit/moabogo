@@ -290,7 +290,7 @@ export function attachCountsToTree(nodes: TreeNodeItem[], accounts: ExternalTran
       const getAllChildIds = (item: TreeNodeItem): string[] => {
         let ids = [item.id];
         if (item.children) {
-          item.children.forEach((c) => {
+          item.children.forEach((c: TreeNodeItem) => {
             ids = ids.concat(getAllChildIds(c));
           });
         }

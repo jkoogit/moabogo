@@ -12,12 +12,6 @@ import {
 import { ElmInp01, ElmSel01, ElmChk01, ElmSld03 } from '../../../sample/elements/Tokens';
 import { SAMPLE_RECEIPTS } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
 import type { LedgerBook, LedgerTransaction, FixedIncomeRule } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
-import {
-  ExternalTransactionAccount,
-  searchExternalAccounts,
-  loadExternalAccounts,
-  recordAccountUsage,
-} from '../../../sample/data/externalAccountStorePool';
 
 export interface LedgerNewTransactionModalProps {
   isOpen: boolean;
@@ -61,28 +55,6 @@ export const LedgerNewTransactionModal: React.FC<LedgerNewTransactionModalProps>
   const [transferFrom, setTransferFrom] = useState('개인 가계부 (국민 주거래)');
   const [transferTo, setTransferTo] = useState('가족 모임 가계부 (신한)');
   const [transferReason, setTransferReason] = useState('가족 생활비 분담');
-
-  // 거래계좌 1초 자동완성 상태 (BKL-ACC-11)
-  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
-  const quickExtAccounts = loadExternalAccounts().sort((a, b) => b.usageCount - a.usageCount).slice(0, 5);
-
-  const handleApplyExtAccount = (acc: ExternalTransactionAccount) => {
-    setNewTxTitle(acc.accountHolder);
-    recordAccountUsage(acc.id);
-    setIsAccountDropdownOpen(false);
-
-    if (acc.memo || '기타') {
-      if (newTxType === 'EXPENSE') {
-        setExpenseCategory(acc.memo || '기타');
-      } else if (newTxType === 'INCOME') {
-        setIncomeSource(acc.memo || '기타');
-      }
-    }
-    if (acc.bankName && acc.accountNo) {
-      setNewTxTags((prev) => (prev ? `${prev}, ${acc.bankName}` : acc.bankName));
-    }
-    onNotice?.(`✓ 거래계좌 자동 매핑: "${acc.accountHolder}"`);
-  };
 
   useEffect(() => {
     if (isOpen) {

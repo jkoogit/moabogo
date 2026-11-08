@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
-import { ElmNav01, ElmOff01, ElmFab01 } from './sample/elements/Tokens';
+import { ElmNav01, ElmOff01, ElmQck01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
 import { CommandPalette } from './components/CommandPalette';
 import { Ledger } from './types';
@@ -15,7 +15,8 @@ import { SCR_DSH_01_로그인메인대시보드 } from './sample/screen/SCR_DSH_
 import { SCR_LED_01_그룹가계부관리상세 } from './sample/screen/SCR_LED_01_그룹가계부관리상세';
 import { SCR_GOL_01_모아목표관리 } from './sample/screen/SCR_GOL_01_모아목표관리';
 import { SCR_GOL_02_모아목표상세 } from './sample/screen/SCR_GOL_02_모아목표상세';
-import { SCR_DUT_01_모아당번상세 } from './sample/screen/SCR_DUT_01_모아당번상세';
+import { SCR_DUT_01_모아당번관리 } from './sample/screen/SCR_DUT_01_모아당번관리';
+import { SCR_DUT_02_모아당번상세 } from './sample/screen/SCR_DUT_02_모아당번상세';
 import { SCR_MON_01_모아머니이동관리 } from './sample/screen/SCR_MON_01_모아머니이동관리';
 import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른수행등록';
@@ -51,12 +52,13 @@ export default function App() {
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
+  const [selectedDutyId, setSelectedDutyId] = useState<string>('duty-01');
+  const [selectedGoalId, setSelectedGoalId] = useState<string>('goal-01');
 
   // Scroll to Top state & ref
   const mainRef = React.useRef<HTMLElement>(null);
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
   const [isScrollMenuExpanded, setIsScrollMenuExpanded] = useState<boolean>(false);
-  const [selectedGoalId, setSelectedGoalId] = useState<string>('goal-1');
 
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState<boolean>(false);
   const deviceMenuRef = React.useRef<HTMLDivElement>(null);
@@ -94,51 +96,37 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Global Scroll-to-Top tracking (window + mainRef 듀얼 감지)
+  // Global Scroll-to-Top tracking
   useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
     const checkScroll = () => {
-      const winY = window.scrollY || document.documentElement.scrollTop || 0;
-      const mainY = mainRef.current ? mainRef.current.scrollTop : 0;
-      const currentY = Math.max(winY, mainY);
-      if (currentY > 80) {
+      if (mainEl.scrollTop > 140) {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
         setIsScrollMenuExpanded(false);
       }
     };
-
-    window.addEventListener('scroll', checkScroll, { passive: true });
-    const mainEl = mainRef.current;
-    if (mainEl) {
-      mainEl.addEventListener('scroll', checkScroll, { passive: true });
-    }
+    mainEl.addEventListener('scroll', checkScroll, { passive: true });
     checkScroll();
-    return () => {
-      window.removeEventListener('scroll', checkScroll);
-      if (mainEl) mainEl.removeEventListener('scroll', checkScroll);
-    };
+    return () => mainEl.removeEventListener('scroll', checkScroll);
   }, [currentScreen]);
 
   // 화면 전환 시 스크롤 최상단 리셋
   useEffect(() => {
-    window.scrollTo({ top: 0 });
-    document.documentElement.scrollTo({ top: 0 });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0 });
     }
   }, [currentScreen]);
 
   const handleScrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handleScrollToBottom = () => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: mainRef.current.scrollHeight, behavior: 'smooth' });
     }
@@ -213,13 +201,30 @@ export default function App() {
     },
     {
       id: 'SCR-DUT-01',
-      name: '모아당번 상세 (할당/인증/승인)',
+      name: '모아당번 관리 (목록 & 카테고리)',
       category: '라이프 서비스',
       comp: (
-        <SCR_DUT_01_모아당번상세
+        <SCR_DUT_01_모아당번관리
           onBack={() => setCurrentScreen('SCR-DSH-01')}
+          onNavigateToDetail={(id) => {
+            setSelectedDutyId(id);
+            setCurrentScreen('SCR-DUT-02');
+          }}
           onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
           onNavigateToGoal={() => setCurrentScreen('SCR-GOL-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-DUT-02',
+      name: '모아당번 상세 (수행/인증/정산)',
+      category: '라이프 서비스',
+      comp: (
+        <SCR_DUT_02_모아당번상세
+          dutyId={selectedDutyId}
+          onBack={() => setCurrentScreen('SCR-DUT-01')}
+          onNavigateToManagement={() => setCurrentScreen('SCR-DUT-01')}
+          onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
         />
       ),
     },
@@ -607,16 +612,88 @@ export default function App() {
         }}
       />
 
-      {/* 6. Global Speed Dial FAB with Scroll-to-Top (SCR-SMP-01 표준: +x 전환 빠른메뉴 및 스크롤 시 위로이동 노출) */}
+      {/* 6. Global Movable Quick Action Dock (로그인한 모든 메뉴 화면 공통 표시) */}
       {(isLoggedIn || !['SCR-GNT-01', 'SCR-AUT-01', 'SCR-AUT-02'].includes(currentScreen)) && (
-        <ElmFab01
-          showScrollTop={showScrollTop}
-          onTopClick={handleScrollToTop}
-          onOcrClick={() => setCurrentScreen('SCR-LED-01')}
-          onQuickExpenseClick={() => setCurrentScreen('SCR-QCK-01')}
-          onQuickDutyClick={() => setCurrentScreen('SCR-QCK-02')}
-          className="bottom-20 sm:bottom-6 right-3 sm:right-6"
+        <ElmQck01
+          onOpenMoney={() => setCurrentScreen('SCR-QCK-01')}
+          onOpenDuty={() => setCurrentScreen('SCR-QCK-02')}
         />
+      )}
+
+      {/* 7. Global Scroll to Top Floating Layer Widget (화면 스크롤 발생 시 우측하단 고정 노출) */}
+      {showScrollTop && (
+        <aside
+          className="fixed right-3 sm:right-6 bottom-20 sm:bottom-6 z-35 flex flex-col items-end gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200 select-none"
+          aria-label="화면 스크롤 제어"
+        >
+          {/* 확장 서브 메뉴 (최상단으로 / 최하단으로) */}
+          {isScrollMenuExpanded && (
+            <div
+              className={`p-1.5 rounded-2xl border shadow-xl flex flex-col gap-1 backdrop-blur-md animate-in zoom-in-95 duration-150 ${
+                resolvedTheme === 'dawn'
+                  ? 'bg-[#0d1838]/95 border-[#1e3a6d] text-white shadow-blue-900/30'
+                  : isDark
+                  ? 'bg-zinc-900/95 border-zinc-700 text-zinc-100 shadow-black/50'
+                  : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/50'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={handleScrollToTop}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                title="페이지 맨 위로 이동"
+              >
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>최상단으로</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleScrollToBottom}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                title="페이지 맨 아래로 이동"
+              >
+                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>최하단으로</span>
+              </button>
+            </div>
+          )}
+
+          {/* 메인 통합 플로팅 레이어 버튼 (원터치 최상단 이동 + 펼치기 토글) */}
+          <div
+            className={`flex items-center p-1 rounded-full border shadow-lg backdrop-blur-md transition-all ${
+              resolvedTheme === 'dawn'
+                ? 'bg-[#132247]/90 border-[#254680] text-white shadow-blue-900/30 hover:border-blue-400'
+                : isDark
+                ? 'bg-zinc-800/90 border-zinc-700 text-zinc-100 shadow-black/40 hover:border-zinc-500'
+                : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/60 hover:border-indigo-300'
+            }`}
+          >
+            {/* 최상단 스무스 이동 버튼 */}
+            <button
+              type="button"
+              onClick={handleScrollToTop}
+              className="p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1 active:scale-95"
+              title="맨 위로 이동 (Scroll to Top)"
+            >
+              <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+              <span className="text-[11px] font-bold px-1 hidden xs:inline">TOP</span>
+            </button>
+
+            {/* 레이어 펼치기/접기 토글 버튼 */}
+            <button
+              type="button"
+              onClick={() => setIsScrollMenuExpanded(!isScrollMenuExpanded)}
+              className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors cursor-pointer border-l border-slate-200 dark:border-zinc-700"
+              title={isScrollMenuExpanded ? '옵션 접기' : '이동 옵션 펼치기'}
+            >
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  isScrollMenuExpanded ? 'rotate-180 text-indigo-500' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   );
