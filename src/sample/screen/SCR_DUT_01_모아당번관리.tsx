@@ -115,6 +115,7 @@ export const SCR_DUT_01_모아당번관리: React.FC<SCR_DUT_01_Props> = ({
   // 2. Navigation & Filter States
   const [activeTab, setActiveTab] = useState<'ALL' | 'MY' | 'SUBSTITUTE' | 'INVITATION'>('ALL');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [isCategoryCollapsed, setIsCategoryCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'DUE_DATE' | 'TITLE' | 'COMPLETED'>('DUE_DATE');
 
@@ -446,6 +447,8 @@ export const SCR_DUT_01_모아당번관리: React.FC<SCR_DUT_01_Props> = ({
             selectedIds={selectedCategoryIds}
             onSelect={(newIds: string[]) => setSelectedCategoryIds(newIds)}
             totalCount={totalDutiesCount}
+            isCollapsed={isCategoryCollapsed}
+            onToggleCollapse={() => setIsCategoryCollapsed((prev) => !prev)}
           />
         </aside>
 
@@ -475,72 +478,70 @@ export const SCR_DUT_01_모아당번관리: React.FC<SCR_DUT_01_Props> = ({
 
           {/* Navigation Tabs (div1 with ElmSld03 Slide Drag Wheel) */}
           <div className="border-b border-slate-200 dark:border-zinc-800 pb-2">
-            <ElmSld03 showNavButtons={false} className="w-full">
-              <div className="flex items-center gap-1.5 whitespace-nowrap">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('ALL')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'ALL'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>전체 당번</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}>
-                    {totalDutiesCount}
+            <ElmSld03 showNavButtons={false} className="w-full" innerClassName="items-center gap-1.5 pb-0.5 flex-nowrap">
+              <button
+                type="button"
+                onClick={() => setActiveTab('ALL')}
+                className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'ALL'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span>전체 당번</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}>
+                  {totalDutiesCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('MY')}
+                className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'MY'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span>내 담당 당번</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'MY' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}>
+                  {myDutiesCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('SUBSTITUTE')}
+                className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'SUBSTITUTE'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span>대신수행 요청</span>
+                {substituteRequestsCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'SUBSTITUTE' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'}`}>
+                    {substituteRequestsCount}
                   </span>
-                </button>
+                )}
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('MY')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'MY'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>내 담당 당번</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'MY' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}>
-                    {myDutiesCount}
+              <button
+                type="button"
+                onClick={() => setActiveTab('INVITATION')}
+                className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'INVITATION'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span>초대함</span>
+                {pendingInvitationsCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'INVITATION' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400'}`}>
+                    {pendingInvitationsCount}
                   </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('SUBSTITUTE')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'SUBSTITUTE'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>대신수행 요청</span>
-                  {substituteRequestsCount > 0 && (
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'SUBSTITUTE' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'}`}>
-                      {substituteRequestsCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('INVITATION')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'INVITATION'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>초대함</span>
-                  {pendingInvitationsCount > 0 && (
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'INVITATION' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400'}`}>
-                      {pendingInvitationsCount}
-                    </span>
-                  )}
-                </button>
-              </div>
+                )}
+              </button>
             </ElmSld03>
           </div>
 

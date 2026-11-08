@@ -597,79 +597,77 @@ export const SCR_DUT_02_모아당번상세: React.FC<SCR_DUT_02_Props> = ({
 
       {/* 3. Tab Navigation Bar (Now with 5 tabs including MEMBERS wrapped in ElmSld03 Slide Drag Wheel) */}
       <div className="border-b border-slate-200 dark:border-zinc-800 pb-2">
-        <ElmSld03 showNavButtons={false} className="w-full">
-          <div className="flex items-center gap-1.5 whitespace-nowrap">
-            <button
-              type="button"
-              onClick={() => setActiveTab('EXECUTION')}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'EXECUTION'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>당번 수행 및 인증</span>
-            </button>
+        <ElmSld03 showNavButtons={false} className="w-full" innerClassName="items-center gap-1.5 pb-0.5 flex-nowrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('EXECUTION')}
+            className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'EXECUTION'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>당번 수행 및 인증</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('STATS')}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'STATS'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>실시간 통계 & 랭킹</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('STATS')}
+            className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'STATS'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>실시간 통계 & 랭킹</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('SUBSTITUTE')}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'SUBSTITUTE'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span>대신수행 & 상계정산</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('SUBSTITUTE')}
+            className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'SUBSTITUTE'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            <span>대신수행 & 상계정산</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('LOGS')}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'LOGS'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>실적·인증 이력</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-                {logs.filter((l) => l.duty_id === duty.duty_id).length}
-              </span>
-            </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('LOGS')}
+            className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'LOGS'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>실적·인증 이력</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+              {logs.filter((l) => l.duty_id === duty.duty_id).length}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('MEMBERS')}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'MEMBERS'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>구성원 정보 & 관리</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">
-                {duty.participants.length}
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('MEMBERS')}
+            className={`shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'MEMBERS'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>구성원 정보 & 관리</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">
+              {duty.participants.length}
+            </span>
+          </button>
         </ElmSld03>
       </div>
 

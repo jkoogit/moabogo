@@ -2259,9 +2259,9 @@ export const ElmHlp01: React.FC<{
               onClick={() => setIsOpen(false)}
             />
 
-            {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 드롭다운) */}
+            {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 플로팅 드롭다운) */}
             <div
-              className={`fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
+              className={`fixed inset-x-3 top-24 sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#1e2029] font-extrabold text-slate-900 dark:text-white">
@@ -2563,7 +2563,7 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
   onToggleCollapse,
   className = '',
 }) => {
-  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(true);
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
 
   const toggleCollapse = () => {
