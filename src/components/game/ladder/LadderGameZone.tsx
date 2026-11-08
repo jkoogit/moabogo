@@ -1015,46 +1015,13 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             : 'bg-white border-slate-200'
         }`}
       >
-        {/* 사다리 플레이존 타이틀 헤더 및 실시간 공유/참가 컨트롤 */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* 사다리 플레이존 타이틀 헤더 */}
+        <div className="w-full flex items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2 text-slate-900 dark:text-zinc-100">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
               <span>사다리 플레이존</span>
             </h3>
-
-            {isRoomJoined && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1 shadow-2xs">
-                <Users className="w-3 h-3" />
-                <span>{isRoomHost ? '호스트 방' : '참가게임'}</span>
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* 4.1 공유버튼 표시 */}
-            <button
-              type="button"
-              onClick={handleShareRoom}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-              title="게임 참여 링크 생성 및 복사"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>{isRoomJoined ? '초대링크 복사' : '게임 공유하기'}</span>
-            </button>
-
-            {/* 4.3 참가게임 상태 시 게임나가기 버튼으로 이탈 */}
-            {isRoomJoined && (
-              <button
-                type="button"
-                onClick={handleLeaveRoom}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                title="공유 게임에서 이탈하여 로컬 플레이존으로 복귀"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>게임 나가기</span>
-              </button>
-            )}
           </div>
         </div>
 
