@@ -2540,6 +2540,8 @@ export interface ElmTre02CategoryProps {
   totalCount?: number;
   className?: string;
   style?: React.CSSProperties;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   nodes?: never;
   selectedNodeId?: never;
   onSelectNode?: never;
@@ -2547,8 +2549,6 @@ export interface ElmTre02CategoryProps {
   onUpdateNode?: never;
   onDeleteNode?: never;
   onMoveNode?: never;
-  isCollapsed?: never;
-  onToggleCollapse?: never;
 }
 
 export type ElmTre02Props = ElmTre02AccountProps | ElmTre02CategoryProps;
@@ -2559,8 +2559,21 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
   onSelect,
   title = '카테고리 분류',
   totalCount,
+  isCollapsed: controlledCollapsed,
+  onToggleCollapse,
   className = '',
 }) => {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+
+  const toggleCollapse = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setInternalCollapsed((prev) => !prev);
+    }
+  };
+
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({
     'cat-clean': true,
     'cat-kitchen': true,
@@ -2698,68 +2711,97 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
 
   return (
     <div
-      className={`p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xs space-y-2.5 ${className}`}
+      className={`p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xs space-y-2.5 transition-all ${className}`}
     >
       <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
         <div className="flex items-center gap-1.5">
           <FolderTree className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <h3 className="text-xs font-bold text-slate-900 dark:text-zinc-100">{title}</h3>
+          {selectedIds.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+              {selectedIds.length}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          {selectedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onSelect([])}
-              className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
-            >
-              선택 해제 ({selectedIds.length})
-            </button>
-          )}
+          {/* 1.1 접기 / 펴기 토글 버튼 */}
           <button
             type="button"
-            onClick={() => setIsMultiMode(!isMultiMode)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
-              isMultiMode
-                ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
-            }`}
-            title="Ctrl/Cmd+클릭 또는 모바일 롱프레스로 다중 선택 지원"
+            onClick={toggleCollapse}
+            className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+            title={isCollapsed ? '카테고리 목록 펼치기' : '카테고리 목록 접기'}
           >
-            {isMultiMode ? '다중모드 ON' : '다중선택'}
+            <span>{isCollapsed ? '펴기' : '접기'}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                isCollapsed ? '-rotate-90 text-indigo-500' : ''
+              }`}
+            />
           </button>
+
+          {!isCollapsed && (
+            <>
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onSelect([])}
+                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                >
+                  선택 해제
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsMultiMode(!isMultiMode)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                  isMultiMode
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
+                }`}
+                title="Ctrl/Cmd+클릭 또는 모바일 롱프레스로 다중 선택 지원"
+              >
+                {isMultiMode ? '다중 ON' : '다중'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* 전체 당번 보기 */}
-      <div
-        onClick={(e) => handleNodeClick(e, 'ALL')}
-        className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer text-xs font-semibold transition-all min-h-[38px] ${
-          isAllSelected
-            ? 'bg-indigo-600 text-white shadow-xs'
-            : 'text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm">🌟</span>
-          <span>전체 카테고리</span>
-        </div>
-        {totalCount !== undefined && (
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+      {/* 접힘 상태 아닐 때만 카테고리 본문 표시 */}
+      {!isCollapsed && (
+        <div className="space-y-2.5 animate-in fade-in duration-150">
+          {/* 전체 당번 보기 */}
+          <div
+            onClick={(e) => handleNodeClick(e, 'ALL')}
+            className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer text-xs font-semibold transition-all min-h-[38px] ${
               isAllSelected
-                ? 'bg-white/20 text-white'
-                : 'bg-slate-200/70 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
             }`}
           >
-            {totalCount}
-          </span>
-        )}
-      </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🌟</span>
+              <span>전체 카테고리</span>
+            </div>
+            {totalCount !== undefined && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isAllSelected
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-200/70 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                }`}
+              >
+                {totalCount}
+              </span>
+            )}
+          </div>
 
-      {/* 트리 목록 */}
-      <div className="space-y-0.5">
-        {data.map((node) => renderNode(node, 0))}
-      </div>
+          {/* 트리 목록 */}
+          <div className="space-y-0.5">
+            {data.map((node) => renderNode(node, 0))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

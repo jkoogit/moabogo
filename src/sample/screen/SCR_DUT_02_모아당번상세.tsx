@@ -6,6 +6,8 @@ import {
   ElmBsh01,
   ElmTxt01,
   ElmToast01,
+  ElmHlp01,
+  ElmSld03,
 } from '../elements/Tokens';
 import {
   Sparkles,
@@ -593,78 +595,82 @@ export const SCR_DUT_02_모아당번상세: React.FC<SCR_DUT_02_Props> = ({
         </div>
       </section>
 
-      {/* 3. Tab Navigation Bar (Now with 5 tabs including MEMBERS) */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-zinc-800 pb-2 overflow-x-auto [scrollbar-width:none]">
-        <button
-          type="button"
-          onClick={() => setActiveTab('EXECUTION')}
-          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'EXECUTION'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          <span>당번 수행 및 인증</span>
-        </button>
+      {/* 3. Tab Navigation Bar (Now with 5 tabs including MEMBERS wrapped in ElmSld03 Slide Drag Wheel) */}
+      <div className="border-b border-slate-200 dark:border-zinc-800 pb-2">
+        <ElmSld03 showNavButtons={false} className="w-full">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <button
+              type="button"
+              onClick={() => setActiveTab('EXECUTION')}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'EXECUTION'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>당번 수행 및 인증</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('STATS')}
-          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'STATS'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          <span>실시간 통계 & 랭킹</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('STATS')}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'STATS'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>실시간 통계 & 랭킹</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('SUBSTITUTE')}
-          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'SUBSTITUTE'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <ArrowRightLeft className="w-3.5 h-3.5" />
-          <span>대신수행 & 상계정산</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('SUBSTITUTE')}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'SUBSTITUTE'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span>대신수행 & 상계정산</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('LOGS')}
-          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'LOGS'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>실적·인증 이력</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-            {logs.filter((l) => l.duty_id === duty.duty_id).length}
-          </span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('LOGS')}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'LOGS'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>실적·인증 이력</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                {logs.filter((l) => l.duty_id === duty.duty_id).length}
+              </span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('MEMBERS')}
-          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'MEMBERS'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>구성원 정보 & 관리</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">
-            {duty.participants.length}
-          </span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('MEMBERS')}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'MEMBERS'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>구성원 정보 & 관리</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">
+                {duty.participants.length}
+              </span>
+            </button>
+          </div>
+        </ElmSld03>
       </div>
 
       {/* 4. Tab 1: Execution & Proof View */}
@@ -1174,10 +1180,10 @@ export const SCR_DUT_02_모아당번상세: React.FC<SCR_DUT_02_Props> = ({
       {/* 8. Tab 5: 구성원 정보 & 관리 (Item 15 & Item 14.2 Lifecycle Support) */}
       {activeTab === 'MEMBERS' && (
         <div className="space-y-4">
-          {/* Member Subtabs & Immutability Notice */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-3">
+          {/* Member Subtabs & Immutability Notice (Item 3: Replaced with ElmHlp01 popup) */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 shadow-2xs">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setMemberSubTab('ASSIGNEES')}
@@ -1200,24 +1206,44 @@ export const SCR_DUT_02_모아당번상세: React.FC<SCR_DUT_02_Props> = ({
                 >
                   <span>관람·응원단 ({duty.participants.filter((p) => p.role === 'VIEWER').length}명)</span>
                 </button>
+
+                {/* 3. 구성원 정보 & 관리 > 운영 안내 문구 ? 아이콘 레이어팝업으로 대체 (ELM-HLP-01) */}
+                <ElmHlp01
+                  title="당번 구성원 운영 및 불변 스냅샷 안내"
+                  badge="운영 원칙"
+                  tooltip="구성원 운영 안내 보기"
+                  align="left"
+                  width="sm:w-88"
+                >
+                  <div className="space-y-2.5 text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
+                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-zinc-100 border-b border-slate-100 dark:border-zinc-800 pb-1.5">
+                      <span className="text-sm">🔒</span>
+                      <span>불변 스냅샷(Immutable Snapshot) 원칙</span>
+                    </div>
+                    <p>
+                      이미 완료 및 정산된 과거 실적과 회계 이력은 <strong>불변 스냅샷</strong>으로 안전하게 보존되며 소급 변경되지 않습니다.
+                    </p>
+                    <div className="p-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-indigo-900 dark:text-indigo-300 space-y-1">
+                      <div className="font-bold flex items-center gap-1">
+                        <span>✨</span>
+                        <span>미래 큐 자동 반영</span>
+                      </div>
+                      <p>
+                        진행 도중 신규 참여자가 수용되거나 탈퇴·해제되는 경우, <strong>향후(미래) 회차의 배정 순환 큐</strong>에만 즉시 반영되어 운영 연속성을 유지합니다.
+                      </p>
+                    </div>
+                  </div>
+                </ElmHlp01>
               </div>
 
               <button
                 type="button"
                 onClick={() => setInviteLinkModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>새 구성원 초대</span>
               </button>
-            </div>
-
-            {/* Immutability Banner */}
-            <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-slate-600 dark:text-zinc-400 flex items-center gap-2">
-              <Info className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span>
-                <strong>운영 안내</strong>: 이미 완료 및 정산된 과거 실적은 불변 스냅샷으로 안전하게 보존되며, 신규 참여자 수용 또는 해제 시 향후(미래) 회차의 배정 순환 큐에만 즉시 반영됩니다.
-              </span>
             </div>
           </div>
 
