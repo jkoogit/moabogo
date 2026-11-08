@@ -11,7 +11,18 @@ import {
   Minus,
   Plus,
   Trophy,
+  Check,
+  Share2,
+  LogOut,
+  Users,
 } from 'lucide-react';
+import {
+  createLadderSyncChannel,
+  LadderChannelHandle,
+  LadderSyncMessage,
+  saveRoomSnapshot,
+  loadRoomSnapshot,
+} from './ladderSyncChannel';
 import { ElmRng01 } from '../../../sample/elements/Tokens';
 import { Participant, PRESET_CHARACTERS, loadUserGoalPresets } from '../types';
 import {
@@ -94,6 +105,25 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [storeModalMemberId, setStoreModalMemberId] = useState<string>('');
   const [storeModalMode, setStoreModalMode] = useState<'STORE_ONLY' | 'MEMBER_MENU'>('STORE_ONLY');
 
+  // 실시간 공유 방 상태 및 동기화 채널 핸들
+  const [roomId, setRoomId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('room');
+    }
+    return null;
+  });
+  const [isRoomHost, setIsRoomHost] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('host') === '1';
+    }
+    return false;
+  });
+  const channelRef = useRef<LadderChannelHandle | null>(null);
+  const isRoomJoined = !!roomId;
+  const handlePlayLadderRef = useRef<(skipTrace?: boolean, broadcast?: boolean) => void>(() => {});
+
   const ladderSliderRef = useRef<HTMLDivElement>(null);
   const stepIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -132,6 +162,128 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setArrivalPopup(null);
     setIsResultModalOpen(false);
   }, [members.length, winnerCount, membersWeightsKey]);
+
+  // 실시간 방 채널 연결 및 메시지 리스너 (BroadcastChannel + LocalStorage Dual Sync)
+  useEffect(() => {
+    if (!roomId) {
+      if (channelRef.current) {
+        channelRef.current.close();
+        channelRef.current = null;
+      }
+      return;
+    }
+
+    const channel = createLadderSyncChannel(roomId, currentTabId, (msg: LadderSyncMessage) => {
+      switch (msg.type) {
+        case 'SYNC_REQUEST':
+          if (isRoomHost) {
+            channel.send({
+              type: 'SYNC_STATE',
+              state: {
+                roomId,
+                hostTabId: currentTabId,
+                members,
+                ladderGoals,
+                ladderSeed,
+                winnerCount,
+                useLadderWeight,
+                ladderSpeed,
+                selectedStore,
+                ladderResult,
+                timestamp: Date.now(),
+              },
+            });
+          }
+          break;
+
+        case 'SYNC_STATE':
+          if (!isRoomHost) {
+            setMembers(msg.state.members);
+            setLadderGoals(msg.state.ladderGoals);
+            setLadderSeed(msg.state.ladderSeed);
+            setWinnerCount(msg.state.winnerCount);
+            setUseLadderWeight(msg.state.useLadderWeight);
+            setLadderSpeed(msg.state.ladderSpeed);
+            setSelectedStore(msg.state.selectedStore);
+            if (msg.state.ladderResult) {
+              setLadderResult(msg.state.ladderResult);
+            }
+          }
+          break;
+
+        case 'CLAIM_SEAT':
+          setMembers((prev) =>
+            prev.map((m) => {
+              if (m.claimedBy === msg.tabId && m.id !== msg.memberId) {
+                return { ...m, claimedBy: undefined };
+              }
+              if (m.id === msg.memberId) {
+                const isAlready = m.claimedBy === msg.tabId;
+                return { ...m, claimedBy: isAlready ? undefined : msg.tabId };
+              }
+              return m;
+            })
+          );
+          break;
+
+        case 'UPDATE_MEMBER_NAME':
+          setMembers((prev) =>
+            prev.map((m) => (m.id === msg.memberId ? { ...m, name: msg.name } : m))
+          );
+          break;
+
+        case 'SHUFFLE_RUNGS':
+          setLadderSeed(msg.seed);
+          showToast('🎲 사다리 가로줄이 동기화되었습니다.', 'info');
+          break;
+
+        case 'SHUFFLE_GOALS':
+          setLadderGoals(msg.goals);
+          showToast('✨ 사다리 목표가 동기화되었습니다.', 'info');
+          break;
+
+        case 'PLAY_LADDER':
+          if (msg.speed) {
+            setLadderSpeed(msg.speed);
+          }
+          handlePlayLadderRef.current(msg.skipTrace, false);
+          break;
+
+        case 'RESET_GAME':
+          setLadderResult(null);
+          setRevealedGoals({});
+          setRevealedGoalCols({});
+          setArrivalPopup(null);
+          setIsResultModalOpen(false);
+          break;
+
+        case 'LEAVE_ROOM':
+          showToast('참여자가 게임에서 퇴장했습니다.', 'info');
+          break;
+      }
+    });
+
+    channelRef.current = channel;
+
+    if (!isRoomHost) {
+      const snapshot = loadRoomSnapshot(roomId);
+      if (snapshot) {
+        setMembers(snapshot.members);
+        setLadderGoals(snapshot.ladderGoals);
+        setLadderSeed(snapshot.ladderSeed);
+        setWinnerCount(snapshot.winnerCount);
+        setUseLadderWeight(snapshot.useLadderWeight);
+        setLadderSpeed(snapshot.ladderSpeed);
+        setSelectedStore(snapshot.selectedStore);
+      }
+      channel.send({ type: 'SYNC_REQUEST', senderTabId: currentTabId });
+    }
+
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, [roomId, isRoomHost, currentTabId, members, ladderGoals, ladderSeed, winnerCount, useLadderWeight, ladderSpeed, selectedStore, ladderResult, setLadderGoals, setMembers, setSelectedStore, setWinnerCount, showToast]);
 
   // 매장 변경 또는 연동 해제 시 참가자 메뉴 선택 및 아바타 기본값 복원, 게임결과 초기화
   const prevStoreIdRef = useRef<string | undefined>(selectedStore?.id);
@@ -230,21 +382,29 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   const handleReshuffleRungs = () => {
     if (isLadderTracing) return;
-    setLadderSeed((prev) => prev + 1);
+    const nextSeed = ladderSeed + 1;
+    setLadderSeed(nextSeed);
     setLadderResult(null);
     setRevealedGoals({});
     setRevealedGoalCols({});
     setArrivalPopup(null);
+    if (channelRef.current) {
+      channelRef.current.send({ type: 'SHUFFLE_RUNGS', seed: nextSeed });
+    }
     showToast('🎲 사다리 가로줄이 무작위로 재배치되었습니다!', 'info');
   };
 
   const handleShuffleGoals = () => {
     if (isLadderTracing) return;
-    setLadderGoals((prev) => [...prev].sort(() => Math.random() - 0.5));
+    const shuffled = [...ladderGoals].sort(() => Math.random() - 0.5);
+    setLadderGoals(shuffled);
     setLadderResult(null);
     setRevealedGoals({});
     setRevealedGoalCols({});
     setArrivalPopup(null);
+    if (channelRef.current) {
+      channelRef.current.send({ type: 'SHUFFLE_GOALS', goals: shuffled });
+    }
     showToast('🎯 목표 위치가 무작위로 재배치되었습니다!', 'info');
   };
 
@@ -307,7 +467,15 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     }
   };
 
-  const handlePlayLadder = (skipTrace = false) => {
+  const handlePlayLadder = (skipTrace = false, broadcast = true) => {
+    if (broadcast && channelRef.current) {
+      channelRef.current.send({
+        type: 'PLAY_LADDER',
+        skipTrace,
+        speed: ladderSpeed,
+      });
+    }
+
     if (skipTrace) {
       handleSkipToResult();
       return;
@@ -405,6 +573,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
     animateMember(0);
   };
+  handlePlayLadderRef.current = handlePlayLadder;
 
   const handleProceedAfterArrival = () => {
     if (!arrivalPopup) return;
@@ -529,17 +698,104 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     showToast(`'${item.name}' 메뉴가 선택되어 참가자 아이콘이 교체되었습니다.`);
   };
 
-  const handleToggleClaimSeat = (memberId: string) => {
+  // 참가자 이름 직접 수정 핸들러
+  const handleUpdateMemberName = (id: string, newName: string) => {
     setMembers((prev) =>
-      prev.map((m) => {
-        if (m.id !== memberId) return m;
-        const isMySeat = m.claimedBy === currentTabId;
-        return {
-          ...m,
-          claimedBy: isMySeat ? undefined : currentTabId,
-        };
-      })
+      prev.map((m) => (m.id === id ? { ...m, name: newName } : m))
     );
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'UPDATE_MEMBER_NAME',
+        memberId: id,
+        name: newName,
+      });
+    }
+  };
+
+  // 내 자리 찜하기 토글 (단일 선택 및 이전 선택 초기화 보장)
+  const handleToggleClaimSeat = (memberId: string) => {
+    setMembers((prev) => {
+      const targetMember = prev.find((m) => m.id === memberId);
+      const isAlreadyClaimedByMe = targetMember?.claimedBy === currentTabId;
+
+      return prev.map((m) => {
+        // 기존에 내가 점유한 다른 자리는 모두 해제 (단일 선택)
+        if (m.claimedBy === currentTabId && m.id !== memberId) {
+          return { ...m, claimedBy: undefined };
+        }
+        if (m.id === memberId) {
+          return {
+            ...m,
+            claimedBy: isAlreadyClaimedByMe ? undefined : currentTabId,
+          };
+        }
+        return m;
+      });
+    });
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'CLAIM_SEAT',
+        memberId,
+        tabId: currentTabId,
+      });
+    }
+  };
+
+  // 게임 공유하기 링크 생성 및 클립보드 복사
+  const handleShareRoom = () => {
+    let targetRoomId = roomId;
+    if (!targetRoomId) {
+      targetRoomId = 'room_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+      setRoomId(targetRoomId);
+      setIsRoomHost(true);
+
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', targetRoomId);
+      url.searchParams.set('host', '1');
+      window.history.replaceState({}, '', url.toString());
+
+      saveRoomSnapshot(targetRoomId, {
+        roomId: targetRoomId,
+        hostTabId: currentTabId,
+        members,
+        ladderGoals,
+        ladderSeed,
+        winnerCount,
+        useLadderWeight,
+        ladderSpeed,
+        selectedStore,
+        ladderResult,
+        timestamp: Date.now(),
+      });
+    }
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoomId}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('🔗 사다리 실시간 공유 링크가 복사되었습니다! 새 창/탭에 붙여넣어 함께 참여하세요.');
+      }).catch(() => {
+        showToast(`공유 링크: ${shareUrl}`);
+      });
+    } else {
+      showToast(`공유 링크: ${shareUrl}`);
+    }
+  };
+
+  // 참가게임 이탈 핸들러
+  const handleLeaveRoom = () => {
+    if (roomId && channelRef.current) {
+      channelRef.current.send({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      channelRef.current.close();
+      channelRef.current = null;
+    }
+    setRoomId(null);
+    setIsRoomHost(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    url.searchParams.delete('host');
+    window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    showToast('공유 게임에서 이탈하여 로컬 플레이존으로 복귀했습니다.');
   };
 
   const handleCopyText = () => {
@@ -751,7 +1007,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
       {/* 사다리 메인 뷰어 존 */}
       <div
-        className={`p-6 rounded-2xl border flex flex-col items-center justify-center gap-5 ${
+        className={`p-4 sm:p-6 rounded-2xl border flex flex-col items-center justify-center gap-5 ${
           resolvedTheme === 'dawn'
             ? 'bg-white/80 border-[#bfdbfe]'
             : isDark
@@ -759,6 +1015,16 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             : 'bg-white border-slate-200'
         }`}
       >
+        {/* 사다리 플레이존 타이틀 헤더 */}
+        <div className="w-full flex items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2 text-slate-900 dark:text-zinc-100">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+              <span>사다리 플레이존</span>
+            </h3>
+          </div>
+        </div>
+
         {/* 참가자 헤더 칩 (상단 출발점) - 슬라이드드래그휠 복원 */}
         <div
           ref={ladderSliderRef}
@@ -784,18 +1050,46 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                     isOdd ? 'pt-7' : 'pt-0'
                   }`}
                 >
+                  {/* 2. 아이콘 상단 참가자 이름 직접 수정 입력필드 */}
+                  <div className="w-full mb-1">
+                    <input
+                      type="text"
+                      value={m.name}
+                      onChange={(e) => handleUpdateMemberName(m.id, e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      disabled={isLadderTracing}
+                      maxLength={10}
+                      className="w-full h-7 px-1 text-[11px] font-bold text-center rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-2xs truncate select-text disabled:opacity-60"
+                      placeholder="이름"
+                      title="참가자 이름 수정 (클릭 시 전체선택)"
+                    />
+                  </div>
+
+                  {/* 3. 자리 찜하기 및 아바타 아이콘 영역 (높이 동일하게 고정하여 단차 0%) */}
                   <button
                     type="button"
                     onClick={() => handleToggleClaimSeat(m.id)}
-                    className={`w-full p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    className={`relative w-full p-2 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
                       isClaimedByMe
                         ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-xs ring-2 ring-indigo-400'
                         : isClaimedByOther
                         ? 'border-slate-300 dark:border-zinc-700 bg-slate-100/60 dark:bg-zinc-800/40 opacity-75'
                         : 'border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:border-indigo-300'
                     }`}
-                    title={isClaimedByMe ? '내 자리 (클릭 시 점유 해제)' : '자리 찜하기'}
+                    title={isClaimedByMe ? '내 자리 (클릭 시 점유 해제)' : '내 자리로 찜하기'}
                   >
+                    {/* 내자리 선택 시 우상단 체크마크 배지 (단차 발생 방지) */}
+                    {isClaimedByMe && (
+                      <span
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-800 z-10 animate-in zoom-in-75"
+                        title="내 자리 선택됨"
+                      >
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </span>
+                    )}
+
                     <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shrink-0 shadow-2xs">
                       {m.selectedMenu?.imageUrl ? (
                         <img
@@ -817,14 +1111,6 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                         <span className="text-xl">{m.avatar}</span>
                       )}
                     </div>
-                    <span className="text-[11px] font-bold truncate max-w-full text-center">
-                      {m.name}
-                    </span>
-                    {isClaimedByMe && (
-                      <span className="text-[9px] font-black px-1 rounded bg-indigo-600 text-white">
-                        내 자리
-                      </span>
-                    )}
                   </button>
 
                   {/* 사다리 가중치 조절 컨트롤 */}
@@ -894,30 +1180,39 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
         {/* 메인 실행 버튼 바 (모바일 버튼 텍스트 줄바꿈 방지 및 요소 단위 줄바꿈) */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 w-full max-w-lg">
-          <button
-            type="button"
-            onClick={() => handlePlayLadder(false)}
-            disabled={isLadderTracing}
-            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer whitespace-nowrap min-w-0"
-          >
-            <Play className="w-4 h-4 fill-current shrink-0" />
-            <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : '사다리 타기'}</span>
-          </button>
+          {isRoomJoined && !isRoomHost ? (
+            <div className="flex-1 py-3 px-4 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs text-center flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+              <span>{isLadderTracing ? '🏁 초대자가 사다리를 시작하여 함께 달리는 중...' : '🎮 초대자가 게임을 시작하면 화면이 동시에 시작됩니다'}</span>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => handlePlayLadder(false, true)}
+                disabled={isLadderTracing}
+                className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer whitespace-nowrap min-w-0"
+              >
+                <Play className="w-4 h-4 fill-current shrink-0" />
+                <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : (isRoomJoined ? '전체 동시 사다리 타기' : '사다리 타기')}</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => handlePlayLadder(true)}
-            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
-              resolvedTheme === 'dawn'
-                ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
-                : isDark
-                ? 'bg-[#27272a] border-[#3f3f46] text-slate-200 hover:bg-[#323238]'
-                : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <FastForward className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">즉시 결과</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => handlePlayLadder(true, true)}
+                className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
+                    : isDark
+                    ? 'bg-[#27272a] border-[#3f3f46] text-slate-200 hover:bg-[#323238]'
+                    : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <FastForward className="w-3.5 h-3.5 shrink-0" />
+                <span className="whitespace-nowrap">{isRoomJoined ? '전체 즉시 결과' : '즉시 결과'}</span>
+              </button>
+            </>
+          )}
 
           {ladderResult && (
             <button

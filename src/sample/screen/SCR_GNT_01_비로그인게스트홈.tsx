@@ -33,8 +33,14 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // 1. 테마 훅 (라이트, 다크, 여명 블루 식별)
   const { resolvedTheme, isDark } = useTheme();
 
-  // 게임 탭 선택 상태 ('SPLIT' | 'LADDER' | 'ROULETTE')
-  const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>('SPLIT');
+  // 게임 탭 선택 상태 ('SPLIT' | 'LADDER' | 'ROULETTE') - URL에 room 파라미터 인입 시 사다리탭 자동 전환
+  const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('room')) return 'LADDER';
+    }
+    return 'SPLIT';
+  });
 
   // 클라이언트 탭/점유자 고유 식별자
   const [currentTabId] = useState<string>(() => 'tab_' + Math.random().toString(36).slice(2, 9));

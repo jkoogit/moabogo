@@ -121,6 +121,71 @@ export const ElmInp01: React.FC<{
   );
 
 /* =========================================================================
+   ELM-TXT-01 : 다줄 텍스트 입력필드 (Textarea + 우상단 클리어 버튼 + 자동 줄바꿈)
+   - 모아당번 상세 설명, 완수 기준, 가이드 등 긴 텍스트 입력 전용 토큰
+   ========================================================================= */
+export const ElmTxt01: React.FC<{
+  label?: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  rows?: number;
+  disabled?: boolean;
+  className?: string;
+  helperText?: string;
+  maxLength?: number;
+}> = ({
+  label,
+  value,
+  onChange,
+  placeholder = '',
+  rows = 4,
+  disabled = false,
+  className = '',
+  helperText,
+  maxLength,
+}) => (
+  <div className={`w-full ${className}`}>
+    {label && (
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 leading-none">
+          {label}
+        </label>
+        {maxLength && (
+          <span className="text-[11px] text-slate-400">
+            {value.length}/{maxLength}
+          </span>
+        )}
+      </div>
+    )}
+    <div className="relative">
+      <textarea
+        value={value}
+        rows={rows}
+        disabled={disabled}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full p-3 pr-8 text-sm text-slate-900 dark:text-zinc-100 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-400 disabled:bg-slate-100 dark:disabled:bg-zinc-800 disabled:cursor-not-allowed leading-relaxed resize-y min-h-[80px]"
+      />
+      {value && !disabled && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="absolute right-2.5 top-2.5 w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          title="입력 내용 지우기"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+    {helperText && (
+      <p className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">{helperText}</p>
+    )}
+  </div>
+);
+
+/* =========================================================================
    ELM-INP-04 : 검색 입력필드 (Search 아이콘 + 상시 X 클리어 버튼)
    ========================================================================= */
 export const ElmInp04: React.FC<{
@@ -1859,21 +1924,30 @@ export const ElmBsh01: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  badge?: string;
+  maxWidth?: string;
   children: React.ReactNode;
-}> = ({ isOpen, onClose, title, children }) => {
+}> = ({ isOpen, onClose, title, badge, maxWidth = 'max-w-lg', children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs">
-      <div className="w-full max-w-lg bg-white rounded-t-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs">
+      <div className={`w-full ${maxWidth} bg-white dark:bg-zinc-900 rounded-t-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 border-t border-slate-200 dark:border-zinc-800`}>
         {/* Drag handle */}
-        <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4 cursor-pointer" onClick={onClose} />
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-900 leading-none">{title}</h3>
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mb-4 cursor-pointer hover:bg-slate-400 transition-colors" onClick={onClose} />
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 leading-none">{title}</h3>
+            {badge && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                {badge}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -2185,9 +2259,9 @@ export const ElmHlp01: React.FC<{
               onClick={() => setIsOpen(false)}
             />
 
-            {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 드롭다운) */}
+            {/* 반응형 팝업 레이어 (모바일 inset-x-3 고정 / 데스크톱 플로팅 드롭다운) */}
             <div
-              className={`fixed inset-x-3 top-24 sm:static sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
+              className={`fixed inset-x-3 top-24 sm:absolute sm:inset-auto ${alignClass} sm:top-full sm:mt-1.5 z-50 w-auto ${width} max-w-[calc(100vw-1.5rem)] p-4 sm:p-3.5 rounded-2xl bg-white dark:bg-[#111318] border border-slate-200 dark:border-[#1e2029] shadow-2xl text-xs text-slate-600 dark:text-zinc-300 animate-in fade-in zoom-in-95 space-y-2.5`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#1e2029] font-extrabold text-slate-900 dark:text-white">
@@ -2431,7 +2505,15 @@ export interface TreeNodeItem {
   count?: number; // 소속 컨텐츠(계좌) 수
 }
 
-export interface ElmTre02Props {
+export interface CategoryTreeNode {
+  id: string;
+  name: string;
+  icon?: string;
+  count?: number;
+  children?: CategoryTreeNode[];
+}
+
+export interface ElmTre02AccountProps {
   nodes: TreeNodeItem[];
   selectedNodeId: string;
   onSelectNode: (nodeId: string) => void;
@@ -2443,9 +2525,288 @@ export interface ElmTre02Props {
   onToggleCollapse?: () => void;
   className?: string;
   style?: React.CSSProperties;
+  data?: never;
+  selectedIds?: never;
+  onSelect?: never;
+  title?: never;
+  totalCount?: never;
 }
 
-export const ElmTre02: React.FC<ElmTre02Props> = ({
+export interface ElmTre02CategoryProps {
+  data: CategoryTreeNode[];
+  selectedIds: string[];
+  onSelect: (selectedIds: string[], triggeredId?: string) => void;
+  title?: string;
+  totalCount?: number;
+  className?: string;
+  style?: React.CSSProperties;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  nodes?: never;
+  selectedNodeId?: never;
+  onSelectNode?: never;
+  onAddNode?: never;
+  onUpdateNode?: never;
+  onDeleteNode?: never;
+  onMoveNode?: never;
+}
+
+export type ElmTre02Props = ElmTre02AccountProps | ElmTre02CategoryProps;
+
+const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
+  data,
+  selectedIds,
+  onSelect,
+  title = '카테고리 분류',
+  totalCount,
+  isCollapsed: controlledCollapsed,
+  onToggleCollapse,
+  className = '',
+}) => {
+  const [internalCollapsed, setInternalCollapsed] = useState(true);
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+
+  const toggleCollapse = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setInternalCollapsed((prev) => !prev);
+    }
+  };
+
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({
+    'cat-clean': true,
+    'cat-kitchen': true,
+    'cat-recycle': true,
+    'cat-finance': true,
+    'cat-life': true,
+  });
+  const [isMultiMode, setIsMultiMode] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressTriggered = useRef(false);
+
+  const toggleExpand = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleNodeClick = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    const isMultiKey = e.ctrlKey || e.metaKey || isMultiMode;
+
+    if (nodeId === 'ALL') {
+      onSelect([], 'ALL');
+      return;
+    }
+
+    if (isMultiKey) {
+      if (selectedIds.includes(nodeId)) {
+        const next = selectedIds.filter((id) => id !== nodeId);
+        onSelect(next, nodeId);
+      } else {
+        const next = [...selectedIds, nodeId];
+        onSelect(next, nodeId);
+      }
+    } else {
+      if (selectedIds.length === 1 && selectedIds[0] === nodeId) {
+        onSelect([], nodeId);
+      } else {
+        onSelect([nodeId], nodeId);
+      }
+    }
+  };
+
+  const handleTouchStart = (nodeId: string) => {
+    isLongPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      isLongPressTriggered.current = true;
+      setIsMultiMode(true);
+      if (selectedIds.includes(nodeId)) {
+        onSelect(selectedIds.filter((id) => id !== nodeId), nodeId);
+      } else {
+        onSelect([...selectedIds, nodeId], nodeId);
+      }
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(50);
+        } catch {}
+      }
+    }, 480);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const renderNode = (node: CategoryTreeNode, level = 0) => {
+    const isSelected = selectedIds.includes(node.id);
+    const hasChildren = node.children && node.children.length > 0;
+    const isExpanded = expandedIds[node.id] ?? true;
+
+    return (
+      <div key={node.id} className="select-none">
+        <div
+          onClick={(e) => handleNodeClick(e, node.id)}
+          onTouchStart={() => handleTouchStart(node.id)}
+          onTouchEnd={handleTouchEnd}
+          style={{ paddingLeft: `${Math.max(8, level * 16 + 8)}px` }}
+          className={`group flex items-center justify-between py-2 pr-2.5 rounded-xl cursor-pointer text-xs font-semibold transition-all min-h-[38px] ${
+            isSelected
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
+          }`}
+        >
+          <div className="flex items-center gap-2 truncate">
+            {hasChildren ? (
+              <button
+                type="button"
+                onClick={(e) => toggleExpand(e, node.id)}
+                className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
+                  isSelected ? 'text-white' : 'text-slate-400'
+                }`}
+              >
+                <ChevronRight
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    isExpanded ? 'rotate-90' : ''
+                  }`}
+                />
+              </button>
+            ) : (
+              <span className="w-3.5" />
+            )}
+
+            <span className="text-sm shrink-0">{node.icon || '📌'}</span>
+            <span className="truncate">{node.name}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 ml-1">
+            {node.count !== undefined && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isSelected
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-200/70 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                }`}
+              >
+                {node.count}
+              </span>
+            )}
+            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+          </div>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="space-y-0.5 mt-0.5">
+            {node.children!.map((child) => renderNode(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const isAllSelected = selectedIds.length === 0;
+
+  return (
+    <div
+      className={`p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xs space-y-2.5 transition-all ${className}`}
+    >
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
+        <div className="flex items-center gap-1.5">
+          <FolderTree className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-xs font-bold text-slate-900 dark:text-zinc-100">{title}</h3>
+          {selectedIds.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+              {selectedIds.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {/* 1.1 접기 / 펴기 토글 버튼 */}
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+            title={isCollapsed ? '카테고리 목록 펼치기' : '카테고리 목록 접기'}
+          >
+            <span>{isCollapsed ? '펴기' : '접기'}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                isCollapsed ? '-rotate-90 text-indigo-500' : ''
+              }`}
+            />
+          </button>
+
+          {!isCollapsed && (
+            <>
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onSelect([])}
+                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                >
+                  선택 해제
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsMultiMode(!isMultiMode)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                  isMultiMode
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300'
+                }`}
+                title="Ctrl/Cmd+클릭 또는 모바일 롱프레스로 다중 선택 지원"
+              >
+                {isMultiMode ? '다중 ON' : '다중'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 접힘 상태 아닐 때만 카테고리 본문 표시 */}
+      {!isCollapsed && (
+        <div className="space-y-2.5 animate-in fade-in duration-150">
+          {/* 전체 당번 보기 */}
+          <div
+            onClick={(e) => handleNodeClick(e, 'ALL')}
+            className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer text-xs font-semibold transition-all min-h-[38px] ${
+              isAllSelected
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🌟</span>
+              <span>전체 카테고리</span>
+            </div>
+            {totalCount !== undefined && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isAllSelected
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-200/70 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                }`}
+              >
+                {totalCount}
+              </span>
+            )}
+          </div>
+
+          {/* 트리 목록 */}
+          <div className="space-y-0.5">
+            {data.map((node) => renderNode(node, 0))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ElmTre02AccountView: React.FC<ElmTre02AccountProps> = ({
   nodes,
   selectedNodeId,
   onSelectNode,
@@ -3006,4 +3367,11 @@ export const ElmTre02: React.FC<ElmTre02Props> = ({
       />
     </aside>
   );
+};
+
+export const ElmTre02: React.FC<ElmTre02Props> = (props) => {
+  if ('data' in props && props.data) {
+    return <ElmTre02CategoryView {...(props as ElmTre02CategoryProps)} />;
+  }
+  return <ElmTre02AccountView {...(props as ElmTre02AccountProps)} />;
 };
