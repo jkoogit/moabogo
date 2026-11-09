@@ -968,6 +968,254 @@ async function startServer() {
   });
 
   // -------------------------------------------------------------
+  // 9. Real-time Game Rooms & Cross-Device SSE Relay
+  // (Supports: Ladder 'LAD-', Roulette 'ROU-', Settlement 'SET-')
+  // -------------------------------------------------------------
+  interface GameRoomState {
+    roomId: string;
+    gameType: 'LADDER' | 'ROULETTE' | 'SETTLEMENT';
+    hostTabId: string;
+    hostName: string;
+    data: any; // LadderSyncState or RouletteSyncState
+    isClosed?: boolean; // 게임 종료 여부 (신규 유입 차단, 기존 최종 결과만 표시)
+    closedAt?: number;
+    finalResult?: any;
+    clientResponses: Set<express.Response>;
+    lastActive: number;
+    createdAt: number;
+  }
+
+  const GAME_ROOMS = new Map<string, GameRoomState>();
+
+  // Background cleanup for stale rooms (TTL 2 hours)
+  setInterval(() => {
+    const now = Date.now();
+    for (const [roomId, room] of GAME_ROOMS.entries()) {
+      if (now - room.lastActive > 2 * 60 * 60 * 1000) {
+        // Close connected client SSE streams
+        for (const clientRes of room.clientResponses) {
+          try {
+            clientRes.end();
+          } catch (e) {
+            // ignore
+          }
+        }
+        GAME_ROOMS.delete(roomId);
+      }
+    }
+  }, 10 * 60 * 1000);
+
+  // 9.1 Create or Update Game Room
+  app.post('/api/v1/games/rooms', (req, res) => {
+    const { roomId, gameType = 'LADDER', hostTabId, hostName = '호스트', data } = req.body;
+    if (!roomId) {
+      return res.status(400).json({ error: '방 식별자(roomId)가 필요합니다.' });
+    }
+
+    let room = GAME_ROOMS.get(roomId);
+    if (!room) {
+      room = {
+        roomId,
+        gameType,
+        hostTabId: hostTabId || 'host',
+        hostName,
+        data: data || {},
+        isClosed: false,
+        clientResponses: new Set(),
+        lastActive: Date.now(),
+        createdAt: Date.now(),
+      };
+      GAME_ROOMS.set(roomId, room);
+    } else {
+      room.lastActive = Date.now();
+      if (data && !room.isClosed) {
+        room.data = { ...room.data, ...data };
+      }
+    }
+
+    res.json({
+      success: true,
+      roomId: room.roomId,
+      gameType: room.gameType,
+      isClosed: Boolean(room.isClosed),
+      finalResult: room.finalResult,
+      connectedClients: room.clientResponses.size,
+      data: room.data,
+    });
+  });
+
+  // 9.2 Get Room State
+  app.get('/api/v1/games/rooms/:roomId', (req, res) => {
+    const { roomId } = req.params;
+    const room = GAME_ROOMS.get(roomId);
+    if (!room) {
+      return res.status(404).json({ error: '게임 방을 찾을 수 없습니다.' });
+    }
+    room.lastActive = Date.now();
+    res.json({
+      roomId: room.roomId,
+      gameType: room.gameType,
+      hostTabId: room.hostTabId,
+      connectedClients: room.clientResponses.size,
+      data: room.data,
+    });
+  });
+
+  // 9.3 Server-Sent Events (SSE) Stream for real-time room events
+  app.get('/api/v1/games/rooms/:roomId/events', (req, res) => {
+    const { roomId } = req.params;
+    const { tabId = 'guest' } = req.query;
+
+    let room = GAME_ROOMS.get(roomId);
+    if (!room) {
+      // Auto-initialize if joined directly via shared URL/QR
+      const typePrefix = roomId.startsWith('ROU') ? 'ROULETTE' : 'LADDER';
+      room = {
+        roomId,
+        gameType: typePrefix,
+        hostTabId: String(tabId),
+        hostName: '호스트',
+        data: {},
+        clientResponses: new Set(),
+        lastActive: Date.now(),
+        createdAt: Date.now(),
+      };
+      GAME_ROOMS.set(roomId, room);
+    }
+
+    // Configure headers for SSE
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    room.clientResponses.add(res);
+    room.lastActive = Date.now();
+
+    // Send initial snapshot
+    const initPayload = JSON.stringify({
+      type: 'ROOM_CONNECTED',
+      roomId: room.roomId,
+      gameType: room.gameType,
+      connectedClients: room.clientResponses.size,
+      data: room.data,
+    });
+    res.write(`data: ${initPayload}\n\n`);
+
+    // Broadcast client count update to other peers
+    const presencePayload = JSON.stringify({
+      type: 'PRESENCE_CHANGE',
+      connectedClients: room.clientResponses.size,
+    });
+    for (const client of room.clientResponses) {
+      if (client !== res) {
+        try {
+          client.write(`data: ${presencePayload}\n\n`);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    // Keep-alive heartbeat every 15s to prevent Cloudflare/Proxy 524 timeouts
+    const heartbeatTimer = setInterval(() => {
+      try {
+        res.write(': heartbeat\n\n');
+      } catch (e) {
+        clearInterval(heartbeatTimer);
+      }
+    }, 15000);
+
+    req.on('close', () => {
+      clearInterval(heartbeatTimer);
+      if (room) {
+        room.clientResponses.delete(res);
+        room.lastActive = Date.now();
+
+        // Broadcast presence change on disconnect
+        const leavePayload = JSON.stringify({
+          type: 'PRESENCE_CHANGE',
+          connectedClients: room.clientResponses.size,
+        });
+        for (const client of room.clientResponses) {
+          try {
+            client.write(`data: ${leavePayload}\n\n`);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    });
+  });
+
+  // 9.4 Action Relay (Clients dispatch actions, server updates state and broadcasts to all peers)
+  app.post('/api/v1/games/rooms/:roomId/action', (req, res) => {
+    const { roomId } = req.params;
+    const { action, senderTabId } = req.body;
+
+    const room = GAME_ROOMS.get(roomId);
+    if (!room) {
+      return res.status(404).json({ error: '방을 찾을 수 없습니다.' });
+    }
+
+    room.lastActive = Date.now();
+
+    // State mutations on server
+    if (action.type === 'SYNC_STATE' && action.state) {
+      room.data = action.state;
+    } else if (action.type === 'UPDATE_MEMBER_NAME' && room.data?.members) {
+      room.data.members = room.data.members.map((m: any) =>
+        m.id === action.memberId ? { ...m, name: action.name } : m
+      );
+    } else if (action.type === 'CLAIM_SEAT' && room.data?.members) {
+      room.data.members = room.data.members.map((m: any) => {
+        if (m.claimedBy === action.tabId && m.id !== action.memberId) {
+          return { ...m, claimedBy: undefined };
+        }
+        if (m.id === action.memberId) {
+          const isAlready = m.claimedBy === action.tabId;
+          return { ...m, claimedBy: isAlready ? undefined : action.tabId };
+        }
+        return m;
+      });
+    } else if (action.type === 'SHUFFLE_RUNGS') {
+      if (room.data) room.data.ladderSeed = action.seed;
+    } else if (action.type === 'SHUFFLE_GOALS') {
+      if (room.data) room.data.ladderGoals = action.goals;
+    } else if (action.type === 'SYNC_ROULETTE_ITEMS') {
+      if (room.data) room.data.rouletteItems = action.items;
+    } else if (action.type === 'SYNC_ROULETTE_RESULT') {
+      if (room.data) room.data.selectedWinner = action.winner;
+    } else if (action.type === 'CLOSE_ROOM') {
+      room.isClosed = true;
+      room.closedAt = Date.now();
+      room.finalResult = action.finalResult || room.data?.ladderResult || room.data?.selectedWinner;
+    }
+
+    // Broadcast action to all connected SSE clients (excluding sender if needed, or including for confirmation)
+    const payload = JSON.stringify({
+      type: 'ACTION_RELAY',
+      action,
+      isClosed: room.isClosed,
+      finalResult: room.finalResult,
+      senderTabId,
+      timestamp: Date.now(),
+    });
+
+    for (const client of room.clientResponses) {
+      try {
+        client.write(`data: ${payload}\n\n`);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    res.json({ success: true, broadcastCount: room.clientResponses.size });
+  });
+
+  // -------------------------------------------------------------
   // Dev & Static Serving Setup
   // -------------------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
