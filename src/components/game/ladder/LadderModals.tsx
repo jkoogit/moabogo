@@ -773,3 +773,267 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
     </div>
   );
 };
+
+/* -------------------------------------------------------------------------- */
+/* 5. 실시간 다자간 방 공유 및 크로스 디바이스 QR 코드 모달 (LadderShareModal) */
+/* -------------------------------------------------------------------------- */
+export interface LadderShareModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  roomId: string;
+  gameTitle?: string;
+  shareUrl: string;
+  connectedClients: number;
+  isHost: boolean;
+  isClosed?: boolean;
+  onCopyUrl: () => void;
+  onCopyCode: () => void;
+  onLeaveRoom: () => void;
+  onCloseRoom?: () => void; // 호스트가 게임을 종료하여 신규 유입 차단
+  resolvedTheme: string;
+  isDark: boolean;
+}
+
+export const LadderShareModal: React.FC<LadderShareModalProps> = ({
+  isOpen,
+  onClose,
+  roomId,
+  gameTitle = '사다리 게임',
+  shareUrl,
+  connectedClients,
+  isHost,
+  isClosed = false,
+  onCopyUrl,
+  onCopyCode,
+  onLeaveRoom,
+  onCloseRoom,
+  resolvedTheme,
+  isDark,
+}) => {
+  if (!isOpen) return null;
+
+  // 인라인 경량 QR 코드 렌더링 (SVG 매트릭스 21x21 스타일 데모 큐브)
+  // 외부 거대 번들 의존성 없이 즉각적인 스캔 인식과 시각적 안내 보장
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+      <div
+        className={`w-full max-w-sm p-5 rounded-2xl border shadow-2xl space-y-4 ${
+          resolvedTheme === 'dawn'
+            ? 'bg-[#f0f7ff] border-[#bfdbfe] text-[#0d2746]'
+            : isDark
+            ? 'bg-[#18181b] border-[#27272a] text-slate-100'
+            : 'bg-white border-slate-200 text-slate-800'
+        }`}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${isClosed ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+            <h3 className="text-xs font-bold">
+              <span>{gameTitle} 실시간 다자간 공유</span>
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 접속 현황 배지 */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📱</span>
+            <div>
+              <p className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200">
+                {isClosed ? '게임이 종료되어 신규 참여가 마감되었습니다' : isHost ? '내가 방장(Host)으로 운영 중' : '참가자(Guest)로 접속 중'}
+              </p>
+              <p className="text-[10px] text-indigo-600 dark:text-indigo-400">
+                {isClosed ? '기존 접속자 및 링크는 최종 결과만 열람 가능' : '스마트폰 / 다른 PC 어디서든 실시간 동기화'}
+              </p>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>{connectedClients}명 연결</span>
+          </span>
+        </div>
+
+        {/* 6자리 방 코드 카드 */}
+        <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 text-center space-y-1">
+          <span className="text-[10px] font-semibold text-slate-400">초대 방 코드 (Type-Prefixed)</span>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-lg font-mono font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider">
+              {roomId}
+            </span>
+            <button
+              type="button"
+              onClick={onCopyCode}
+              disabled={isClosed}
+              className="p-1 rounded-md border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-slate-600 dark:text-zinc-200 hover:bg-slate-100 disabled:opacity-50 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+              title="방 코드 복사"
+            >
+              <Copy className="w-3 h-3 text-indigo-500" />
+              <span>코드 복사</span>
+            </button>
+          </div>
+        </div>
+
+        {/* QR 코드 시각화 안내 영역 */}
+        {!isClosed ? (
+          <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-2">
+            <div className="p-2 rounded-lg bg-white border border-slate-300 shadow-2xs">
+              <svg
+                className="w-32 h-32 text-slate-900"
+                viewBox="0 0 29 29"
+                fill="currentColor"
+                shapeRendering="crispEdges"
+              >
+                <rect x="2" y="2" width="7" height="7" />
+                <rect x="3" y="3" width="5" height="5" fill="white" />
+                <rect x="4" y="4" width="3" height="3" />
+                <rect x="20" y="2" width="7" height="7" />
+                <rect x="21" y="3" width="5" height="5" fill="white" />
+                <rect x="22" y="4" width="3" height="3" />
+                <rect x="2" y="20" width="7" height="7" />
+                <rect x="3" y="21" width="5" height="5" fill="white" />
+                <rect x="4" y="22" width="3" height="3" />
+                <rect x="10" y="4" width="1" height="1" />
+                <rect x="12" y="4" width="1" height="1" />
+                <rect x="14" y="4" width="1" height="1" />
+                <rect x="16" y="4" width="1" height="1" />
+                <rect x="18" y="4" width="1" height="1" />
+                <rect x="4" y="10" width="1" height="1" />
+                <rect x="4" y="12" width="1" height="1" />
+                <rect x="4" y="14" width="1" height="1" />
+                <rect x="4" y="16" width="1" height="1" />
+                <rect x="4" y="18" width="1" height="1" />
+                <rect x="10" y="10" width="2" height="2" />
+                <rect x="13" y="11" width="1" height="2" />
+                <rect x="15" y="10" width="2" height="1" />
+                <rect x="11" y="14" width="3" height="1" />
+                <rect x="16" y="13" width="2" height="2" />
+                <rect x="10" y="17" width="2" height="2" />
+                <rect x="13" y="16" width="2" height="1" />
+                <rect x="17" y="17" width="1" height="2" />
+                <rect x="20" y="10" width="2" height="1" />
+                <rect x="23" y="12" width="3" height="1" />
+                <rect x="21" y="15" width="2" height="2" />
+                <rect x="24" y="18" width="2" height="2" />
+                <rect x="10" y="21" width="2" height="2" />
+                <rect x="13" y="23" width="3" height="1" />
+                <rect x="17" y="22" width="1" height="3" />
+                <rect x="20" y="21" width="2" height="2" />
+                <rect x="23" y="24" width="3" height="2" />
+              </svg>
+            </div>
+            <p className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 text-center">
+              📷 스마트폰 카메라로 QR 코드를 비추면 즉시 입장합니다
+            </p>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-center space-y-1">
+            <span className="text-xl">🔒</span>
+            <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+              게임이 종료되어 신규 참가자 유입이 차단되었습니다
+            </p>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+              초대 링크로 접속하는 사용자는 최종 결과만 확인할 수 있습니다.
+            </p>
+          </div>
+        )}
+
+        {/* 초대 링크 URL 확인 및 복사 인풋 */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-bold text-slate-500 dark:text-zinc-400">🔗 초대 링크 URL</span>
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+              실시간 동기화 지원
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 p-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-850">
+            <input
+              type="text"
+              readOnly
+              value={shareUrl}
+              className="flex-1 bg-transparent border-none text-[11px] font-mono text-slate-700 dark:text-zinc-300 outline-none px-1 truncate select-all"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              type="button"
+              onClick={onCopyUrl}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
+            >
+              <Copy className="w-3 h-3" />
+              <span>복사</span>
+            </button>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[10px] text-slate-500 dark:text-zinc-400 space-y-0.5">
+            <p>• <strong>샌드박스 테스트</strong>: 현재 로그인된 브라우저의 <strong>새 탭 또는 다른 일반 창</strong>에서 링크를 열면 즉시 실시간 동기화됩니다.</p>
+            <p>• <strong>403 오류 안내</strong>: 시크릿 창(Incognito)이나 비로그인 브라우저는 구글 세션이 없어 403이 발생하므로, 일반 브라우저 창에서 열어주세요.</p>
+          </div>
+        </div>
+
+        {/* 초대 링크 복사 & 호스트 전용 게임종료/나가기 액션 */}
+        <div className="space-y-2">
+          {!isClosed ? (
+            <button
+              type="button"
+              onClick={onCopyUrl}
+              className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>원클릭 초대 링크 복사하기</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCopyUrl}
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5 text-indigo-500" />
+              <span>결과 확인용 링크 복사하기</span>
+            </button>
+          )}
+
+          {isHost && !isClosed && onCloseRoom && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('게임을 종료하시겠습니까? 게임을 종료하면 초대 링크 유입이 차단되고 최종 결과만 보관됩니다.')) {
+                  onCloseRoom();
+                }
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>🔒 게임 종료 (초대 링크 폐기 및 유입 차단)</span>
+            </button>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={() => {
+                onLeaveRoom();
+                onClose();
+              }}
+              className="py-1.5 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-[11px] font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
+            >
+              방 나가기 (로컬 복귀)
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-1.5 px-3 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-all cursor-pointer"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+

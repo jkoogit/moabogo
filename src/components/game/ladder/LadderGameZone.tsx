@@ -15,16 +15,20 @@ import {
   Share2,
   LogOut,
   Users,
+  Lock,
 } from 'lucide-react';
 import {
   createLadderSyncChannel,
   LadderChannelHandle,
   LadderSyncMessage,
+  LadderSyncState,
   saveRoomSnapshot,
   loadRoomSnapshot,
+  generateGameRoomId,
+  buildRoomShareUrl,
 } from './ladderSyncChannel';
 import { ElmRng01 } from '../../../sample/elements/Tokens';
-import { Participant, PRESET_CHARACTERS, loadUserGoalPresets } from '../types';
+import { Participant, PRESET_CHARACTERS, loadUserGoalPresets, saveSharedGameHistory } from '../types';
 import {
   LadderGoal,
   LadderResultMap,
@@ -46,6 +50,7 @@ import {
   LadderArrivalModal,
   StoreMenuSelectModal,
   LadderResultModal,
+  LadderShareModal,
   getStoreMenuEmoji,
 } from './LadderModals';
 import { StorePreset, StoreMenuItem } from '../../../sample/data/systemStorePool';
@@ -68,6 +73,7 @@ export interface LadderGameZoneProps {
   showToast: (msg: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   resolvedTheme: string;
   isDark: boolean;
+  onRegisterShareHandler?: (handler: () => void) => void;
 }
 
 export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
@@ -83,6 +89,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   showToast,
   resolvedTheme,
   isDark,
+  onRegisterShareHandler,
 }) => {
   const [ladderSeed, setLadderSeed] = useState<number>(() => Math.floor(Math.random() * 9999) + 1);
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
@@ -120,6 +127,9 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     }
     return false;
   });
+  const [connectedClients, setConnectedClients] = useState<number>(1);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
   const channelRef = useRef<LadderChannelHandle | null>(null);
   const isRoomJoined = !!roomId;
   const handlePlayLadderRef = useRef<(skipTrace?: boolean, broadcast?: boolean) => void>(() => {});
@@ -260,6 +270,20 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         case 'LEAVE_ROOM':
           showToast('참여자가 게임에서 퇴장했습니다.', 'info');
           break;
+
+        case 'CLOSE_ROOM':
+        case 'ROOM_CLOSED':
+          setIsRoomClosed(true);
+          if (msg.finalResult) {
+            setLadderResult(msg.finalResult);
+            setIsResultModalOpen(true);
+          }
+          showToast('🔒 방장이 게임을 종료하였습니다. (신규 유입 차단 및 최종 결과 보관)', 'warning');
+          break;
+
+        case 'PRESENCE_CHANGE':
+          setConnectedClients(msg.connectedClients);
+          break;
       }
     });
 
@@ -284,6 +308,37 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       channelRef.current = null;
     };
   }, [roomId, isRoomHost, currentTabId, members, ladderGoals, ladderSeed, winnerCount, useLadderWeight, ladderSpeed, selectedStore, ladderResult, setLadderGoals, setMembers, setSelectedStore, setWinnerCount, showToast]);
+
+  // 서버로부터 방 정보 패치 (폐기/종료된 방 접속 시 최종 결과 복원)
+  useEffect(() => {
+    if (!roomId) return;
+    fetch(`/api/v1/games/rooms/${roomId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.room) {
+          if (data.room.isClosed) {
+            setIsRoomClosed(true);
+            if (data.room.finalResult) {
+              setLadderResult(data.room.finalResult);
+              setIsResultModalOpen(true);
+            }
+          } else if (data.room.data && !isRoomHost) {
+            const snap = data.room.data;
+            if (snap.members) setMembers(snap.members);
+            if (snap.ladderGoals) setLadderGoals(snap.ladderGoals);
+            if (snap.ladderSeed) setLadderSeed(snap.ladderSeed);
+            if (snap.winnerCount) setWinnerCount(snap.winnerCount);
+            if (snap.useLadderWeight !== undefined) setUseLadderWeight(snap.useLadderWeight);
+            if (snap.ladderSpeed) setLadderSpeed(snap.ladderSpeed);
+            if (snap.selectedStore !== undefined) setSelectedStore(snap.selectedStore);
+            if (snap.ladderResult) setLadderResult(snap.ladderResult);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch ladder room from server', err);
+      });
+  }, [roomId, isRoomHost, setLadderGoals, setMembers, setSelectedStore, setWinnerCount]);
 
   // 매장 변경 또는 연동 해제 시 참가자 메뉴 선택 및 아바타 기본값 복원, 게임결과 초기화
   const prevStoreIdRef = useRef<string | undefined>(selectedStore?.id);
@@ -746,7 +801,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const handleShareRoom = () => {
     let targetRoomId = roomId;
     if (!targetRoomId) {
-      targetRoomId = 'room_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+      targetRoomId = generateGameRoomId('LADDER');
       setRoomId(targetRoomId);
       setIsRoomHost(true);
 
@@ -755,7 +810,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       url.searchParams.set('host', '1');
       window.history.replaceState({}, '', url.toString());
 
-      saveRoomSnapshot(targetRoomId, {
+      const stateSnapshot: LadderSyncState = {
         roomId: targetRoomId,
         hostTabId: currentTabId,
         members,
@@ -767,19 +822,104 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         selectedStore,
         ladderResult,
         timestamp: Date.now(),
+      };
+
+      saveRoomSnapshot(targetRoomId, stateSnapshot);
+
+      // Register room to server for cross-device SSE
+      fetch('/api/v1/games/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: targetRoomId,
+          gameType: 'LADDER',
+          hostTabId: currentTabId,
+          hostName: members[0]?.name || '호스트',
+          data: stateSnapshot,
+        }),
+      }).catch((e) => {
+        console.warn('Failed to register room to server', e);
       });
     }
 
-    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoomId}`;
+    setIsShareModalOpen(true);
+  };
+
+  useEffect(() => {
+    onRegisterShareHandler?.(handleShareRoom);
+  }, [handleShareRoom, onRegisterShareHandler]);
+
+  const currentShareUrl = useMemo(() => {
+    if (!roomId) return '';
+    return buildRoomShareUrl(roomId, 'ladder');
+  }, [roomId]);
+
+  const handleCopyShareUrl = () => {
+    if (!currentShareUrl) return;
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        showToast('🔗 사다리 실시간 공유 링크가 복사되었습니다! 새 창/탭에 붙여넣어 함께 참여하세요.');
+      navigator.clipboard.writeText(currentShareUrl).then(() => {
+        showToast('🔗 실시간 방 초대 링크가 복사되었습니다!');
       }).catch(() => {
-        showToast(`공유 링크: ${shareUrl}`);
+        showToast(`초대 링크: ${currentShareUrl}`);
       });
     } else {
-      showToast(`공유 링크: ${shareUrl}`);
+      showToast(`초대 링크: ${currentShareUrl}`);
     }
+  };
+
+  const handleCopyRoomCode = () => {
+    if (!roomId) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(roomId).then(() => {
+        showToast(`📋 방 코드 '${roomId}'가 복사되었습니다!`);
+      }).catch(() => {
+        showToast(`방 코드: ${roomId}`);
+      });
+    } else {
+      showToast(`방 코드: ${roomId}`);
+    }
+  };
+
+  // 게임 종료 핸들러 (초대 링크 폐기 및 최종 결과 이력 저장)
+  const handleCloseRoom = () => {
+    if (!roomId) return;
+    setIsRoomClosed(true);
+
+    // 당일 이력 저장
+    const winners = Object.entries(ladderResult || {}).filter(([, r]) => r.isWinner);
+    const winnerSummary = winners.length > 0
+      ? winners.map(([mid, r]) => {
+          const m = members.find((item) => item.id === mid);
+          return `${m?.name || '참가자'}(${r.text})`;
+        }).join(', ')
+      : `${members.length}명 참여 완료`;
+
+    saveSharedGameHistory({
+      id: `hist_${roomId}_${Date.now()}`,
+      roomId,
+      gameType: 'LADDER',
+      title: selectedStore ? `${selectedStore.name} 사다리` : '사다리타기 게임',
+      dateStr: new Date().toISOString().slice(0, 10),
+      timestamp: Date.now(),
+      participantsCount: members.length,
+      winnerSummary,
+      closedAt: Date.now(),
+      data: {
+        members,
+        ladderGoals,
+        selectedStore,
+        ladderResult,
+      },
+    });
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'CLOSE_ROOM',
+        finalResult: ladderResult,
+      });
+    }
+
+    showToast('🔒 게임이 종료되었습니다. 초대 링크가 폐기되었으며 당일 이력에 보관되었습니다.', 'info');
   };
 
   // 참가게임 이탈 핸들러
@@ -791,6 +931,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     }
     setRoomId(null);
     setIsRoomHost(false);
+    setIsRoomClosed(false);
+    setConnectedClients(1);
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
     url.searchParams.delete('host');
@@ -1016,14 +1158,77 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         }`}
       >
         {/* 사다리 플레이존 타이틀 헤더 */}
-        <div className="w-full flex items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
-          <div className="flex items-center gap-2">
+        <div className="w-full flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2 text-slate-900 dark:text-zinc-100">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
               <span>사다리 플레이존</span>
             </h3>
+            {roomId && (
+              <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                {roomId}
+              </span>
+            )}
+            {isRoomClosed ? (
+              <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold border border-rose-200 dark:border-rose-900 flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                <span>종료됨 (초대 폐기)</span>
+              </span>
+            ) : roomId ? (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>{connectedClients}명 동시 접속</span>
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {roomId && isRoomHost && !isRoomClosed && (
+              <button
+                type="button"
+                onClick={handleCloseRoom}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                title="초대 링크를 폐기하고 신규 유입을 차단합니다"
+              >
+                <Lock className="w-3.5 h-3.5 text-rose-600" />
+                <span>게임 종료</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleShareRoom}
+              className={`p-2 rounded-xl border transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                roomId
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-400/30'
+                  : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600'
+              }`}
+              title="실시간 다자간 방 공유 및 QR 코드 열기"
+              aria-label="실시간 방 공유"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
+
+        {/* 닫힌 방 알림 배너 */}
+        {isRoomClosed && (
+          <div className="w-full p-3 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 flex items-center justify-between text-xs font-semibold">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>방장이 게임을 종료하여 신규 참여가 마감되었습니다. 최종 게임 결과는 아래 팝업에서 확인 가능합니다.</span>
+            </div>
+            {ladderResult && (
+              <button
+                type="button"
+                onClick={() => setIsResultModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 cursor-pointer"
+              >
+                결과 팝업 보기
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 참가자 헤더 칩 (상단 출발점) - 슬라이드드래그휠 복원 */}
         <div
@@ -1190,17 +1395,18 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               <button
                 type="button"
                 onClick={() => handlePlayLadder(false, true)}
-                disabled={isLadderTracing}
-                className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer whitespace-nowrap min-w-0"
+                disabled={isLadderTracing || isRoomClosed}
+                className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap min-w-0"
               >
                 <Play className="w-4 h-4 fill-current shrink-0" />
-                <span className="whitespace-nowrap">{isLadderTracing ? '사다리 타는 중...' : (isRoomJoined ? '전체 동시 사다리 타기' : '사다리 타기')}</span>
+                <span className="whitespace-nowrap">{isRoomClosed ? '게임 마감됨' : (isLadderTracing ? '사다리 타는 중...' : (isRoomJoined ? '전체 동시 사다리 타기' : '사다리 타기'))}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handlePlayLadder(true, true)}
-                className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                disabled={isRoomClosed}
+                className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                   resolvedTheme === 'dawn'
                     ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
                     : isDark
@@ -1352,6 +1558,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         onCopyText={handleCopyText}
         onCopyImageCard={handleCopyImageCard}
         onDownloadImageCard={handleDownloadImageCard}
+        resolvedTheme={resolvedTheme}
+        isDark={isDark}
+      />
+
+      {/* 실시간 다자간 방 공유 및 크로스 디바이스 QR 코드 모달 */}
+      <LadderShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        roomId={roomId || ''}
+        gameTitle="사다리 게임"
+        shareUrl={currentShareUrl}
+        connectedClients={connectedClients}
+        isHost={isRoomHost}
+        isClosed={isRoomClosed}
+        onCopyUrl={handleCopyShareUrl}
+        onCopyCode={handleCopyRoomCode}
+        onLeaveRoom={handleLeaveRoom}
+        onCloseRoom={handleCloseRoom}
         resolvedTheme={resolvedTheme}
         isDark={isDark}
       />

@@ -88,3 +88,51 @@ export function saveUserGoalPresets(presets: GoalPresetItem[]): void {
     console.error('Failed to save ladder goal presets:', e);
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* 공유 게임 결과 당일 이력 (Shared Game Daily History)                       */
+/* -------------------------------------------------------------------------- */
+export interface SharedGameHistoryItem {
+  id: string;
+  roomId: string;
+  gameType: 'LADDER' | 'ROULETTE';
+  title: string;
+  dateStr: string; // YYYY-MM-DD
+  timestamp: number;
+  participantsCount: number;
+  winnerSummary: string; // e.g. "구본영(커피 쏘기), 김은지(통과)" or "아메리카노 당첨"
+  closedAt: number;
+  data: any; // Result snapshot
+}
+
+const STORAGE_KEY_SHARED_GAME_HISTORY = 'moabogo_shared_game_history_v1';
+
+export function loadTodaySharedGameHistory(): SharedGameHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SHARED_GAME_HISTORY);
+    if (!raw) return [];
+    const list = JSON.parse(raw) as SharedGameHistoryItem[];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // 당일(todayStr) 이력만 필터링하여 유지
+    const filtered = list.filter((item) => item.dateStr === todayStr);
+    if (filtered.length !== list.length) {
+      localStorage.setItem(STORAGE_KEY_SHARED_GAME_HISTORY, JSON.stringify(filtered));
+    }
+    return filtered.sort((a, b) => b.timestamp - a.timestamp);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveSharedGameHistory(item: SharedGameHistoryItem): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const todayList = loadTodaySharedGameHistory();
+    // 중복 제거 후 최신 항목을 상단에 추가
+    const updated = [item, ...todayList.filter((it) => it.roomId !== item.roomId)];
+    localStorage.setItem(STORAGE_KEY_SHARED_GAME_HISTORY, JSON.stringify(updated));
+  } catch (e) {
+    // ignore
+  }
+}

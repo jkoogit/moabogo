@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { ElmRng01, ElmSld03, ElmToast01 } from '../elements/Tokens';
 import {
@@ -10,6 +10,12 @@ import {
   UserPlus,
   Coins,
   RotateCcw,
+  History,
+  ChevronDown,
+  ChevronUp,
+  Share2,
+  Lock,
+  Calendar,
 } from 'lucide-react';
 import {
   Participant,
@@ -22,7 +28,13 @@ import {
   LadderGameZone,
   LadderGoal,
   generateDefaultLadderGoals,
+  SharedGameHistoryItem,
+  loadTodaySharedGameHistory,
 } from '../../components/game';
+import { LadderResultModal } from '../../components/game/ladder/LadderModals';
+import { RouletteResultModal } from '../../components/game/roulette/RouletteModals';
+import { formatLadderResultText, formatStoreOrderText } from '../../components/game/ladder/ladderEngine';
+import { formatRouletteResultText } from '../../components/game/roulette/rouletteEngine';
 import { StorePreset } from '../data/systemStorePool';
 
 export const SCR_GNT_01_비로그인게스트홈: React.FC<{
@@ -33,11 +45,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // 1. 테마 훅 (라이트, 다크, 여명 블루 식별)
   const { resolvedTheme, isDark } = useTheme();
 
-  // 게임 탭 선택 상태 ('SPLIT' | 'LADDER' | 'ROULETTE') - URL에 room 파라미터 인입 시 사다리탭 자동 전환
+  // 게임 탭 선택 상태 ('SPLIT' | 'LADDER' | 'ROULETTE') - URL에 room/game 파라미터 인입 시 사다리/룰렛탭 자동 전환
   const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      if (p.get('room')) return 'LADDER';
+      const gameParam = p.get('game')?.toUpperCase();
+      if (gameParam === 'ROULETTE' || gameParam === 'ROU') return 'ROULETTE';
+      if (gameParam === 'LADDER' || gameParam === 'LAD') return 'LADDER';
+      const roomParam = p.get('room');
+      if (roomParam) {
+        if (roomParam.startsWith('ROU')) return 'ROULETTE';
+        return 'LADDER';
+      }
     }
     return 'SPLIT';
   });
@@ -51,6 +70,49 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const showToast = (msg: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
+  };
+
+  // ---------------------------------------------------------------------------
+  // 0. 당일 공유 게임 이력 상태 및 자동 갱신 리스너 (LocalStorage SSOT)
+  // ---------------------------------------------------------------------------
+  const [todayHistory, setTodayHistory] = useState<SharedGameHistoryItem[]>(() =>
+    loadTodaySharedGameHistory()
+  );
+  const [isHistoryAccordionOpen, setIsHistoryAccordionOpen] = useState<boolean>(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SharedGameHistoryItem | null>(null);
+
+  useEffect(() => {
+    const refreshHistory = () => {
+      setTodayHistory(loadTodaySharedGameHistory());
+    };
+    window.addEventListener('storage', refreshHistory);
+    window.addEventListener('focus', refreshHistory);
+    const interval = setInterval(refreshHistory, 2500);
+    return () => {
+      window.removeEventListener('storage', refreshHistory);
+      window.removeEventListener('focus', refreshHistory);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // 상단 헤더 '공유링크 생성' 버튼 클릭 시 현재 활성 게임존 공유 트리거
+  const ladderShareHandlerRef = useRef<(() => void) | null>(null);
+  const rouletteShareHandlerRef = useRef<(() => void) | null>(null);
+
+  const handleTopShareClick = () => {
+    if (gameType === 'LADDER') {
+      if (ladderShareHandlerRef.current) {
+        ladderShareHandlerRef.current();
+      } else {
+        showToast('사다리 공유 준비 중입니다.', 'info');
+      }
+    } else if (gameType === 'ROULETTE') {
+      if (rouletteShareHandlerRef.current) {
+        rouletteShareHandlerRef.current();
+      } else {
+        showToast('룰렛 공유 준비 중입니다.', 'info');
+      }
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -440,9 +502,22 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 </button>
               </h3>
             </div>
-            <span className="text-xs font-semibold text-slate-400">
-              설정 항목: {gameType === 'ROULETTE' ? `${rouletteItems.length}개` : `${memberCount}명`}
-            </span>
+            <div className="flex items-center gap-2">
+              {(gameType === 'LADDER' || gameType === 'ROULETTE') && (
+                <button
+                  type="button"
+                  onClick={handleTopShareClick}
+                  className="p-1.5 sm:p-2 rounded-xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-800 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                  title="실시간 방 공유 / QR 코드 열기"
+                  aria-label="실시간 방 공유"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              )}
+              <span className="text-xs font-semibold text-slate-400">
+                설정 항목: {gameType === 'ROULETTE' ? `${rouletteItems.length}개` : `${memberCount}명`}
+              </span>
+            </div>
           </div>
 
           {/* 공통 참여 인원 슬라이더 (정산/사다리 시 공유) */}
@@ -506,6 +581,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               showToast={showToast}
               resolvedTheme={resolvedTheme}
               isDark={isDark}
+              onRegisterShareHandler={(fn) => {
+                ladderShareHandlerRef.current = fn;
+              }}
             />
           )}
 
@@ -529,13 +607,131 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               setExcludedWinners={setExcludedWinners}
               excludedRouletteItems={excludedRouletteItems}
               setExcludedRouletteItems={setExcludedRouletteItems}
+              currentTabId={currentTabId}
               showToast={showToast}
               resolvedTheme={resolvedTheme}
               isDark={isDark}
+              onRegisterShareHandler={(fn) => {
+                rouletteShareHandlerRef.current = fn;
+              }}
             />
           )}
         </div>
       </section>
+
+      {/* ---------------------------------------------------------------------
+          3. 당일 공유 게임 결과 이력 (이력이 1건 이상 존재할 때만 토글 영역 노출)
+          --------------------------------------------------------------------- */}
+      {todayHistory.length > 0 && (
+        <section
+          className={`rounded-2xl border p-4 sm:p-5 transition-all space-y-3 ${
+            resolvedTheme === 'dawn'
+              ? 'bg-[#f0f7ff] border-[#bfdbfe]'
+              : isDark
+              ? 'bg-[#18181c] border-[#27272a]'
+              : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          {/* 아코디언 헤더 토글 버튼 */}
+          <div
+            onClick={() => setIsHistoryAccordionOpen((prev) => !prev)}
+            className="flex items-center justify-between cursor-pointer select-none group"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                <History className="w-4 h-4" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-zinc-100 group-hover:text-indigo-600 transition-colors">
+                    오늘의 공유 게임 이력
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                    {todayHistory.length}건
+                  </span>
+                  <span className="hidden sm:inline-block text-[11px] text-slate-400">
+                    (당일 자동 보관)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  오늘 종료된 사다리 및 룰렛 게임의 최종 결과를 언제든지 재조회할 수 있습니다.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-200 group-hover:border-indigo-400 transition-all cursor-pointer"
+            >
+              <span>{isHistoryAccordionOpen ? '접기' : '이력 보기'}</span>
+              {isHistoryAccordionOpen ? (
+                <ChevronUp className="w-3.5 h-3.5 text-indigo-500" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              )}
+            </button>
+          </div>
+
+          {/* 아코디언 펼침 컨텐츠 */}
+          {isHistoryAccordionOpen && (
+            <div className="pt-3 border-t border-slate-200/80 dark:border-zinc-800 space-y-2.5 animate-in fade-in-50 duration-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {todayHistory.map((item) => {
+                  const timeStr = new Date(item.closedAt || item.timestamp).toLocaleTimeString('ko-KR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  const isLadder = item.gameType === 'LADDER';
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedHistoryItem(item)}
+                      className={`p-3.5 rounded-xl border flex flex-col justify-between gap-3 hover:shadow-md transition-all cursor-pointer group ${
+                        resolvedTheme === 'dawn'
+                          ? 'bg-white border-[#bfdbfe] hover:border-blue-400'
+                          : isDark
+                          ? 'bg-[#202024] border-[#303036] hover:border-indigo-500/60'
+                          : 'bg-white border-slate-200 hover:border-indigo-400'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="text-base">{isLadder ? '🪜' : '🎯'}</span>
+                            <span className="text-slate-800 dark:text-zinc-200">{item.title}</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {timeStr}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-[10px] font-mono text-slate-600 dark:text-zinc-300 font-bold border border-slate-200 dark:border-zinc-700">
+                            {item.roomId}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {item.participantsCount}명 참여
+                          </span>
+                        </div>
+
+                        <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 line-clamp-2">
+                          🏆 {item.winnerSummary}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">
+                        <span>결과 팝업 조회</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------------
           4. 회원서비스 안내 : 슬라이드드래그휠(버튼) 적용 & 로그인화면 이동
@@ -678,6 +874,66 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           </div>
         </ElmSld03>
       </section>
+
+      {/* 이력 조회용 사다리 결과 모달 */}
+      {selectedHistoryItem?.gameType === 'LADDER' && selectedHistoryItem.data?.ladderResult && (
+        <LadderResultModal
+          isOpen={true}
+          onClose={() => setSelectedHistoryItem(null)}
+          members={selectedHistoryItem.data.members || []}
+          results={selectedHistoryItem.data.ladderResult}
+          selectedStore={selectedHistoryItem.data.selectedStore || null}
+          onCopyText={() => {
+            const text = selectedHistoryItem.data?.selectedStore
+              ? formatStoreOrderText(selectedHistoryItem.data.ladderResult, selectedHistoryItem.data.members || [], selectedHistoryItem.data.selectedStore)
+              : formatLadderResultText(selectedHistoryItem.data.ladderResult, selectedHistoryItem.data.members || [], null);
+            navigator.clipboard?.writeText(text);
+            showToast('📋 사다리 결과 텍스트가 클립보드에 복사되었습니다.');
+          }}
+          onCopyImageCard={() => {
+            showToast('💡 이력 모드에서는 텍스트 복사를 지원합니다.', 'info');
+          }}
+          onDownloadImageCard={() => {
+            showToast('💡 이력 모드에서는 텍스트 복사를 지원합니다.', 'info');
+          }}
+          resolvedTheme={resolvedTheme}
+          isDark={isDark}
+        />
+      )}
+
+      {/* 이력 조회용 룰렛 결과 모달 */}
+      {selectedHistoryItem?.gameType === 'ROULETTE' && selectedHistoryItem.data?.selectedWinner && (
+        <RouletteResultModal
+          isOpen={true}
+          onClose={() => setSelectedHistoryItem(null)}
+          winner={selectedHistoryItem.data.selectedWinner}
+          presetTitle={selectedHistoryItem.data.roulettePresetTitle || selectedHistoryItem.title}
+          items={selectedHistoryItem.data.rouletteItems || []}
+          onSpinAgain={() => {
+            showToast('💡 마감된 공유 게임의 이력 조회 중입니다.', 'info');
+          }}
+          onInstantResult={() => {
+            showToast('💡 마감된 공유 게임의 이력 조회 중입니다.', 'info');
+          }}
+          onCopyText={() => {
+            const text = formatRouletteResultText(
+              selectedHistoryItem.data.selectedWinner,
+              selectedHistoryItem.data.roulettePresetTitle || selectedHistoryItem.title,
+              selectedHistoryItem.data.rouletteItems || []
+            );
+            navigator.clipboard?.writeText(text);
+            showToast('📋 룰렛 결과 텍스트가 클립보드에 복사되었습니다.');
+          }}
+          onCopyImageCard={() => {
+            showToast('💡 이력 모드에서는 텍스트 복사를 지원합니다.', 'info');
+          }}
+          onDownloadImageCard={() => {
+            showToast('💡 이력 모드에서는 텍스트 복사를 지원합니다.', 'info');
+          }}
+          resolvedTheme={resolvedTheme}
+          isDark={isDark}
+        />
+      )}
 
       {/* 화면 하단 플로팅 상태 피드백 토스트 레이어 (ElmToast01) */}
       <ElmToast01
