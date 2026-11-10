@@ -15,7 +15,7 @@ export type RouletteSyncMessage =
   | { type: 'ROULETTE_SYNC_REQUEST'; senderTabId: string }
   | { type: 'ROULETTE_SYNC_STATE'; state: RouletteSyncState }
   | { type: 'SPIN_ROULETTE'; targetAngle: number; chosenItem: RouletteSliceItem; duration: number }
-  | { type: 'SYNC_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
+  | { type: 'SYNC_ROULETTE_ITEMS'; items: RouletteSliceItem[]; presetTitle?: string }
   | { type: 'SHUFFLE_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
   | { type: 'SYNC_ROULETTE_RESULT'; winner: RouletteSliceItem | null }
   | { type: 'RESET_ROULETTE' }

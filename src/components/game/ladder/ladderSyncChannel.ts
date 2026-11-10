@@ -21,6 +21,7 @@ export type LadderSyncMessage =
   | { type: 'SYNC_STATE'; state: LadderSyncState }
   | { type: 'CLAIM_SEAT'; memberId: string; tabId: string }
   | { type: 'UPDATE_MEMBER_NAME'; memberId: string; name: string }
+  | { type: 'UPDATE_MEMBER_DETAILS'; memberId: string; name?: string; avatarEmoji?: string; selectedMenu?: any }
   | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
   | { type: 'SHUFFLE_RUNGS'; seed: number }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }

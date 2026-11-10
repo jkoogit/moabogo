@@ -196,6 +196,9 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         case 'SYNC_ROULETTE_ITEMS':
         case 'SHUFFLE_ROULETTE_ITEMS':
           setRouletteItems(msg.items);
+          if (msg.type === 'SYNC_ROULETTE_ITEMS' && msg.presetTitle) {
+            setRoulettePresetTitle(msg.presetTitle);
+          }
           setSelectedRouletteWinner(null);
           if (msg.type === 'SHUFFLE_ROULETTE_ITEMS') {
             showToast('🎲 룰렛 항목 순서가 동기화되었습니다.', 'info');
@@ -550,7 +553,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   };
 
   const handleShuffleRouletteItems = () => {
-    if (isSpinning || isGuest) return;
+    if (isSpinning) return;
     const shuffled = [...rouletteItems];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -574,14 +577,23 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     setSelectedRouletteWinner(null);
     setIsResultModalOpen(false);
     setRoulettePresetTitle(preset.title);
-    setRouletteItems(
-      preset.items.map((it: RoulettePresetItem) => ({
-        id: it.id,
-        name: it.name,
-        avatar: it.icon || '🎯',
-        weight: it.weight || 1,
-      }))
-    );
+    const newItems = preset.items.map((it: RoulettePresetItem) => ({
+      id: it.id,
+      name: it.name,
+      avatar: it.icon || '🎯',
+      weight: it.weight || 1,
+    }));
+    setRouletteItems(newItems);
+    if (channelRef.current) {
+      channelRef.current.send(
+        {
+          type: 'SYNC_ROULETTE_ITEMS',
+          items: newItems,
+          presetTitle: preset.title,
+        },
+        hostToken
+      );
+    }
     showToast(`'${preset.title}' 프리셋이 적용되었습니다.`);
   };
 
@@ -826,12 +838,12 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={isSpinning || isGuest}
+              disabled={isSpinning}
               onClick={handleShuffleRouletteItems}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold transition-all ${
-                isGuest ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-zinc-700 cursor-pointer'
+                isSpinning ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-zinc-700 cursor-pointer'
               }`}
-              title={isGuest ? '방장만 항목 순서를 섞을 수 있습니다' : '항목 순서 섞기'}
+              title="룰렛 항목 순서 무작위 섞기 (참가자 공통)"
             >
               <Dices className="w-3.5 h-3.5 text-indigo-500" />
               <span>항목 섞기</span>
@@ -864,13 +876,13 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             </span>
             <button
               type="button"
-              disabled={isGuest}
+              disabled={isSpinning}
               onClick={() => {
-                if (isGuest) return;
+                if (isSpinning) return;
                 handleApplyMembersToRoulette();
               }}
               className={`text-[11px] font-bold flex items-center gap-1 shrink-0 ${
-                isGuest
+                isSpinning
                   ? 'text-slate-400 cursor-not-allowed opacity-50'
                   : 'text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer'
               }`}
@@ -889,13 +901,13 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               <button
                 key={preset.id}
                 type="button"
-                disabled={isGuest}
+                disabled={isSpinning}
                 onClick={() => {
-                  if (isGuest) return;
+                  if (isSpinning) return;
                   handleSelectPreset(preset);
                 }}
                 className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                  isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  isSpinning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                 } ${
                   roulettePresetTitle === preset.title
                     ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
