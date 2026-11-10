@@ -987,6 +987,8 @@ async function startServer() {
   }
 
   const GAME_ROOMS = new Map<string, GameRoomState>();
+  // 🔑 [안정화] 탭 단기 재연결/새로고침 시 1↔2 펄럭거림(Ping-pong) 방어용 Grace Period 타이머 (1.5초)
+  const TAB_DISCONNECT_TIMERS = new Map<string, NodeJS.Timeout>();
 
   // Background cleanup for stale rooms (TTL 2 hours)
   setInterval(() => {
@@ -1094,6 +1096,13 @@ async function startServer() {
     }
     const currentRoom: GameRoomState = room;
 
+    // 🔑 [안정화] 재연결 인입 시 퇴장 대기 중이던 Grace Period 타이머 즉시 취소
+    const timerKey = `${currentRoom.roomId}:${currentTab}`;
+    if (TAB_DISCONNECT_TIMERS.has(timerKey)) {
+      clearTimeout(TAB_DISCONNECT_TIMERS.get(timerKey)!);
+      TAB_DISCONNECT_TIMERS.delete(timerKey);
+    }
+
     // Configure headers for SSE
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -1152,39 +1161,49 @@ async function startServer() {
     req.on('close', () => {
       clearInterval(heartbeatTimer);
       if (room) {
-        const activeRes = room.connectedTabs.get(currentTab);
-        if (activeRes === res) {
-          room.connectedTabs.delete(currentTab);
+        // 🔑 [안정화] 즉각 삭제하지 않고 1.5초(1500ms) 대기 후 단기 재연결이 없으면 최종 퇴장 처리
+        const disconnectKey = `${room.roomId}:${currentTab}`;
+        if (TAB_DISCONNECT_TIMERS.has(disconnectKey)) {
+          clearTimeout(TAB_DISCONNECT_TIMERS.get(disconnectKey)!);
         }
-        room.lastActive = Date.now();
+        const disconnectTimer = setTimeout(() => {
+          TAB_DISCONNECT_TIMERS.delete(disconnectKey);
+          if (!room) return;
+          const activeRes = room.connectedTabs.get(currentTab);
+          if (activeRes === res) {
+            room.connectedTabs.delete(currentTab);
+            room.lastActive = Date.now();
 
-        // 🔑 [핵심] 브라우저 탭 닫기/이탈 시 해당 tabId가 점유했던 자리 자동 해제
-        let seatReleased = false;
-        if (room.data?.members && Array.isArray(room.data.members)) {
-          room.data.members = room.data.members.map((m: any) => {
-            if (m.claimedBy === currentTab) {
-              seatReleased = true;
-              return { ...m, claimedBy: undefined };
+            // 🔑 [핵심] 브라우저 탭 닫기/이탈 시 해당 tabId가 점유했던 자리 자동 해제
+            let seatReleased = false;
+            if (room.data?.members && Array.isArray(room.data.members)) {
+              room.data.members = room.data.members.map((m: any) => {
+                if (m.claimedBy === currentTab) {
+                  seatReleased = true;
+                  return { ...m, claimedBy: undefined };
+                }
+                return m;
+              });
             }
-            return m;
-          });
-        }
 
-        // Broadcast presence change and seat release on disconnect
-        const leavePayload = JSON.stringify({
-          type: 'PRESENCE_CHANGE',
-          connectedClients: room.connectedTabs.size,
-          seatReleasedTabId: seatReleased ? currentTab : undefined,
-          members: seatReleased ? room.data.members : undefined,
-        });
+            // Broadcast presence change and seat release on disconnect
+            const leavePayload = JSON.stringify({
+              type: 'PRESENCE_CHANGE',
+              connectedClients: room.connectedTabs.size,
+              seatReleasedTabId: seatReleased ? currentTab : undefined,
+              members: seatReleased ? room.data.members : undefined,
+            });
 
-        for (const client of room.connectedTabs.values()) {
-          try {
-            client.write(`data: ${leavePayload}\n\n`);
-          } catch (e) {
-            // ignore
+            for (const client of room.connectedTabs.values()) {
+              try {
+                client.write(`data: ${leavePayload}\n\n`);
+              } catch (e) {
+                // ignore
+              }
+            }
           }
-        }
+        }, 1500);
+        TAB_DISCONNECT_TIMERS.set(disconnectKey, disconnectTimer);
       }
     });
   });
@@ -1203,14 +1222,11 @@ async function startServer() {
     room.lastActive = Date.now();
 
     // 🔑 [보안] 방장 전용 액션 검증 (hostToken 불일치 시 403 Forbidden 차단)
+    // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
       'PLAY_LADDER',
       'SPIN_ROULETTE',
       'SHUFFLE_MEMBERS',
-      'SHUFFLE_RUNGS',
-      'SHUFFLE_GOALS',
-      'SYNC_ROULETTE_ITEMS',
-      'SHUFFLE_ROULETTE_ITEMS',
       'CLOSE_ROOM',
       'RESET_GAME',
       'RESET_ROULETTE',
@@ -1230,9 +1246,31 @@ async function startServer() {
     if (action.type === 'SYNC_STATE' && action.state) {
       room.data = action.state;
     } else if (action.type === 'UPDATE_MEMBER_NAME' && room.data?.members) {
-      room.data.members = room.data.members.map((m: any) =>
-        m.id === action.memberId ? { ...m, name: action.name } : m
-      );
+      room.data.members = room.data.members.map((m: any) => {
+        if (m.id === action.memberId) {
+          const canEdit = !m.claimedBy || m.claimedBy === senderTabId || providedHostToken === room.hostToken;
+          if (canEdit) {
+            return { ...m, name: action.name };
+          }
+        }
+        return m;
+      });
+    } else if (action.type === 'UPDATE_MEMBER_DETAILS' && room.data?.members) {
+      // 🔑 [게스트 편집 허용] 본인이 점유한 참가자 아이콘/이름/메뉴 교체 실시간 반영
+      room.data.members = room.data.members.map((m: any) => {
+        if (m.id === action.memberId) {
+          const canEdit = !m.claimedBy || m.claimedBy === senderTabId || providedHostToken === room.hostToken;
+          if (canEdit) {
+            return {
+              ...m,
+              name: action.name !== undefined ? action.name : m.name,
+              avatarEmoji: action.avatarEmoji !== undefined ? action.avatarEmoji : m.avatarEmoji,
+              selectedMenu: action.selectedMenu !== undefined ? action.selectedMenu : m.selectedMenu,
+            };
+          }
+        }
+        return m;
+      });
     } else if (action.type === 'CLAIM_SEAT' && room.data?.members) {
       // 🔑 [원자적 자리 점유] 다른 사용자가 이미 점유 중인 자리는 점유 불가 처리
       const targetMember = room.data.members.find((m: any) => m.id === action.memberId);
@@ -1321,6 +1359,13 @@ async function startServer() {
     }
 
     if (tabId) {
+      // 🔑 명시적 이탈 시 유예 타이머 즉시 취소 및 삭제
+      const disconnectKey = `${roomId}:${tabId}`;
+      if (TAB_DISCONNECT_TIMERS.has(disconnectKey)) {
+        clearTimeout(TAB_DISCONNECT_TIMERS.get(disconnectKey)!);
+        TAB_DISCONNECT_TIMERS.delete(disconnectKey);
+      }
+
       const activeRes = room.connectedTabs.get(tabId);
       if (activeRes) {
         try {

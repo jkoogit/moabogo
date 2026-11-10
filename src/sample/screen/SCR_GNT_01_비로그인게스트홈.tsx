@@ -73,6 +73,22 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     return !!r && h !== '1';
   }, []);
 
+  // 🔑 [사다리·룰렛 통합 방 공유] 현재 참여 중인 방 식별자
+  const currentRoomId = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('room');
+  }, []);
+
+  // 🔑 [사다리·룰렛 통합 방 공유] 탭 전환 시 URL의 room 파라미터 보존 및 게임 파라미터 동기화
+  const handleSwitchGameTab = (nextType: 'SPLIT' | 'LADDER' | 'ROULETTE') => {
+    setGameType(nextType);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('game', nextType);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
   // 하단 플로팅 토스트/스낵바 상태 (ElmToast01 연동)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<'success' | 'info' | 'warning' | 'error'>('success');
@@ -418,7 +434,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           >
             <button
               type="button"
-              onClick={() => setGameType('SPLIT')}
+              onClick={() => handleSwitchGameTab('SPLIT')}
               className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'SPLIT'
                   ? resolvedTheme === 'dawn'
@@ -436,7 +452,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </button>
             <button
               type="button"
-              onClick={() => setGameType('LADDER')}
+              onClick={() => handleSwitchGameTab('LADDER')}
               className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'LADDER'
                   ? resolvedTheme === 'dawn'
@@ -454,7 +470,7 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </button>
             <button
               type="button"
-              onClick={() => setGameType('ROULETTE')}
+              onClick={() => handleSwitchGameTab('ROULETTE')}
               className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
                 gameType === 'ROULETTE'
                   ? resolvedTheme === 'dawn'
@@ -471,6 +487,27 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               <span className="whitespace-nowrap font-bold">룰렛</span>
             </button>
           </div>
+
+          {/* 🔑 [요구사항 9: 사다리·룰렛 통합 방 공유 및 새 탭 분리 안내 배너] */}
+          {currentRoomId && (
+            <div className="w-full max-w-2xl px-3.5 py-2 rounded-xl border border-indigo-200/90 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-medium">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
+                <span>
+                  방 공유 참여 중 (<strong className="font-mono text-indigo-700 dark:text-indigo-300">{currentRoomId}</strong>, 사다리·룰렛 공통)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.open(window.location.origin, '_blank')}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-2xs transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                title="공유 없이 혼자 새로 시작할 수 있는 새 탭을 엽니다"
+              >
+                <span>혼자 따로 하기 (새 탭)</span>
+                <span>↗</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 2. 게임영역 그룹 컨테이너 (고유 테두리 & 타이틀 글꼴 공식 규격) */}
@@ -948,10 +985,11 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
         />
       )}
 
-      {/* 화면 하단 플로팅 상태 피드백 토스트 레이어 (ElmToast01) */}
+      {/* 화면 하단 플로팅 상태 피드백 토스트 레이어 (ElmToast01 - 3초 자동 닫힘) */}
       <ElmToast01
         message={toastMessage}
         type={toastType}
+        duration={3000}
         onClose={() => setToastMessage(null)}
       />
     </div>

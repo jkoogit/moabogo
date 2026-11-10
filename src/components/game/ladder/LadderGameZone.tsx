@@ -16,6 +16,7 @@ import {
   LogOut,
   Users,
   Lock,
+  Smile,
 } from 'lucide-react';
 import {
   createLadderSyncChannel,
@@ -30,6 +31,7 @@ import {
 import { ElmRng01 } from '../../../sample/elements/Tokens';
 import { Participant, PRESET_CHARACTERS, loadUserGoalPresets, saveSharedGameHistory } from '../types';
 import {
+  LadderRung,
   LadderGoal,
   LadderResultMap,
   LadderRevealedGoalCols,
@@ -59,6 +61,12 @@ import {
   copyBlobToClipboard,
   downloadBlobAsFile,
 } from '../../../sample/utils/gameResultCardCanvas';
+
+const PRESET_AVATAR_EMOJIS = [
+  '☕', '🧋', '🍰', '🍩', '🍕', '🍔', '🍺', '🥤',
+  '🦁', '🐱', '🐶', '🐰', '🐼', '🦊', '🐯', '🐮',
+  '🐷', '🐸', '🦄', '🚀', '⭐', '🎈', '🎉', '🍎',
+];
 
 export interface LadderGameZoneProps {
   members: Participant[];
@@ -111,6 +119,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [storeModalMemberId, setStoreModalMemberId] = useState<string>('');
   const [storeModalMode, setStoreModalMode] = useState<'STORE_ONLY' | 'MEMBER_MENU'>('STORE_ONLY');
+  // 🔑 [게스트 아이콘 변경] 참가자 아바타 이모지 피커 모달 상태
+  const [avatarPickerMemberId, setAvatarPickerMemberId] = useState<string | null>(null);
 
   // 실시간 공유 방 상태 및 동기화 채널 핸들
   const [roomId, setRoomId] = useState<string | null>(() => {
@@ -254,6 +264,22 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         case 'UPDATE_MEMBER_NAME':
           setMembers((prev) =>
             prev.map((m) => (m.id === msg.memberId ? { ...m, name: msg.name } : m))
+          );
+          break;
+
+        case 'UPDATE_MEMBER_DETAILS':
+          setMembers((prev) =>
+            prev.map((m) => {
+              if (m.id === msg.memberId) {
+                return {
+                  ...m,
+                  name: msg.name !== undefined ? msg.name : m.name,
+                  avatar: msg.avatarEmoji !== undefined ? msg.avatarEmoji : m.avatar,
+                  selectedMenu: msg.selectedMenu !== undefined ? msg.selectedMenu : m.selectedMenu,
+                };
+              }
+              return m;
+            })
           );
           break;
 
@@ -482,7 +508,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleReshuffleRungs = () => {
-    if (isLadderTracing || isGuest) return;
+    if (isLadderTracing) return;
     const nextSeed = ladderSeed + 1;
     setLadderSeed(nextSeed);
     setLadderResult(null);
@@ -496,7 +522,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleShuffleGoals = () => {
-    if (isLadderTracing || isGuest) return;
+    if (isLadderTracing) return;
     const shuffled = [...ladderGoals].sort(() => Math.random() - 0.5);
     setLadderGoals(shuffled);
     setLadderResult(null);
@@ -527,7 +553,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     showToast('👥 참가자 순서가 무작위로 재배치되었습니다!', 'info');
   };
 
-  const handleSkipToResult = () => {
+  const handleSkipToResult = (overrideRungs?: LadderRung[]) => {
     if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
     setIsLadderTracing(false);
     setActiveTracingMemberIndex(null);
@@ -535,7 +561,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setCurrentTracedTrail([]);
     setArrivalPopup(null);
 
-    const { results } = computeLadderPaths(members, ladderGoals, ladderRungs);
+    const rungsToUse = overrideRungs || ladderRungs;
+    const { results } = computeLadderPaths(members, ladderGoals, rungsToUse);
     setLadderResult(results);
     setIsResultModalOpen(true);
 
@@ -587,6 +614,30 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handlePlayLadder = (skipTrace = false, broadcast = true) => {
+    if (skipTrace) {
+      // 🔑 [요구사항 8: 전체 즉시결과 실행 시 순간 사다리 가로줄 섞기(초기화) 후 게임 진행]
+      const nextSeed = ladderSeed + 1;
+      setLadderSeed(nextSeed);
+      if (channelRef.current) {
+        channelRef.current.send({ type: 'SHUFFLE_RUNGS', seed: nextSeed }, hostToken);
+      }
+      const freshRungs = generateLadderRungs(members.length, nextSeed);
+
+      if (broadcast && channelRef.current) {
+        channelRef.current.send(
+          {
+            type: 'PLAY_LADDER',
+            skipTrace: true,
+            speed: ladderSpeed,
+          },
+          hostToken
+        );
+      }
+
+      handleSkipToResult(freshRungs);
+      return;
+    }
+
     if (broadcast && channelRef.current) {
       channelRef.current.send(
         {
@@ -596,11 +647,6 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         },
         hostToken
       );
-    }
-
-    if (skipTrace) {
-      handleSkipToResult();
-      return;
     }
 
     if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
@@ -830,7 +876,45 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           : m
       )
     );
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'UPDATE_MEMBER_DETAILS',
+        memberId,
+        avatarEmoji: menuEmoji,
+        selectedMenu: item,
+      });
+    }
     showToast(`'${item.name}' 메뉴가 선택되어 참가자 아이콘이 교체되었습니다.`);
+  };
+
+  // 🔑 [게스트 아이콘 변경] 참가자 아바타 이모티콘 변경 핸들러 및 실시간 동기화
+  const handleSelectAvatarForMember = (memberId: string, emoji: string) => {
+    if (isLadderTracing) {
+      showToast('사다리가 진행 중인 동안에는 아이콘을 변경할 수 없습니다.', 'warning');
+      return;
+    }
+    const target = members.find((m) => m.id === memberId);
+    if (isGuest && target?.claimedBy !== currentTabId) {
+      showToast('본인이 점유(찜)한 참가자의 아이콘만 변경할 수 있습니다.', 'warning');
+      return;
+    }
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, avatar: emoji, selectedMenu: undefined }
+          : m
+      )
+    );
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'UPDATE_MEMBER_DETAILS',
+        memberId,
+        avatarEmoji: emoji,
+        selectedMenu: undefined,
+      });
+    }
+    setAvatarPickerMemberId(null);
+    showToast(`참가자 아이콘이 '${emoji}'(으)로 변경되었습니다.`);
   };
 
   // 참가자 이름 직접 수정 핸들러
@@ -839,12 +923,17 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       showToast('사다리가 진행 중인 동안에는 이름을 변경할 수 없습니다.', 'warning');
       return;
     }
+    const target = members.find((m) => m.id === id);
+    if (isGuest && target?.claimedBy !== currentTabId) {
+      showToast('본인이 점유(찜)한 참가자의 이름만 변경할 수 있습니다.', 'warning');
+      return;
+    }
     setMembers((prev) =>
       prev.map((m) => (m.id === id ? { ...m, name: newName } : m))
     );
     if (channelRef.current) {
       channelRef.current.send({
-        type: 'UPDATE_MEMBER_NAME',
+        type: 'UPDATE_MEMBER_DETAILS',
         memberId: id,
         name: newName,
       });
@@ -1289,11 +1378,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             <button
               type="button"
               onClick={handleReshuffleRungs}
-              disabled={isLadderTracing || isGuest}
+              disabled={isLadderTracing}
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 transition-all ${
-                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                isLadderTracing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               }`}
-              title={isGuest ? '방장만 가로줄을 섞을 수 있습니다' : '가로줄 섞기'}
+              title="사다리 가로줄 무작위 섞기 (참가자 공통)"
             >
               <Dices className="w-3.5 h-3.5 text-indigo-500" />
               <span>가로줄 섞기</span>
@@ -1302,11 +1391,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             <button
               type="button"
               onClick={handleShuffleGoals}
-              disabled={isLadderTracing || isGuest}
+              disabled={isLadderTracing}
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 transition-all ${
-                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                isLadderTracing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               }`}
-              title={isGuest ? '방장만 목표를 섞을 수 있습니다' : '목표 섞기'}
+              title="사다리 목표 무작위 섞기 (참가자 공통)"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>목표 섞기</span>
@@ -1455,12 +1544,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                   >
                     {/* 내자리 선택 시 우상단 체크마크 배지 (단차 발생 방지) */}
                     {isClaimedByMe && (
-                      <span
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-800 z-10 animate-in zoom-in-75"
-                        title="내 자리 선택됨"
-                      >
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </span>
+                      <>
+                        <span
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-800 z-10 animate-in zoom-in-75"
+                          title="내 자리 선택됨"
+                        >
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </span>
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAvatarPickerMemberId(m.id);
+                          }}
+                          className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-800 z-10 animate-in zoom-in-75 cursor-pointer"
+                          title="아이콘 이모티콘 변경"
+                        >
+                          <Smile className="w-3 h-3" />
+                        </span>
+                      </>
                     )}
 
                     <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shrink-0 shadow-2xs">
@@ -1516,16 +1617,25 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                     </div>
                   )}
 
-                  {/* 매장 메뉴 선택 버튼 */}
-                  {selectedStore && (
+                  {/* 매장 메뉴 선택 버튼 (매장 선택 시) 또는 내 자리 아이콘 변경 버튼 */}
+                  {selectedStore ? (
                     <button
                       type="button"
                       onClick={() => handleOpenStoreMenuPicker(m.id)}
-                      className="mt-1 px-1.5 py-0.5 rounded text-[10px] border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 truncate max-w-full font-medium"
+                      className="mt-1 px-1.5 py-0.5 rounded text-[10px] border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 truncate max-w-full font-medium hover:bg-amber-100 cursor-pointer"
                     >
                       {m.selectedMenu ? m.selectedMenu.name : '+ 메뉴 선택'}
                     </button>
-                  )}
+                  ) : isClaimedByMe ? (
+                    <button
+                      type="button"
+                      onClick={() => setAvatarPickerMemberId(m.id)}
+                      className="mt-1 px-1.5 py-0.5 rounded text-[10px] border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 truncate max-w-full font-medium hover:bg-indigo-100 cursor-pointer"
+                      title="아바타 아이콘 변경"
+                    >
+                      아이콘 변경
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
@@ -1747,6 +1857,50 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         resolvedTheme={resolvedTheme}
         isDark={isDark}
       />
+
+      {/* 🔑 [게스트 아이콘 변경] 참가자 아바타 이모티콘 선택 모달 */}
+      {avatarPickerMemberId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl flex flex-col gap-4 ${
+              resolvedTheme === 'dawn'
+                ? 'bg-white border-[#bfdbfe]'
+                : isDark
+                ? 'bg-[#1e1e22] border-[#2e2e34]'
+                : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
+                <Smile className="w-4 h-4 text-amber-500" />
+                <span>참가자 아이콘(이모티콘) 선택</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setAvatarPickerMemberId(null)}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              선택한 아이콘이 실시간으로 참가자들에게 공유됩니다.
+            </p>
+            <div className="grid grid-cols-6 gap-2 py-2">
+              {PRESET_AVATAR_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => handleSelectAvatarForMember(avatarPickerMemberId, emoji)}
+                  className="w-11 h-11 text-2xl rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

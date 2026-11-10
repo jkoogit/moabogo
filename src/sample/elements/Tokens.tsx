@@ -2429,7 +2429,7 @@ export const ElmToast01: React.FC<{
   onClose?: () => void;
   duration?: number;
   className?: string;
-}> = ({ message, type = 'success', onClose, duration = 2800, className = '' }) => {
+}> = ({ message, type = 'success', onClose, duration = 3000, className = '' }) => {
   useEffect(() => {
     if (!message || !onClose) return;
     const timer = setTimeout(() => {
