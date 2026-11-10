@@ -21,6 +21,7 @@ export type LadderSyncMessage =
   | { type: 'SYNC_STATE'; state: LadderSyncState }
   | { type: 'CLAIM_SEAT'; memberId: string; tabId: string }
   | { type: 'UPDATE_MEMBER_NAME'; memberId: string; name: string }
+  | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
   | { type: 'SHUFFLE_RUNGS'; seed: number }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }
   | { type: 'PLAY_LADDER'; skipTrace: boolean; speed: number }
@@ -28,7 +29,7 @@ export type LadderSyncMessage =
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
-  | { type: 'PRESENCE_CHANGE'; connectedClients: number };
+  | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
 
 export interface LadderChannelHandle {
   send: (msg: LadderSyncMessage) => void;
@@ -118,6 +119,8 @@ export function createLadderSyncChannel(
             onMessage({
               type: 'PRESENCE_CHANGE',
               connectedClients: payload.connectedClients || 1,
+              seatReleasedTabId: payload.seatReleasedTabId,
+              members: payload.members,
             });
           } else if (payload.type === 'ROOM_CONNECTED') {
             onMessage({
@@ -158,8 +161,25 @@ export function createLadderSyncChannel(
     }
   };
 
+  // 4. 탭 닫기/이탈 시 실시간 점유 자리 해제 및 Presence 갱신 (Beacon + Broadcast)
+  const handleBeforeUnload = () => {
+    try {
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      }
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        const payload = JSON.stringify({ tabId: currentTabId });
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/leave`, blob);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('beforeunload', handleBeforeUnload);
   }
 
   // 메시지 송신 함수 (모든 계층으로 동시 송신)
@@ -219,6 +239,7 @@ export function createLadderSyncChannel(
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     }
   };
 

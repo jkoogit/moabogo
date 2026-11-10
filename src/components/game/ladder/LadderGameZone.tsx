@@ -132,6 +132,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
   const channelRef = useRef<LadderChannelHandle | null>(null);
   const isRoomJoined = !!roomId;
+  const isGuest = isRoomJoined && !isRoomHost;
   const handlePlayLadderRef = useRef<(skipTrace?: boolean, broadcast?: boolean) => void>(() => {});
 
   const ladderSliderRef = useRef<HTMLDivElement>(null);
@@ -242,13 +243,30 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           );
           break;
 
+        case 'SHUFFLE_MEMBERS':
+          setMembers(msg.members);
+          setLadderResult(null);
+          setRevealedGoals({});
+          setRevealedGoalCols({});
+          setArrivalPopup(null);
+          showToast('👥 참가자 순서가 동기화되었습니다.', 'info');
+          break;
+
         case 'SHUFFLE_RUNGS':
           setLadderSeed(msg.seed);
+          setLadderResult(null);
+          setRevealedGoals({});
+          setRevealedGoalCols({});
+          setArrivalPopup(null);
           showToast('🎲 사다리 가로줄이 동기화되었습니다.', 'info');
           break;
 
         case 'SHUFFLE_GOALS':
           setLadderGoals(msg.goals);
+          setLadderResult(null);
+          setRevealedGoals({});
+          setRevealedGoalCols({});
+          setArrivalPopup(null);
           showToast('✨ 사다리 목표가 동기화되었습니다.', 'info');
           break;
 
@@ -268,6 +286,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           break;
 
         case 'LEAVE_ROOM':
+          if (msg.tabId) {
+            setMembers((prev) =>
+              prev.map((m) => (m.claimedBy === msg.tabId ? { ...m, claimedBy: undefined } : m))
+            );
+          }
           showToast('참여자가 게임에서 퇴장했습니다.', 'info');
           break;
 
@@ -283,6 +306,15 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
         case 'PRESENCE_CHANGE':
           setConnectedClients(msg.connectedClients);
+          if (msg.members) {
+            setMembers(msg.members);
+          } else if (msg.seatReleasedTabId) {
+            setMembers((prev) =>
+              prev.map((m) =>
+                m.claimedBy === msg.seatReleasedTabId ? { ...m, claimedBy: undefined } : m
+              )
+            );
+          }
           break;
       }
     });
@@ -436,7 +468,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleReshuffleRungs = () => {
-    if (isLadderTracing) return;
+    if (isLadderTracing || isGuest) return;
     const nextSeed = ladderSeed + 1;
     setLadderSeed(nextSeed);
     setLadderResult(null);
@@ -450,7 +482,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleShuffleGoals = () => {
-    if (isLadderTracing) return;
+    if (isLadderTracing || isGuest) return;
     const shuffled = [...ladderGoals].sort(() => Math.random() - 0.5);
     setLadderGoals(shuffled);
     setLadderResult(null);
@@ -461,6 +493,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       channelRef.current.send({ type: 'SHUFFLE_GOALS', goals: shuffled });
     }
     showToast('🎯 목표 위치가 무작위로 재배치되었습니다!', 'info');
+  };
+
+  const handleShuffleMembers = () => {
+    if (isLadderTracing || isGuest) return;
+    const shuffled = [...members];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setMembers(shuffled);
+    setLadderResult(null);
+    setRevealedGoals({});
+    setRevealedGoalCols({});
+    setArrivalPopup(null);
+    if (channelRef.current) {
+      channelRef.current.send({ type: 'SHUFFLE_MEMBERS', members: shuffled });
+    }
+    showToast('👥 참가자 순서가 무작위로 재배치되었습니다!', 'info');
   };
 
   const handleSkipToResult = () => {
@@ -720,6 +770,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   const handleGoalColClick = (colIdx: number) => {
     if (isLadderTracing) return;
+    if (isGuest) {
+      showToast('방장만 사다리 목표를 직접 편집할 수 있습니다.', 'warning');
+      return;
+    }
     setEditingGoalCol(colIdx);
     setIsGoalModalOpen(true);
   };
@@ -732,6 +786,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleOpenStoreMenuPicker = (memberId: string) => {
+    const target = members.find((m) => m.id === memberId);
+    if (isGuest && target?.claimedBy !== currentTabId) {
+      showToast('본인이 점유(찜)한 참가자의 메뉴만 선택할 수 있습니다.', 'warning');
+      return;
+    }
     setStoreModalMemberId(memberId);
     setStoreModalMode('MEMBER_MENU');
     setIsStoreModalOpen(true);
@@ -1047,15 +1106,23 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
         <button
           type="button"
+          disabled={isGuest}
           onClick={() => {
+            if (isGuest) return;
             setStoreModalMemberId(members[0]?.id || '');
             setStoreModalMode('STORE_ONLY');
             setIsStoreModalOpen(true);
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-bold transition-all cursor-pointer"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all ${
+            isGuest
+              ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-zinc-800'
+              : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer'
+          }`}
+          title={isGuest ? '방장만 매장 메뉴를 변경할 수 있습니다 (읽기 전용)' : undefined}
         >
-          <Store className="w-3.5 h-3.5" />
+          {isGuest ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : <Store className="w-3.5 h-3.5" />}
           <span>{selectedStore ? '매장 변경 / 해제' : '매장 메뉴 연동하기'}</span>
+          {isGuest && <span className="text-[10px] text-slate-400 font-normal">(방장 전용)</span>}
         </button>
       </div>
 
@@ -1072,13 +1139,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         {/* 당첨 인원 슬라이더 & 가중치 모드 토글 */}
         <div className="w-full space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-              당첨 인원수
+            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <span>당첨 인원수</span>
+              {isGuest && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-normal flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> 방장 제어
+                </span>
+              )}
             </span>
             <button
               type="button"
-              onClick={() => setUseLadderWeight((prev) => !prev)}
-              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              disabled={isGuest}
+              onClick={() => {
+                if (isGuest) return;
+                setUseLadderWeight((prev) => !prev);
+              }}
+              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              } ${
                 useLadderWeight
                   ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
                   : resolvedTheme === 'dawn'
@@ -1098,7 +1176,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             max={Math.max(1, members.length - 1)}
             step={1}
             unit="명"
-            onChange={(val) => setWinnerCount(val)}
+            disabled={isGuest || isLadderTracing}
+            onChange={(val) => {
+              if (isGuest) return;
+              setWinnerCount(val);
+            }}
             colorScheme="indigo"
           />
         </div>
@@ -1106,13 +1188,22 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         {/* 퀵 액션 버튼 바: 속도 조절(모바일 줄바꿈 방지 슬라이드), 주사위 재배치, 셔플 */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap py-0.5 shrink min-w-0 max-w-full">
-            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 shrink-0">속도:</span>
+            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 shrink-0 flex items-center gap-1">
+              <span>속도:</span>
+              {isGuest && <Lock className="w-3 h-3 text-slate-400" />}
+            </span>
             {LADDER_SPEED_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setLadderSpeed(opt.value)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                disabled={isGuest}
+                onClick={() => {
+                  if (isGuest) return;
+                  setLadderSpeed(opt.value);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${
+                  isGuest ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                } ${
                   ladderSpeed === opt.value
                     ? 'bg-indigo-600 text-white border-indigo-700'
                     : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
@@ -1123,12 +1214,28 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleShuffleMembers}
+              disabled={isLadderTracing || isGuest}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 transition-all ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              title={isGuest ? '방장만 참가자를 섞을 수 있습니다' : '참가자 순서 섞기'}
+            >
+              <Users className="w-3.5 h-3.5 text-sky-500" />
+              <span>참가자 섞기</span>
+            </button>
+
             <button
               type="button"
               onClick={handleReshuffleRungs}
-              disabled={isLadderTracing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 cursor-pointer"
+              disabled={isLadderTracing || isGuest}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 transition-all ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              title={isGuest ? '방장만 가로줄을 섞을 수 있습니다' : '가로줄 섞기'}
             >
               <Dices className="w-3.5 h-3.5 text-indigo-500" />
               <span>가로줄 섞기</span>
@@ -1137,8 +1244,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             <button
               type="button"
               onClick={handleShuffleGoals}
-              disabled={isLadderTracing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 cursor-pointer"
+              disabled={isLadderTracing || isGuest}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-40 transition-all ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              title={isGuest ? '방장만 목표를 섞을 수 있습니다' : '목표 섞기'}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>목표 섞기</span>

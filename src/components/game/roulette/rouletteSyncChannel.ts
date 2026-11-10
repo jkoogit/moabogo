@@ -16,8 +16,10 @@ export type RouletteSyncMessage =
   | { type: 'ROULETTE_SYNC_STATE'; state: RouletteSyncState }
   | { type: 'SPIN_ROULETTE'; targetAngle: number; chosenItem: RouletteSliceItem; duration: number }
   | { type: 'SYNC_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
+  | { type: 'SHUFFLE_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
   | { type: 'SYNC_ROULETTE_RESULT'; winner: RouletteSliceItem | null }
   | { type: 'RESET_ROULETTE' }
+  | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
   | { type: 'PRESENCE_CHANGE'; connectedClients: number };
@@ -107,8 +109,24 @@ export function createRouletteSyncChannel(
     }
   };
 
+  const handleBeforeUnload = () => {
+    try {
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      }
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        const payload = JSON.stringify({ tabId: currentTabId });
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/leave`, blob);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('beforeunload', handleBeforeUnload);
   }
 
   const send = (msg: RouletteSyncMessage) => {
@@ -164,6 +182,7 @@ export function createRouletteSyncChannel(
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     }
   };
 

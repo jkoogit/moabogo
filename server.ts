@@ -980,7 +980,7 @@ async function startServer() {
     isClosed?: boolean; // 게임 종료 여부 (신규 유입 차단, 기존 최종 결과만 표시)
     closedAt?: number;
     finalResult?: any;
-    clientResponses: Set<express.Response>;
+    connectedTabs: Map<string, express.Response>; // 🔑 [핵심] 고유 tabId별 SSE 스트림 매핑 (중복 카운트 방지 및 단일 탭 매핑)
     lastActive: number;
     createdAt: number;
   }
@@ -993,7 +993,7 @@ async function startServer() {
     for (const [roomId, room] of GAME_ROOMS.entries()) {
       if (now - room.lastActive > 2 * 60 * 60 * 1000) {
         // Close connected client SSE streams
-        for (const clientRes of room.clientResponses) {
+        for (const clientRes of room.connectedTabs.values()) {
           try {
             clientRes.end();
           } catch (e) {
@@ -1021,7 +1021,7 @@ async function startServer() {
         hostName,
         data: data || {},
         isClosed: false,
-        clientResponses: new Set(),
+        connectedTabs: new Map(),
         lastActive: Date.now(),
         createdAt: Date.now(),
       };
@@ -1039,7 +1039,7 @@ async function startServer() {
       gameType: room.gameType,
       isClosed: Boolean(room.isClosed),
       finalResult: room.finalResult,
-      connectedClients: room.clientResponses.size,
+      connectedClients: room.connectedTabs.size,
       data: room.data,
     });
   });
@@ -1056,7 +1056,9 @@ async function startServer() {
       roomId: room.roomId,
       gameType: room.gameType,
       hostTabId: room.hostTabId,
-      connectedClients: room.clientResponses.size,
+      isClosed: Boolean(room.isClosed),
+      finalResult: room.finalResult,
+      connectedClients: room.connectedTabs.size,
       data: room.data,
     });
   });
@@ -1064,7 +1066,8 @@ async function startServer() {
   // 9.3 Server-Sent Events (SSE) Stream for real-time room events
   app.get('/api/v1/games/rooms/:roomId/events', (req, res) => {
     const { roomId } = req.params;
-    const { tabId = 'guest' } = req.query;
+    const { tabId } = req.query;
+    const currentTab = String(tabId || `tab_${Math.random().toString(36).slice(2, 9)}`);
 
     let room = GAME_ROOMS.get(roomId);
     if (!room) {
@@ -1073,10 +1076,10 @@ async function startServer() {
       room = {
         roomId,
         gameType: typePrefix,
-        hostTabId: String(tabId),
+        hostTabId: currentTab,
         hostName: '호스트',
         data: {},
-        clientResponses: new Set(),
+        connectedTabs: new Map(),
         lastActive: Date.now(),
         createdAt: Date.now(),
       };
@@ -1091,7 +1094,17 @@ async function startServer() {
       'X-Accel-Buffering': 'no',
     });
 
-    room.clientResponses.add(res);
+    // 만약 동일 tabId로 이미 열려 있는 스트림이 있다면 정상 종료 후 교체
+    const prevRes = room.connectedTabs.get(currentTab);
+    if (prevRes && prevRes !== res) {
+      try {
+        prevRes.end();
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    room.connectedTabs.set(currentTab, res);
     room.lastActive = Date.now();
 
     // Send initial snapshot
@@ -1099,7 +1112,7 @@ async function startServer() {
       type: 'ROOM_CONNECTED',
       roomId: room.roomId,
       gameType: room.gameType,
-      connectedClients: room.clientResponses.size,
+      connectedClients: room.connectedTabs.size,
       data: room.data,
     });
     res.write(`data: ${initPayload}\n\n`);
@@ -1107,10 +1120,10 @@ async function startServer() {
     // Broadcast client count update to other peers
     const presencePayload = JSON.stringify({
       type: 'PRESENCE_CHANGE',
-      connectedClients: room.clientResponses.size,
+      connectedClients: room.connectedTabs.size,
     });
-    for (const client of room.clientResponses) {
-      if (client !== res) {
+    for (const [tId, client] of room.connectedTabs.entries()) {
+      if (tId !== currentTab && client !== res) {
         try {
           client.write(`data: ${presencePayload}\n\n`);
         } catch (e) {
@@ -1131,15 +1144,33 @@ async function startServer() {
     req.on('close', () => {
       clearInterval(heartbeatTimer);
       if (room) {
-        room.clientResponses.delete(res);
+        const activeRes = room.connectedTabs.get(currentTab);
+        if (activeRes === res) {
+          room.connectedTabs.delete(currentTab);
+        }
         room.lastActive = Date.now();
 
-        // Broadcast presence change on disconnect
+        // 🔑 [핵심] 브라우저 탭 닫기/이탈 시 해당 tabId가 점유했던 자리 자동 해제
+        let seatReleased = false;
+        if (room.data?.members && Array.isArray(room.data.members)) {
+          room.data.members = room.data.members.map((m: any) => {
+            if (m.claimedBy === currentTab) {
+              seatReleased = true;
+              return { ...m, claimedBy: undefined };
+            }
+            return m;
+          });
+        }
+
+        // Broadcast presence change and seat release on disconnect
         const leavePayload = JSON.stringify({
           type: 'PRESENCE_CHANGE',
-          connectedClients: room.clientResponses.size,
+          connectedClients: room.connectedTabs.size,
+          seatReleasedTabId: seatReleased ? currentTab : undefined,
+          members: seatReleased ? room.data.members : undefined,
         });
-        for (const client of room.clientResponses) {
+
+        for (const client of room.connectedTabs.values()) {
           try {
             client.write(`data: ${leavePayload}\n\n`);
           } catch (e) {
@@ -1180,31 +1211,44 @@ async function startServer() {
         }
         return m;
       });
+    } else if (action.type === 'SHUFFLE_MEMBERS' && action.members) {
+      if (room.data) room.data.members = action.members;
     } else if (action.type === 'SHUFFLE_RUNGS') {
       if (room.data) room.data.ladderSeed = action.seed;
     } else if (action.type === 'SHUFFLE_GOALS') {
       if (room.data) room.data.ladderGoals = action.goals;
-    } else if (action.type === 'SYNC_ROULETTE_ITEMS') {
-      if (room.data) room.data.rouletteItems = action.items;
+    } else if (action.type === 'SYNC_ROULETTE_ITEMS' || action.type === 'SHUFFLE_ROULETTE_ITEMS') {
+      if (room.data && action.items) room.data.rouletteItems = action.items;
     } else if (action.type === 'SYNC_ROULETTE_RESULT') {
       if (room.data) room.data.selectedWinner = action.winner;
+    } else if (action.type === 'LEAVE_ROOM') {
+      if (action.tabId) {
+        room.connectedTabs.delete(action.tabId);
+        if (room.data?.members && Array.isArray(room.data.members)) {
+          room.data.members = room.data.members.map((m: any) =>
+            m.claimedBy === action.tabId ? { ...m, claimedBy: undefined } : m
+          );
+        }
+      }
     } else if (action.type === 'CLOSE_ROOM') {
       room.isClosed = true;
       room.closedAt = Date.now();
       room.finalResult = action.finalResult || room.data?.ladderResult || room.data?.selectedWinner;
     }
 
-    // Broadcast action to all connected SSE clients (excluding sender if needed, or including for confirmation)
+    // Broadcast action to all connected SSE clients
     const payload = JSON.stringify({
       type: 'ACTION_RELAY',
       action,
       isClosed: room.isClosed,
       finalResult: room.finalResult,
       senderTabId,
+      connectedClients: room.connectedTabs.size,
+      members: room.data?.members,
       timestamp: Date.now(),
     });
 
-    for (const client of room.clientResponses) {
+    for (const client of room.connectedTabs.values()) {
       try {
         client.write(`data: ${payload}\n\n`);
       } catch (e) {
@@ -1212,7 +1256,66 @@ async function startServer() {
       }
     }
 
-    res.json({ success: true, broadcastCount: room.clientResponses.size });
+    res.json({ success: true, broadcastCount: room.connectedTabs.size });
+  });
+
+  // 9.5 Leave Room & Immediate Seat Release (Supports navigator.sendBeacon upon tab close)
+  app.post('/api/v1/games/rooms/:roomId/leave', (req, res) => {
+    const { roomId } = req.params;
+    let tabId = req.body?.tabId;
+    if (!tabId && typeof req.body === 'string') {
+      try {
+        const parsed = JSON.parse(req.body);
+        tabId = parsed.tabId;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const room = GAME_ROOMS.get(roomId);
+    if (!room) {
+      return res.status(404).json({ error: '방을 찾을 수 없습니다.' });
+    }
+
+    if (tabId) {
+      const activeRes = room.connectedTabs.get(tabId);
+      if (activeRes) {
+        try {
+          activeRes.end();
+        } catch (e) {
+          // ignore
+        }
+        room.connectedTabs.delete(tabId);
+      }
+
+      let seatReleased = false;
+      if (room.data?.members && Array.isArray(room.data.members)) {
+        room.data.members = room.data.members.map((m: any) => {
+          if (m.claimedBy === tabId) {
+            seatReleased = true;
+            return { ...m, claimedBy: undefined };
+          }
+          return m;
+        });
+      }
+
+      const leavePayload = JSON.stringify({
+        type: 'PRESENCE_CHANGE',
+        connectedClients: room.connectedTabs.size,
+        seatReleasedTabId: seatReleased ? tabId : undefined,
+        members: seatReleased ? room.data.members : undefined,
+      });
+
+      for (const client of room.connectedTabs.values()) {
+        try {
+          client.write(`data: ${leavePayload}\n\n`);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    res.json({ success: true, connectedClients: room.connectedTabs.size });
   });
 
   // -------------------------------------------------------------
