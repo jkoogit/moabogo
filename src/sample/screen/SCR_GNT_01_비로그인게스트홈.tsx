@@ -64,6 +64,15 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // 클라이언트 탭/점유자 고유 식별자
   const [currentTabId] = useState<string>(() => 'tab_' + Math.random().toString(36).slice(2, 9));
 
+  // 초대 링크를 통해 접속한 게스트 참여자 여부 식별
+  const isGuestInRoom = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const p = new URLSearchParams(window.location.search);
+    const r = p.get('room');
+    const h = p.get('host');
+    return !!r && h !== '1';
+  }, []);
+
   // 하단 플로팅 토스트/스낵바 상태 (ElmToast01 연동)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<'success' | 'info' | 'warning' | 'error'>('success');
@@ -524,14 +533,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           {gameType !== 'ROULETTE' && (
             <div className="w-full">
               <ElmRng01
-                label="참여 인원수"
+                label={isGuestInRoom ? "참여 인원수 (방장 제어 · 읽기 전용)" : "참여 인원수"}
                 value={memberCount}
                 min={2}
                 max={maxMemberLimit}
                 step={1}
                 unit="명"
-                onChange={(val) => handleUpdateMemberCount(val)}
-                onAddThreshold={() => {
+                disabled={isGuestInRoom}
+                onChange={(val) => {
+                  if (isGuestInRoom) return;
+                  handleUpdateMemberCount(val);
+                }}
+                onAddThreshold={isGuestInRoom ? undefined : () => {
                   setMaxMemberLimit((prev) => {
                     const nextLimit = prev + 5;
                     showToast(`최대 참여 인원이 5명 추가되었습니다. (최대 ${nextLimit}명)`);

@@ -13,6 +13,7 @@ import {
   Trophy,
   Share2,
   Lock,
+  Dices,
 } from 'lucide-react';
 import { ElmRng01, ElmSld03 } from '../../../sample/elements/Tokens';
 import { Participant, RouletteSliceItem, saveSharedGameHistory } from '../types';
@@ -118,6 +119,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
   const channelRef = useRef<RouletteChannelHandle | null>(null);
+  const isGuest = !!roomId && !isRoomHost;
   const handleSpinRouletteRef = useRef<(skip?: boolean, overrideChosen?: RouletteSliceItem, broadcast?: boolean) => void>(() => {});
 
   // Modals
@@ -178,7 +180,12 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           break;
 
         case 'SYNC_ROULETTE_ITEMS':
+        case 'SHUFFLE_ROULETTE_ITEMS':
           setRouletteItems(msg.items);
+          setSelectedRouletteWinner(null);
+          if (msg.type === 'SHUFFLE_ROULETTE_ITEMS') {
+            showToast('🎲 룰렛 항목 순서가 동기화되었습니다.', 'info');
+          }
           break;
 
         case 'SYNC_ROULETTE_RESULT':
@@ -501,6 +508,24 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     showToast(`참여 멤버 ${members.length}명이 룰렛 항목에 반영되었습니다.`);
   };
 
+  const handleShuffleRouletteItems = () => {
+    if (isSpinning || isGuest) return;
+    const shuffled = [...rouletteItems];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setRouletteItems(shuffled);
+    setSelectedRouletteWinner(null);
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'SHUFFLE_ROULETTE_ITEMS',
+        items: shuffled,
+      });
+    }
+    showToast('🎲 룰렛 항목 순서를 무작위로 섞었습니다!');
+  };
+
   const handleSelectPreset = (preset: RoulettePreset) => {
     setSelectedRouletteWinner(null);
     setIsResultModalOpen(false);
@@ -700,13 +725,24 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         {/* 룰렛 항목 인디케이터 & 가중치 모드 토글 */}
         <div className="w-full space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-              설정 항목
+            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <span>설정 항목</span>
+              {isGuest && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-normal flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> 방장 제어
+                </span>
+              )}
             </span>
             <button
               type="button"
-              onClick={() => setUseRouletteWeight((prev) => !prev)}
-              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              disabled={isGuest}
+              onClick={() => {
+                if (isGuest) return;
+                setUseRouletteWeight((prev) => !prev);
+              }}
+              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              } ${
                 useRouletteWeight
                   ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
                   : resolvedTheme === 'dawn'
@@ -726,25 +762,54 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             max={20}
             step={1}
             unit="개"
-            onChange={(val: number) => handleUpdateRouletteItemCount(val)}
+            disabled={isGuest || isSpinning}
+            onChange={(val: number) => {
+              if (isGuest) return;
+              handleUpdateRouletteItemCount(val);
+            }}
             colorScheme="indigo"
           />
         </div>
 
-        {/* 항목 조정 & 프리셋 설정 버튼 */}
+        {/* 항목 조정 & 프리셋 설정 버튼 + 항목 섞기 */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex items-center justify-between gap-2.5 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">항목 조정:</span>
-            <span className="text-[11px] text-slate-400">개별 명칭 및 가중치 세부 설정</span>
+            <span className="text-[11px] text-slate-400">
+              {isGuest ? '방장만 항목 및 가중치를 변경할 수 있습니다' : '개별 명칭 및 가중치 세부 설정'}
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsSettingModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>항목 & 프리셋 설정</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isSpinning || isGuest}
+              onClick={handleShuffleRouletteItems}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold transition-all ${
+                isGuest ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-zinc-700 cursor-pointer'
+              }`}
+              title={isGuest ? '방장만 항목 순서를 섞을 수 있습니다' : '항목 순서 섞기'}
+            >
+              <Dices className="w-3.5 h-3.5 text-indigo-500" />
+              <span>항목 섞기</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isGuest}
+              onClick={() => {
+                if (isGuest) return;
+                setIsSettingModalOpen(true);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-xs shrink-0 ${
+                isGuest
+                  ? 'bg-slate-400 dark:bg-zinc-700 cursor-not-allowed opacity-60'
+                  : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'
+              }`}
+            >
+              {isGuest ? <Lock className="w-3.5 h-3.5" /> : <SlidersHorizontal className="w-3.5 h-3.5" />}
+              <span>{isGuest ? '항목 설정 (방장 전용)' : '항목 & 프리셋 설정'}</span>
+            </button>
+          </div>
         </div>
 
         {/* 추천 프리셋 원터치 슬라이드 (좌우 이동 버튼 제거 및 슬라이드드래그휠 전담) */}
@@ -755,8 +820,16 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             </span>
             <button
               type="button"
-              onClick={handleApplyMembersToRoulette}
-              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+              disabled={isGuest}
+              onClick={() => {
+                if (isGuest) return;
+                handleApplyMembersToRoulette();
+              }}
+              className={`text-[11px] font-bold flex items-center gap-1 shrink-0 ${
+                isGuest
+                  ? 'text-slate-400 cursor-not-allowed opacity-50'
+                  : 'text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer'
+              }`}
             >
               <span>👥</span>
               <span>참여 멤버 ({members.length}명) 반영</span>
@@ -772,8 +845,14 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => handleSelectPreset(preset)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                disabled={isGuest}
+                onClick={() => {
+                  if (isGuest) return;
+                  handleSelectPreset(preset);
+                }}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                  isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                } ${
                   roulettePresetTitle === preset.title
                     ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
                     : resolvedTheme === 'dawn'
@@ -944,35 +1023,48 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           rotation={rouletteRotation}
           duration={rouletteTransitionDuration}
           isSpinning={isSpinning}
-          onCenterClick={() => handleSpinRoulette(false, undefined, true)}
+          onCenterClick={isGuest ? undefined : () => handleSpinRoulette(false, undefined, true)}
         />
 
         {/* 룰렛 메인 컨트롤 버튼 바 (모바일 줄바꿈 방지 및 요소 단위 줄바꿈, 재실행 및 회전중 텍스트 제거) */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 w-full max-w-lg">
-          <button
-            type="button"
-            disabled={isRoomClosed}
-            onClick={() => handleSpinRoulette(false, undefined, true)}
-            className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap min-w-0"
-          >
-            <Play className="w-4 h-4 fill-current shrink-0" />
-            <span className="whitespace-nowrap">{isRoomClosed ? '게임 마감됨' : '룰렛 돌리기'}</span>
-          </button>
+          {isGuest ? (
+            <div className="flex-1 py-3 px-4 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs text-center flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+              <span>
+                {isSpinning
+                  ? '🏁 초대자가 룰렛을 돌려 함께 회전하는 중...'
+                  : '🎮 초대자가 룰렛을 돌리면 모든 화면에서 함께 회전합니다'}
+              </span>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={isRoomClosed}
+                onClick={() => handleSpinRoulette(false, undefined, true)}
+                className="flex-1 py-3 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap min-w-0"
+              >
+                <Play className="w-4 h-4 fill-current shrink-0" />
+                <span className="whitespace-nowrap">{isRoomClosed ? '게임 마감됨' : '룰렛 돌리기'}</span>
+              </button>
 
-          <button
-            type="button"
-            disabled={isRoomClosed}
-            onClick={() => handleSpinRoulette(true)}
-            className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
-              resolvedTheme === 'dawn'
-                ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
-                : isDark
-                ? 'bg-[#27272a] border-[#3f3f46] text-slate-200 hover:bg-[#323238]'
-                : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <span className="whitespace-nowrap">⚡ 즉시 결과</span>
-          </button>
+              <button
+                type="button"
+                disabled={isRoomClosed}
+                onClick={() => handleSpinRoulette(true)}
+                className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  resolvedTheme === 'dawn'
+                    ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
+                    : isDark
+                    ? 'bg-[#27272a] border-[#3f3f46] text-slate-200 hover:bg-[#323238]'
+                    : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span className="whitespace-nowrap">⚡ 즉시 결과</span>
+              </button>
+            </>
+          )}
 
           {selectedRouletteWinner && (
             <button

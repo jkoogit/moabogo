@@ -7,7 +7,7 @@ export interface RouletteWheelSvgProps {
   rotation: number;
   duration: number;
   isSpinning: boolean;
-  onCenterClick: () => void;
+  onCenterClick?: () => void;
 }
 
 const SLICE_COLORS = [

@@ -77,13 +77,28 @@ stateDiagram-v2
   - **1단계(실시간)**: 매 대화 응답 시 로컬 하네스 스토어 및 트레이스 상태 기록.
   - **2단계(정합성 보정 & 승급 전수 보완)**: `#태스크승급` 및 `#세션정리` 시점에 세션 내 누적된 모든 미반영 대화 턴을 검증하고 원격 저장소 및 DB 상태와 100% 동기화.
 - **원격 Git 제어 기술 원칙 (Git Commit & Push Mandate)**:
-  - **[필수 원칙 0] 샌드박스 Git 초기화 및 환경 보장 의무**:
-    에이전트 샌드박스 환경은 재시작 시 `.git` 및 git config가 없을 수 있으므로, Git 명령 실행 전 반드시 다음 초기화 블록을 선행 실행하여 git 명령 실패(`fatal: not a git repository`)를 원천 방지한다:
+  - **[필수 원칙 0] 다중 작업환경별 GitHub 토큰 자동 감지 및 Git 환경 보장 의무**:
+    작업 환경별(1. AI Studio, 2. antigravity CLI, 3. antigravity IDE `.env`)로 GitHub 토큰 주입 방식이 상이하므로, Git 및 GitHub API 호출 전 반드시 다음 자동 감지 및 초기화 블록을 선행 실행하여 권한 오류를 원천 차단한다:
     ```bash
+    # [환경별 토큰 감지 계층] 1. 환경변수 -> 2. .env 파일 -> 3. git remote.origin.url 역추출
+    GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN}}"
+    if [ -z "$GITHUB_TOKEN" ] && [ -f .env ]; then
+      GITHUB_TOKEN=$(grep -E '^(GITHUB_TOKEN|GH_TOKEN)=' .env | cut -d '=' -f2- | tr -d '"'\'' ')
+    fi
+    if [ -z "$GITHUB_TOKEN" ]; then
+      GITHUB_TOKEN=$(git config --get remote.origin.url 2>/dev/null | sed -n 's/.*x-access-token:\([^@]*\)@.*/\1/p')
+    fi
+    export GITHUB_TOKEN
+
+    git config --global --add safe.directory /app/applet 2>/dev/null || true
     [ ! -d .git ] && git init -b dev
     git config user.name "MoaBogo AI Agent"
     git config user.email "agent@moabogo.internal"
-    git remote get-url origin >/dev/null 2>&1 || git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
+    if git remote get-url origin >/dev/null 2>&1; then
+      [ -n "$GITHUB_TOKEN" ] && git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
+    else
+      git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
+    fi
     ```
   - **[필수 원칙 1] 세션시작 시 원격 `dev` 브랜치 자동 Pull 선행 의무**:
     새 세션 또는 환경 전환 시 과거 로컬 스냅샷 불일치를 방지하기 위해 `#세션시작` 시 원격 `dev` 최신 트리를 로컬 작업공간에 100% 동기화(`git fetch origin dev && git checkout -B dev origin/dev`).
