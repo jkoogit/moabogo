@@ -120,10 +120,24 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     }
     return null;
   });
+  // 🔑 [보안] URL query parameter host=1 제거 -> sessionStorage의 hostToken 존재 및 일치 여부로 방장 권한 판정
+  const [hostToken, setHostToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const rId = p.get('room');
+      if (rId) {
+        return window.sessionStorage.getItem(`moabogo_host_token_${rId}`);
+      }
+    }
+    return null;
+  });
   const [isRoomHost, setIsRoomHost] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      return p.get('host') === '1';
+      const rId = p.get('room');
+      if (rId) {
+        return !!window.sessionStorage.getItem(`moabogo_host_token_${rId}`);
+      }
     }
     return false;
   });
@@ -476,7 +490,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setRevealedGoalCols({});
     setArrivalPopup(null);
     if (channelRef.current) {
-      channelRef.current.send({ type: 'SHUFFLE_RUNGS', seed: nextSeed });
+      channelRef.current.send({ type: 'SHUFFLE_RUNGS', seed: nextSeed }, hostToken);
     }
     showToast('🎲 사다리 가로줄이 무작위로 재배치되었습니다!', 'info');
   };
@@ -490,7 +504,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setRevealedGoalCols({});
     setArrivalPopup(null);
     if (channelRef.current) {
-      channelRef.current.send({ type: 'SHUFFLE_GOALS', goals: shuffled });
+      channelRef.current.send({ type: 'SHUFFLE_GOALS', goals: shuffled }, hostToken);
     }
     showToast('🎯 목표 위치가 무작위로 재배치되었습니다!', 'info');
   };
@@ -508,7 +522,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     setRevealedGoalCols({});
     setArrivalPopup(null);
     if (channelRef.current) {
-      channelRef.current.send({ type: 'SHUFFLE_MEMBERS', members: shuffled });
+      channelRef.current.send({ type: 'SHUFFLE_MEMBERS', members: shuffled }, hostToken);
     }
     showToast('👥 참가자 순서가 무작위로 재배치되었습니다!', 'info');
   };
@@ -574,11 +588,14 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   const handlePlayLadder = (skipTrace = false, broadcast = true) => {
     if (broadcast && channelRef.current) {
-      channelRef.current.send({
-        type: 'PLAY_LADDER',
-        skipTrace,
-        speed: ladderSpeed,
-      });
+      channelRef.current.send(
+        {
+          type: 'PLAY_LADDER',
+          skipTrace,
+          speed: ladderSpeed,
+        },
+        hostToken
+      );
     }
 
     if (skipTrace) {
@@ -797,6 +814,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleSelectMenuForMember = (memberId: string, item: StoreMenuItem) => {
+    if (isLadderTracing) {
+      showToast('사다리가 진행 중인 동안에는 메뉴를 변경할 수 없습니다.', 'warning');
+      return;
+    }
     const menuEmoji = getStoreMenuEmoji(item);
     setMembers((prev) =>
       prev.map((m) =>
@@ -814,6 +835,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   // 참가자 이름 직접 수정 핸들러
   const handleUpdateMemberName = (id: string, newName: string) => {
+    if (isLadderTracing) {
+      showToast('사다리가 진행 중인 동안에는 이름을 변경할 수 없습니다.', 'warning');
+      return;
+    }
     setMembers((prev) =>
       prev.map((m) => (m.id === id ? { ...m, name: newName } : m))
     );
@@ -828,8 +853,17 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   // 내 자리 찜하기 토글 (단일 선택 및 이전 선택 초기화 보장)
   const handleToggleClaimSeat = (memberId: string) => {
+    if (isLadderTracing) {
+      showToast('사다리가 진행 중인 동안에는 자리를 변경할 수 없습니다.', 'warning');
+      return;
+    }
+    const targetMember = members.find((m) => m.id === memberId);
+    if (targetMember && targetMember.claimedBy && targetMember.claimedBy !== currentTabId) {
+      showToast('이미 다른 참가자가 선택한 자리입니다.', 'warning');
+      return;
+    }
+
     setMembers((prev) => {
-      const targetMember = prev.find((m) => m.id === memberId);
       const isAlreadyClaimedByMe = targetMember?.claimedBy === currentTabId;
 
       return prev.map((m) => {
@@ -864,9 +898,10 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       setRoomId(targetRoomId);
       setIsRoomHost(true);
 
+      // 🔑 [보안] URL에 host=1 파라미터를 추가하지 않고 깔끔하게 room만 유지
       const url = new URL(window.location.href);
       url.searchParams.set('room', targetRoomId);
-      url.searchParams.set('host', '1');
+      url.searchParams.delete('host');
       window.history.replaceState({}, '', url.toString());
 
       const stateSnapshot: LadderSyncState = {
@@ -885,7 +920,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
       saveRoomSnapshot(targetRoomId, stateSnapshot);
 
-      // Register room to server for cross-device SSE
+      // Register room to server for cross-device SSE & receive hostToken
       fetch('/api/v1/games/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -896,9 +931,21 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           hostName: members[0]?.name || '호스트',
           data: stateSnapshot,
         }),
-      }).catch((e) => {
-        console.warn('Failed to register room to server', e);
-      });
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.hostToken) {
+            setHostToken(data.hostToken);
+            try {
+              window.sessionStorage.setItem(`moabogo_host_token_${targetRoomId}`, data.hostToken);
+            } catch (e) {
+              // ignore
+            }
+          }
+        })
+        .catch((e) => {
+          console.warn('Failed to register room to server', e);
+        });
     }
 
     setIsShareModalOpen(true);
@@ -972,10 +1019,13 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     });
 
     if (channelRef.current) {
-      channelRef.current.send({
-        type: 'CLOSE_ROOM',
-        finalResult: ladderResult,
-      });
+      channelRef.current.send(
+        {
+          type: 'CLOSE_ROOM',
+          finalResult: ladderResult,
+        },
+        hostToken
+      );
     }
 
     showToast('🔒 게임이 종료되었습니다. 초대 링크가 폐기되었으며 당일 이력에 보관되었습니다.', 'info');
@@ -983,12 +1033,20 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   // 참가게임 이탈 핸들러
   const handleLeaveRoom = () => {
+    if (roomId) {
+      try {
+        window.sessionStorage.removeItem(`moabogo_host_token_${roomId}`);
+      } catch (e) {
+        // ignore
+      }
+    }
     if (roomId && channelRef.current) {
       channelRef.current.send({ type: 'LEAVE_ROOM', tabId: currentTabId });
       channelRef.current.close();
       channelRef.current = null;
     }
     setRoomId(null);
+    setHostToken(null);
     setIsRoomHost(false);
     setIsRoomClosed(false);
     setConnectedClients(1);

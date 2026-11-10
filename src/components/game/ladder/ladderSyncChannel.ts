@@ -32,7 +32,7 @@ export type LadderSyncMessage =
   | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
 
 export interface LadderChannelHandle {
-  send: (msg: LadderSyncMessage) => void;
+  send: (msg: LadderSyncMessage, hostToken?: string | null) => void;
   close: () => void;
 }
 
@@ -183,7 +183,7 @@ export function createLadderSyncChannel(
   }
 
   // 메시지 송신 함수 (모든 계층으로 동시 송신)
-  const send = (msg: LadderSyncMessage) => {
+  const send = (msg: LadderSyncMessage, hostToken?: string | null) => {
     // 1) BroadcastChannel 송신 (로컬 탭 즉시 반영)
     if (broadcastChannel) {
       try {
@@ -209,9 +209,13 @@ export function createLadderSyncChannel(
 
     // 3) 원격 서버 SSE 릴레이 브로드캐스트 (크로스 디바이스 전파)
     if (typeof window !== 'undefined') {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (hostToken) {
+        headers['x-host-token'] = hostToken;
+      }
       fetch(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/action`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           action: msg,
           senderTabId: currentTabId,

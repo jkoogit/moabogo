@@ -25,7 +25,7 @@ export type RouletteSyncMessage =
   | { type: 'PRESENCE_CHANGE'; connectedClients: number };
 
 export interface RouletteChannelHandle {
-  send: (msg: RouletteSyncMessage) => void;
+  send: (msg: RouletteSyncMessage, hostToken?: string | null) => void;
   close: () => void;
 }
 
@@ -129,7 +129,7 @@ export function createRouletteSyncChannel(
     window.addEventListener('beforeunload', handleBeforeUnload);
   }
 
-  const send = (msg: RouletteSyncMessage) => {
+  const send = (msg: RouletteSyncMessage, hostToken?: string | null) => {
     if (broadcastChannel) {
       try {
         broadcastChannel.postMessage(msg);
@@ -152,9 +152,14 @@ export function createRouletteSyncChannel(
         // ignore
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (hostToken) {
+        headers['x-host-token'] = hostToken;
+      }
+
       fetch(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/action`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           action: msg,
           senderTabId: currentTabId,

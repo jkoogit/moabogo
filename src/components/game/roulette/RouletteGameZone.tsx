@@ -108,10 +108,24 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     }
     return null;
   });
+  // 🔑 [보안] URL query parameter host=1 제거 -> sessionStorage의 hostToken 존재 및 일치 여부로 방장 권한 판정
+  const [hostToken, setHostToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const r = p.get('room');
+      if (r) {
+        return window.sessionStorage.getItem(`moabogo_host_token_${r}`);
+      }
+    }
+    return null;
+  });
   const [isRoomHost, setIsRoomHost] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      return p.get('host') === '1';
+      const r = p.get('room');
+      if (r) {
+        return !!window.sessionStorage.getItem(`moabogo_host_token_${r}`);
+      }
     }
     return false;
   });
@@ -334,12 +348,15 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     setRouletteRotation(nextRotation);
 
     if (forceRestart && channelRef.current) {
-      channelRef.current.send({
-        type: 'SPIN_ROULETTE',
-        targetAngle: nextRotation,
-        chosenItem: chosen,
-        duration,
-      });
+      channelRef.current.send(
+        {
+          type: 'SPIN_ROULETTE',
+          targetAngle: nextRotation,
+          chosenItem: chosen,
+          duration,
+        },
+        hostToken
+      );
     }
 
     spinTimerRef.current = setTimeout(() => {
@@ -368,10 +385,11 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       setRoomId(targetRoomId);
       setIsRoomHost(true);
 
+      // 🔑 [보안] URL에 host=1 파라미터를 추가하지 않고 깔끔하게 room만 유지
       const url = new URL(window.location.href);
       url.searchParams.set('game', 'roulette');
       url.searchParams.set('room', targetRoomId);
-      url.searchParams.set('host', '1');
+      url.searchParams.delete('host');
       window.history.replaceState({}, '', url.toString());
 
       const stateSnapshot: RouletteSyncState = {
@@ -395,9 +413,21 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           hostName: '호스트',
           data: stateSnapshot,
         }),
-      }).catch((e) => {
-        console.warn('Failed to register roulette room to server', e);
-      });
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.hostToken) {
+            setHostToken(data.hostToken);
+            try {
+              window.sessionStorage.setItem(`moabogo_host_token_${targetRoomId}`, data.hostToken);
+            } catch (e) {
+              // ignore
+            }
+          }
+        })
+        .catch((e) => {
+          console.warn('Failed to register roulette room to server', e);
+        });
     }
 
     setIsShareModalOpen(true);
@@ -464,21 +494,32 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     });
 
     if (channelRef.current) {
-      channelRef.current.send({
-        type: 'CLOSE_ROOM',
-        finalResult: selectedRouletteWinner,
-      });
+      channelRef.current.send(
+        {
+          type: 'CLOSE_ROOM',
+          finalResult: selectedRouletteWinner,
+        },
+        hostToken
+      );
     }
 
     showToast('🔒 룰렛 게임이 종료되었습니다. 초대 링크가 폐기되었으며 당일 이력에 보관되었습니다.', 'info');
   };
 
   const handleLeaveRoom = () => {
+    if (roomId) {
+      try {
+        window.sessionStorage.removeItem(`moabogo_host_token_${roomId}`);
+      } catch (e) {
+        // ignore
+      }
+    }
     if (roomId && channelRef.current) {
       channelRef.current.close();
       channelRef.current = null;
     }
     setRoomId(null);
+    setHostToken(null);
     setIsRoomHost(false);
     setIsRoomClosed(false);
     setConnectedClients(1);
@@ -518,10 +559,13 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     setRouletteItems(shuffled);
     setSelectedRouletteWinner(null);
     if (channelRef.current) {
-      channelRef.current.send({
-        type: 'SHUFFLE_ROULETTE_ITEMS',
-        items: shuffled,
-      });
+      channelRef.current.send(
+        {
+          type: 'SHUFFLE_ROULETTE_ITEMS',
+          items: shuffled,
+        },
+        hostToken
+      );
     }
     showToast('🎲 룰렛 항목 순서를 무작위로 섞었습니다!');
   };

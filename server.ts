@@ -975,6 +975,7 @@ async function startServer() {
     roomId: string;
     gameType: 'LADDER' | 'ROULETTE' | 'SETTLEMENT';
     hostTabId: string;
+    hostToken: string; // 🔑 [보안] 방장 권한 위조 방지 난수 인증 토큰
     hostName: string;
     data: any; // LadderSyncState or RouletteSyncState
     isClosed?: boolean; // 게임 종료 여부 (신규 유입 차단, 기존 최종 결과만 표시)
@@ -1013,11 +1014,15 @@ async function startServer() {
     }
 
     let room = GAME_ROOMS.get(roomId);
+    let generatedHostToken = '';
     if (!room) {
+      // 🔑 방장 고유 보안 인증 토큰 (64bit hex)
+      generatedHostToken = crypto.randomBytes(16).toString('hex');
       room = {
         roomId,
         gameType,
         hostTabId: hostTabId || 'host',
+        hostToken: generatedHostToken,
         hostName,
         data: data || {},
         isClosed: false,
@@ -1040,6 +1045,7 @@ async function startServer() {
       isClosed: Boolean(room.isClosed),
       finalResult: room.finalResult,
       connectedClients: room.connectedTabs.size,
+      hostToken: generatedHostToken || undefined, // 생성 시에만 방장에게 1회 제공
       data: room.data,
     });
   });
@@ -1077,6 +1083,7 @@ async function startServer() {
         roomId,
         gameType: typePrefix,
         hostTabId: currentTab,
+        hostToken: crypto.randomBytes(16).toString('hex'),
         hostName: '호스트',
         data: {},
         connectedTabs: new Map(),
@@ -1085,6 +1092,7 @@ async function startServer() {
       };
       GAME_ROOMS.set(roomId, room);
     }
+    const currentRoom: GameRoomState = room;
 
     // Configure headers for SSE
     res.writeHead(200, {
@@ -1095,7 +1103,7 @@ async function startServer() {
     });
 
     // 만약 동일 tabId로 이미 열려 있는 스트림이 있다면 정상 종료 후 교체
-    const prevRes = room.connectedTabs.get(currentTab);
+    const prevRes = currentRoom.connectedTabs.get(currentTab);
     if (prevRes && prevRes !== res) {
       try {
         prevRes.end();
@@ -1104,25 +1112,25 @@ async function startServer() {
       }
     }
 
-    room.connectedTabs.set(currentTab, res);
-    room.lastActive = Date.now();
+    currentRoom.connectedTabs.set(currentTab, res);
+    currentRoom.lastActive = Date.now();
 
     // Send initial snapshot
     const initPayload = JSON.stringify({
       type: 'ROOM_CONNECTED',
-      roomId: room.roomId,
-      gameType: room.gameType,
-      connectedClients: room.connectedTabs.size,
-      data: room.data,
+      roomId: currentRoom.roomId,
+      gameType: currentRoom.gameType,
+      connectedClients: currentRoom.connectedTabs.size,
+      data: currentRoom.data,
     });
     res.write(`data: ${initPayload}\n\n`);
 
     // Broadcast client count update to other peers
     const presencePayload = JSON.stringify({
       type: 'PRESENCE_CHANGE',
-      connectedClients: room.connectedTabs.size,
+      connectedClients: currentRoom.connectedTabs.size,
     });
-    for (const [tId, client] of room.connectedTabs.entries()) {
+    for (const [tId, client] of currentRoom.connectedTabs.entries()) {
       if (tId !== currentTab && client !== res) {
         try {
           client.write(`data: ${presencePayload}\n\n`);
@@ -1185,6 +1193,7 @@ async function startServer() {
   app.post('/api/v1/games/rooms/:roomId/action', (req, res) => {
     const { roomId } = req.params;
     const { action, senderTabId } = req.body;
+    const providedHostToken = req.headers['x-host-token'] || req.body?.hostToken;
 
     const room = GAME_ROOMS.get(roomId);
     if (!room) {
@@ -1192,6 +1201,30 @@ async function startServer() {
     }
 
     room.lastActive = Date.now();
+
+    // 🔑 [보안] 방장 전용 액션 검증 (hostToken 불일치 시 403 Forbidden 차단)
+    const HOST_ONLY_ACTIONS = [
+      'PLAY_LADDER',
+      'SPIN_ROULETTE',
+      'SHUFFLE_MEMBERS',
+      'SHUFFLE_RUNGS',
+      'SHUFFLE_GOALS',
+      'SYNC_ROULETTE_ITEMS',
+      'SHUFFLE_ROULETTE_ITEMS',
+      'CLOSE_ROOM',
+      'RESET_GAME',
+      'RESET_ROULETTE',
+    ];
+
+    if (HOST_ONLY_ACTIONS.includes(action.type)) {
+      // room에 hostToken이 설정되어 있는데 요청자의 토큰과 일치하지 않는 경우
+      if (room.hostToken && room.hostToken !== providedHostToken) {
+        return res.status(403).json({
+          error: '방장 전용 권한입니다. 권한 토큰이 유효하지 않습니다.',
+          code: 'FORBIDDEN_NOT_HOST',
+        });
+      }
+    }
 
     // State mutations on server
     if (action.type === 'SYNC_STATE' && action.state) {
@@ -1201,6 +1234,16 @@ async function startServer() {
         m.id === action.memberId ? { ...m, name: action.name } : m
       );
     } else if (action.type === 'CLAIM_SEAT' && room.data?.members) {
+      // 🔑 [원자적 자리 점유] 다른 사용자가 이미 점유 중인 자리는 점유 불가 처리
+      const targetMember = room.data.members.find((m: any) => m.id === action.memberId);
+      if (targetMember && targetMember.claimedBy && targetMember.claimedBy !== action.tabId) {
+        return res.status(409).json({
+          error: '이미 다른 참가자가 점유한 자리입니다.',
+          code: 'SEAT_ALREADY_CLAIMED',
+          claimedBy: targetMember.claimedBy,
+        });
+      }
+
       room.data.members = room.data.members.map((m: any) => {
         if (m.claimedBy === action.tabId && m.id !== action.memberId) {
           return { ...m, claimedBy: undefined };
