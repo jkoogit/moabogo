@@ -134,6 +134,7 @@ export interface LadderArrivalModalProps {
   onProceed: () => void;
   resolvedTheme: string;
   isDark: boolean;
+  isGuest?: boolean;
 }
 
 export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
@@ -141,6 +142,7 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
   onProceed,
   resolvedTheme,
   isDark,
+  isGuest = false,
 }) => {
   if (!arrivalData) return null;
 
@@ -188,13 +190,20 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
           <span className="text-base font-black mt-1">{result.text}</span>
         </div>
 
-        <button
-          type="button"
-          onClick={onProceed}
-          className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer"
-        >
-          {isLast ? '최종 결과 확인하기' : `다음 주자 (${nextMemberName || '계속'}) 출발 ➔`}
-        </button>
+        {isGuest ? (
+          <div className="w-full py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+            <span>{isLast ? '방장이 최종 결과를 확인하면 함께 열립니다' : `방장이 다음 주자(${nextMemberName || '진행'})를 출발시킵니다`}</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onProceed}
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer transition-all active:scale-98"
+          >
+            {isLast ? '최종 결과 확인하기' : `다음 주자 (${nextMemberName || '계속'}) 출발 ➔`}
+          </button>
+        )}
       </div>
     </div>
   );

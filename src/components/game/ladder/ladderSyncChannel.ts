@@ -30,6 +30,8 @@ export type LadderSyncMessage =
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
+  | { type: 'LADDER_PROCEED_NEXT'; nextMemberIndex: number }
+  | { type: 'LADDER_COMPLETE'; results: LadderResultMap }
   | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
 
 export interface LadderChannelHandle {
