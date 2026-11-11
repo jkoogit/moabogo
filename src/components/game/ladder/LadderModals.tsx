@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Sparkles, Store, ChevronRight, Copy, Camera, Download, Trophy } from 'lucide-react';
 import { TARGET_ICONS, GoalPresetItem, Participant } from '../types';
 import { ArrivalPopupData, LadderGoal, LadderResultMap } from './types';
@@ -144,6 +144,25 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
   isDark,
   isGuest = false,
 }) => {
+  const [countdown, setCountdown] = useState<number>(3);
+
+  useEffect(() => {
+    if (!arrivalData) return;
+    setCountdown(3);
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          onProceed();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [arrivalData, onProceed]);
+
   if (!arrivalData) return null;
 
   const { member, result, memberIndex, totalMembers, nextMemberName } = arrivalData;
@@ -193,15 +212,23 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
         {isGuest ? (
           <div className="w-full py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-2">
             <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
-            <span>{isLast ? '방장이 최종 결과를 확인하면 함께 열립니다' : `방장이 다음 주자(${nextMemberName || '진행'})를 출발시킵니다`}</span>
+            <span>
+              {isLast
+                ? `방장이 최종 결과를 확인하면 함께 열립니다 (${countdown}초 뒤 자동)`
+                : `다음 주자(${nextMemberName || '진행'})로 이어집니다 (${countdown}초 뒤 자동)`}
+            </span>
           </div>
         ) : (
           <button
             type="button"
             onClick={onProceed}
-            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer transition-all active:scale-98"
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5"
           >
-            {isLast ? '최종 결과 확인하기' : `다음 주자 (${nextMemberName || '계속'}) 출발 ➔`}
+            <span>
+              {isLast
+                ? `최종 결과 확인하기 (${countdown}초 뒤 자동)`
+                : `다음 주자 (${nextMemberName || '계속'}) 출발 ➔ (${countdown}초 뒤 자동)`}
+            </span>
           </button>
         )}
       </div>

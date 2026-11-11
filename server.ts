@@ -1221,14 +1221,21 @@ async function startServer() {
 
     room.lastActive = Date.now();
 
+    // 🔑 [항목 2-g: 게임 종료 후 동기화 완전 차단]
+    if (room.isClosed && action.type !== 'LEAVE_ROOM' && action.type !== 'CLOSE_ROOM') {
+      return res.status(403).json({
+        error: '이미 종료된 방입니다. 더 이상 게임 조작이 불가능합니다.',
+        code: 'ROOM_ALREADY_CLOSED',
+      });
+    }
+
     // 🔑 [보안] 방장 전용 액션 검증 (hostToken 불일치 시 403 Forbidden 차단)
-    // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
+    // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SHUFFLE_MEMBERS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
       'PLAY_LADDER',
       'LADDER_PROCEED_NEXT',
       'LADDER_COMPLETE',
       'SPIN_ROULETTE',
-      'SHUFFLE_MEMBERS',
       'CLOSE_ROOM',
       'RESET_GAME',
       'RESET_ROULETTE',
@@ -1247,6 +1254,8 @@ async function startServer() {
     // State mutations on server
     if (action.type === 'SYNC_STATE' && action.state) {
       room.data = action.state;
+    } else if (action.type === 'SYNC_MEMBERS' && action.members) {
+      if (room.data) room.data.members = action.members;
     } else if (action.type === 'UPDATE_MEMBER_NAME' && room.data?.members) {
       room.data.members = room.data.members.map((m: any) => {
         if (m.id === action.memberId) {

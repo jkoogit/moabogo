@@ -65,12 +65,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const [currentTabId] = useState<string>(() => 'tab_' + Math.random().toString(36).slice(2, 9));
 
   // 초대 링크를 통해 접속한 게스트 참여자 여부 식별
+  // 🔑 [보안] sessionStorage의 hostToken 유무를 기반으로 참가자(게스트) 여부 판정
   const isGuestInRoom = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    const p = new URLSearchParams(window.location.search);
-    const r = p.get('room');
-    const h = p.get('host');
-    return !!r && h !== '1';
+    const r = new URLSearchParams(window.location.search).get('room');
+    if (!r) return false;
+    const token = window.sessionStorage.getItem(`moabogo_host_token_${r}`);
+    return !token;
   }, []);
 
   // 🔑 [사다리·룰렛 통합 방 공유] 현재 참여 중인 방 식별자
@@ -184,6 +185,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
       return prev.slice(0, count);
     });
   };
+
+  // 🔑 [항목 2-a: 원격 동기화 시 상위 인원수 슬라이더 값 연동]
+  useEffect(() => {
+    if (members.length !== memberCount) {
+      setMemberCount(members.length);
+    }
+  }, [members.length, memberCount]);
 
   // ---------------------------------------------------------------------------
   // 2. [정산] 상태 및 핸들러
@@ -487,27 +495,6 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               <span className="whitespace-nowrap font-bold">룰렛</span>
             </button>
           </div>
-
-          {/* 🔑 [요구사항 9: 사다리·룰렛 통합 방 공유 및 새 탭 분리 안내 배너] */}
-          {currentRoomId && (
-            <div className="w-full max-w-2xl px-3.5 py-2 rounded-xl border border-indigo-200/90 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-medium">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
-                <span>
-                  방 공유 참여 중 (<strong className="font-mono text-indigo-700 dark:text-indigo-300">{currentRoomId}</strong>, 사다리·룰렛 공통)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => window.open(window.location.origin, '_blank')}
-                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-2xs transition-all flex items-center gap-1 cursor-pointer shrink-0"
-                title="공유 없이 혼자 새로 시작할 수 있는 새 탭을 엽니다"
-              >
-                <span>혼자 따로 하기 (새 탭)</span>
-                <span>↗</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* 2. 게임영역 그룹 컨테이너 (고유 테두리 & 타이틀 글꼴 공식 규격) */}
@@ -546,15 +533,51 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
+                {/* 🔑 [요구사항 1: 링크 참가자 모드 [참여종료] 버튼 및 ? 안내 레이어 팝업] */}
+                {isGuestInRoom && (
+                  <div className="flex items-center gap-1.5 ml-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete('room');
+                        url.searchParams.delete('host');
+                        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+                        window.location.reload();
+                      }}
+                      className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+                      title="실시간 방 공유를 종료하고 현재 설정된 데이터로 로컬 게임을 이어갑니다"
+                    >
+                      참여종료
+                    </button>
+                    <div className="relative group">
+                      <button
+                        type="button"
+                        className="w-4 h-4 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 text-[10px] font-bold flex items-center justify-center hover:bg-slate-300 dark:hover:bg-zinc-600 cursor-help"
+                        aria-label="참여종료 안내"
+                      >
+                        ?
+                      </button>
+                      <div className="hidden group-hover:block absolute left-0 top-full mt-1.5 w-64 p-2.5 rounded-xl bg-slate-900/95 dark:bg-zinc-800/95 text-white text-[11px] leading-relaxed shadow-xl z-50 pointer-events-none backdrop-blur-xs">
+                        현재 실시간 방 공유에 참여 중입니다. <strong className="text-amber-300">[참여종료]</strong>를 누르면 실시간 동기화가 해제되고 혼자서 자유롭게 게임을 이어갈 수 있습니다.
+                      </div>
+                    </div>
+                  </div>
+                )}
               </h3>
             </div>
             <div className="flex items-center gap-2">
               {(gameType === 'LADDER' || gameType === 'ROULETTE') && (
                 <button
                   type="button"
+                  disabled={isGuestInRoom}
                   onClick={handleTopShareClick}
-                  className="p-1.5 sm:p-2 rounded-xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-800 transition-all cursor-pointer active:scale-95 shadow-2xs"
-                  title="실시간 방 공유 / QR 코드 열기"
+                  className={`p-1.5 sm:p-2 rounded-xl border transition-all shadow-2xs ${
+                    isGuestInRoom
+                      ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-800 text-slate-400'
+                      : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border-indigo-200/80 dark:border-indigo-800 cursor-pointer active:scale-95'
+                  }`}
+                  title={isGuestInRoom ? '참가자 모드에서는 공유 링크를 생성할 수 없습니다 (방장 전용)' : '실시간 방 공유 / QR 코드 열기'}
                   aria-label="실시간 방 공유"
                 >
                   <Share2 className="w-4 h-4" />

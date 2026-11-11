@@ -1,6 +1,6 @@
 import { Participant } from '../types';
 import { StorePreset } from '../../../sample/data/systemStorePool';
-import { LadderGoal, LadderResultMap } from './types';
+import { LadderRung, LadderGoal, LadderResultMap } from './types';
 
 export interface LadderSyncState {
   roomId: string;
@@ -19,18 +19,19 @@ export interface LadderSyncState {
 export type LadderSyncMessage =
   | { type: 'SYNC_REQUEST'; senderTabId: string }
   | { type: 'SYNC_STATE'; state: LadderSyncState }
+  | { type: 'SYNC_MEMBERS'; members: Participant[] }
   | { type: 'CLAIM_SEAT'; memberId: string; tabId: string }
   | { type: 'UPDATE_MEMBER_NAME'; memberId: string; name: string }
   | { type: 'UPDATE_MEMBER_DETAILS'; memberId: string; name?: string; avatarEmoji?: string; selectedMenu?: any }
   | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
   | { type: 'SHUFFLE_RUNGS'; seed: number }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }
-  | { type: 'PLAY_LADDER'; skipTrace: boolean; speed: number }
+  | { type: 'PLAY_LADDER'; skipTrace: boolean; speed: number; seed?: number; rungs?: LadderRung[]; goals?: LadderGoal[]; members?: Participant[] }
   | { type: 'RESET_GAME' }
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
-  | { type: 'LADDER_PROCEED_NEXT'; nextMemberIndex: number }
+  | { type: 'LADDER_PROCEED_NEXT'; nextMemberIndex: number; speed?: number; rungs?: LadderRung[]; goals?: LadderGoal[]; members?: Participant[] }
   | { type: 'LADDER_COMPLETE'; results: LadderResultMap }
   | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
 
@@ -94,7 +95,14 @@ export function createLadderSyncChannel(
       broadcastChannel = new BroadcastChannel(channelName);
       broadcastChannel.onmessage = (event) => {
         if (event.data) {
-          onMessage(event.data as LadderSyncMessage);
+          const raw = event.data as any;
+          if (raw && typeof raw === 'object' && 'msg' in raw && 'senderTabId' in raw) {
+            if (raw.senderTabId !== currentTabId && raw.msg) {
+              onMessage(raw.msg as LadderSyncMessage);
+            }
+          } else {
+            onMessage(raw as LadderSyncMessage);
+          }
         }
       };
     } catch (e) {
@@ -113,6 +121,14 @@ export function createLadderSyncChannel(
         if (!e.data) return;
         try {
           const payload = JSON.parse(e.data);
+          // 🔑 [게임 종료 실시간 전달 보장]
+          if (payload.isClosed) {
+            onMessage({
+              type: 'CLOSE_ROOM',
+              finalResult: payload.finalResult,
+            });
+          }
+
           if (payload.type === 'ACTION_RELAY' && payload.action) {
             // 본인이 발행한 액션은 로컬에서 이미 처리되었으므로 중복 적용 방지
             if (payload.senderTabId !== currentTabId) {
@@ -130,6 +146,12 @@ export function createLadderSyncChannel(
               type: 'PRESENCE_CHANGE',
               connectedClients: payload.connectedClients || 1,
             });
+            if (payload.isClosed) {
+              onMessage({
+                type: 'CLOSE_ROOM',
+                finalResult: payload.finalResult,
+              });
+            }
             if (payload.data && Object.keys(payload.data).length > 0) {
               onMessage({
                 type: 'SYNC_STATE',
@@ -187,10 +209,10 @@ export function createLadderSyncChannel(
 
   // 메시지 송신 함수 (모든 계층으로 동시 송신)
   const send = (msg: LadderSyncMessage, hostToken?: string | null) => {
-    // 1) BroadcastChannel 송신 (로컬 탭 즉시 반영)
+    // 1) BroadcastChannel 송신 (로컬 탭 즉시 반영, senderTabId 첨부)
     if (broadcastChannel) {
       try {
-        broadcastChannel.postMessage(msg);
+        broadcastChannel.postMessage({ senderTabId: currentTabId, msg });
       } catch (err) {
         // ignore
       }
