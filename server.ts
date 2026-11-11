@@ -1225,6 +1225,8 @@ async function startServer() {
     // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
       'PLAY_LADDER',
+      'LADDER_PROCEED_NEXT',
+      'LADDER_COMPLETE',
       'SPIN_ROULETTE',
       'SHUFFLE_MEMBERS',
       'CLOSE_ROOM',
@@ -1298,6 +1300,8 @@ async function startServer() {
       if (room.data) room.data.ladderSeed = action.seed;
     } else if (action.type === 'SHUFFLE_GOALS') {
       if (room.data) room.data.ladderGoals = action.goals;
+    } else if (action.type === 'LADDER_COMPLETE' && action.results) {
+      if (room.data) room.data.ladderResult = action.results;
     } else if (action.type === 'SYNC_ROULETTE_ITEMS' || action.type === 'SHUFFLE_ROULETTE_ITEMS') {
       if (room.data && action.items) room.data.rouletteItems = action.items;
     } else if (action.type === 'SYNC_ROULETTE_RESULT') {
