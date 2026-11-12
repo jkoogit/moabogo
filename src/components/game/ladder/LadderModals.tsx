@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, Sparkles, Store, ChevronRight, Copy, Camera, Download, Trophy } from 'lucide-react';
 import { TARGET_ICONS, GoalPresetItem, Participant } from '../types';
 import { ArrivalPopupData, LadderGoal, LadderResultMap } from './types';
@@ -131,7 +131,7 @@ export const LadderGoalModal: React.FC<LadderGoalModalProps> = ({
 
 export interface LadderArrivalModalProps {
   arrivalData: ArrivalPopupData | null;
-  onProceed: () => void;
+  onProceed: (targetIdx?: number) => void;
   resolvedTheme: string;
   isDark: boolean;
   isGuest?: boolean;
@@ -145,15 +145,22 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
   isGuest = false,
 }) => {
   const [countdown, setCountdown] = useState<number>(3);
+  const onProceedRef = useRef(onProceed);
+  onProceedRef.current = onProceed;
+  const arrivalDataRef = useRef(arrivalData);
+  arrivalDataRef.current = arrivalData;
 
   useEffect(() => {
     if (!arrivalData) return;
-    setCountdown(3);
+    const initialCountdown = isGuest ? 6 : 3;
+    setCountdown(initialCountdown);
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onProceed();
+          const currentArrival = arrivalDataRef.current;
+          const nextIdx = currentArrival ? currentArrival.memberIndex + 1 : undefined;
+          onProceedRef.current(nextIdx);
           return 0;
         }
         return prev - 1;
@@ -161,12 +168,16 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [arrivalData, onProceed]);
+  }, [arrivalData, isGuest]);
 
   if (!arrivalData) return null;
 
   const { member, result, memberIndex, totalMembers, nextMemberName } = arrivalData;
   const isLast = memberIndex + 1 >= totalMembers;
+
+  const handleManualProceed = () => {
+    onProceed(memberIndex + 1);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
@@ -210,18 +221,29 @@ export const LadderArrivalModal: React.FC<LadderArrivalModalProps> = ({
         </div>
 
         {isGuest ? (
-          <div className="w-full py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
-            <span>
-              {isLast
-                ? `방장이 최종 결과를 확인하면 함께 열립니다 (${countdown}초 뒤 자동)`
-                : `다음 주자(${nextMemberName || '진행'})로 이어집니다 (${countdown}초 뒤 자동)`}
-            </span>
+          <div className="w-full flex flex-col gap-2">
+            <div className="w-full py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+              <span>
+                {isLast
+                  ? `방장이 최종 결과를 확인하면 함께 열립니다`
+                  : `방장의 진행 신호에 맞춰 함께 출발합니다`}
+              </span>
+            </div>
+            {countdown <= 2 && (
+              <button
+                type="button"
+                onClick={handleManualProceed}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-bold text-xs cursor-pointer transition-all border border-slate-300 dark:border-zinc-600"
+              >
+                신호 지연 시 직접 다음 주자로 넘어가기 ({countdown}초)
+              </button>
+            )}
           </div>
         ) : (
           <button
             type="button"
-            onClick={onProceed}
+            onClick={handleManualProceed}
             className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5"
           >
             <span>

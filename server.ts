@@ -1016,10 +1016,9 @@ async function startServer() {
     }
 
     let room = GAME_ROOMS.get(roomId);
-    let generatedHostToken = '';
     if (!room) {
       // 🔑 방장 고유 보안 인증 토큰 (64bit hex)
-      generatedHostToken = crypto.randomBytes(16).toString('hex');
+      const generatedHostToken = crypto.randomBytes(16).toString('hex');
       room = {
         roomId,
         gameType,
@@ -1035,6 +1034,8 @@ async function startServer() {
       GAME_ROOMS.set(roomId, room);
     } else {
       room.lastActive = Date.now();
+      if (hostTabId) room.hostTabId = hostTabId;
+      if (hostName) room.hostName = hostName;
       if (data && !room.isClosed) {
         room.data = { ...room.data, ...data };
       }
@@ -1047,7 +1048,7 @@ async function startServer() {
       isClosed: Boolean(room.isClosed),
       finalResult: room.finalResult,
       connectedClients: room.connectedTabs.size,
-      hostToken: generatedHostToken || undefined, // 생성 시에만 방장에게 1회 제공
+      hostToken: room.hostToken, // 🔑 [핵심] 방장 등록/재등록 시 방장의 hostToken을 100% 보장 반환하여 Race Condition 차단
       data: room.data,
     });
   });
@@ -1060,7 +1061,7 @@ async function startServer() {
       return res.status(404).json({ error: '게임 방을 찾을 수 없습니다.' });
     }
     room.lastActive = Date.now();
-    res.json({
+    const roomPayload = {
       roomId: room.roomId,
       gameType: room.gameType,
       hostTabId: room.hostTabId,
@@ -1068,6 +1069,10 @@ async function startServer() {
       finalResult: room.finalResult,
       connectedClients: room.connectedTabs.size,
       data: room.data,
+    };
+    res.json({
+      ...roomPayload,
+      room: roomPayload,
     });
   });
 
@@ -1212,7 +1217,7 @@ async function startServer() {
   app.post('/api/v1/games/rooms/:roomId/action', (req, res) => {
     const { roomId } = req.params;
     const { action, senderTabId } = req.body;
-    const providedHostToken = req.headers['x-host-token'] || req.body?.hostToken;
+    const providedHostToken = req.headers['x-host-token'] || req.body?.hostToken || req.query?.hostToken;
 
     const room = GAME_ROOMS.get(roomId);
     if (!room) {
@@ -1233,6 +1238,7 @@ async function startServer() {
     // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SHUFFLE_MEMBERS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
       'PLAY_LADDER',
+      'LADDER_RUNNER_ARRIVED',
       'LADDER_PROCEED_NEXT',
       'LADDER_COMPLETE',
       'SPIN_ROULETTE',
@@ -1244,6 +1250,7 @@ async function startServer() {
     if (HOST_ONLY_ACTIONS.includes(action.type)) {
       // room에 hostToken이 설정되어 있는데 요청자의 토큰과 일치하지 않는 경우
       if (room.hostToken && room.hostToken !== providedHostToken) {
+        console.warn(`[Action 403 Forbidden] Action '${action.type}' denied for room '${roomId}'. room.hostToken=${room.hostToken?.slice(0, 6)}..., provided=${providedHostToken ? String(providedHostToken).slice(0, 6) + '...' : 'none'}`);
         return res.status(403).json({
           error: '방장 전용 권한입니다. 권한 토큰이 유효하지 않습니다.',
           code: 'FORBIDDEN_NOT_HOST',
