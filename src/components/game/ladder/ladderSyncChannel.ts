@@ -1,6 +1,6 @@
 import { Participant } from '../types';
 import { StorePreset } from '../../../sample/data/systemStorePool';
-import { LadderRung, LadderGoal, LadderResultMap } from './types';
+import { LadderRung, LadderGoal, LadderResultMap, LadderResultItem, LadderRevealedGoalCols } from './types';
 
 export interface LadderSyncState {
   roomId: string;
@@ -31,8 +31,24 @@ export type LadderSyncMessage =
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
+  | {
+      type: 'LADDER_RUNNER_ARRIVED';
+      memberIndex: number;
+      member: Participant;
+      result: LadderResultItem;
+      isLast: boolean;
+      totalMembers: number;
+      nextMemberName?: string;
+      revealedGoals?: Record<string, boolean>;
+      revealedGoalCols?: LadderRevealedGoalCols;
+    }
   | { type: 'LADDER_PROCEED_NEXT'; nextMemberIndex: number; speed?: number; rungs?: LadderRung[]; goals?: LadderGoal[]; members?: Participant[] }
-  | { type: 'LADDER_COMPLETE'; results: LadderResultMap }
+  | {
+      type: 'LADDER_COMPLETE';
+      results: LadderResultMap;
+      revealedGoals?: Record<string, boolean>;
+      revealedGoalCols?: LadderRevealedGoalCols;
+    }
   | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
 
 export interface LadderChannelHandle {
@@ -244,10 +260,18 @@ export function createLadderSyncChannel(
         body: JSON.stringify({
           action: msg,
           senderTabId: currentTabId,
+          hostToken: hostToken || undefined,
         }),
-      }).catch((e) => {
-        console.warn('[Channel] Remote action dispatch failed', e);
-      });
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            console.error(`[Channel] Remote action dispatch failed (${res.status} ${res.statusText}):`, errData);
+          }
+        })
+        .catch((e) => {
+          console.warn('[Channel] Remote action dispatch network error', e);
+        });
     }
   };
 
