@@ -15,6 +15,12 @@ export type RouletteSyncMessage =
   | { type: 'ROULETTE_SYNC_REQUEST'; senderTabId: string }
   | { type: 'ROULETTE_SYNC_STATE'; state: RouletteSyncState }
   | { type: 'SPIN_ROULETTE'; targetAngle: number; chosenItem: RouletteSliceItem; duration: number }
+  | {
+      type: 'ROULETTE_SPIN_COMPLETE';
+      winner: RouletteSliceItem;
+      items?: RouletteSliceItem[];
+      excludedItems?: RouletteSliceItem[];
+    }
   | { type: 'SYNC_ROULETTE_ITEMS'; items: RouletteSliceItem[]; presetTitle?: string }
   | { type: 'SHUFFLE_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
   | { type: 'SYNC_ROULETTE_RESULT'; winner: RouletteSliceItem | null }
@@ -39,14 +45,21 @@ export function createRouletteSyncChannel(
   const channelName = `moabogo_roulette_room_${roomId}`;
   const storageKey = `${STORAGE_PREFIX}${roomId}`;
 
-  // 1. BroadcastChannel (0ms local tab)
+  // 1. BroadcastChannel (0ms local tab, senderTabId self-echo guard)
   let broadcastChannel: BroadcastChannel | null = null;
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
     try {
       broadcastChannel = new BroadcastChannel(channelName);
       broadcastChannel.onmessage = (event) => {
         if (event.data) {
-          onMessage(event.data as RouletteSyncMessage);
+          const raw = event.data as any;
+          if (raw && typeof raw === 'object' && 'msg' in raw && 'senderTabId' in raw) {
+            if (raw.senderTabId !== currentTabId && raw.msg) {
+              onMessage(raw.msg as RouletteSyncMessage);
+            }
+          } else {
+            onMessage(raw as RouletteSyncMessage);
+          }
         }
       };
     } catch (e) {
@@ -79,6 +92,12 @@ export function createRouletteSyncChannel(
               type: 'PRESENCE_CHANGE',
               connectedClients: payload.connectedClients || 1,
             });
+            if (payload.isClosed) {
+              onMessage({
+                type: 'CLOSE_ROOM',
+                finalResult: payload.finalResult,
+              });
+            }
             if (payload.data && Object.keys(payload.data).length > 0) {
               onMessage({
                 type: 'ROULETTE_SYNC_STATE',
@@ -112,7 +131,7 @@ export function createRouletteSyncChannel(
   const handleBeforeUnload = () => {
     try {
       if (broadcastChannel) {
-        broadcastChannel.postMessage({ type: 'LEAVE_ROOM', tabId: currentTabId });
+        broadcastChannel.postMessage({ senderTabId: currentTabId, msg: { type: 'LEAVE_ROOM', tabId: currentTabId } });
       }
       if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
         const payload = JSON.stringify({ tabId: currentTabId });
@@ -132,7 +151,7 @@ export function createRouletteSyncChannel(
   const send = (msg: RouletteSyncMessage, hostToken?: string | null) => {
     if (broadcastChannel) {
       try {
-        broadcastChannel.postMessage(msg);
+        broadcastChannel.postMessage({ senderTabId: currentTabId, msg });
       } catch (err) {
         // ignore
       }
@@ -156,17 +175,27 @@ export function createRouletteSyncChannel(
       if (hostToken) {
         headers['x-host-token'] = hostToken;
       }
+      const isUrgent = msg.type === 'CLOSE_ROOM' || msg.type === 'LEAVE_ROOM';
 
       fetch(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/action`, {
         method: 'POST',
         headers,
+        keepalive: isUrgent,
         body: JSON.stringify({
           action: msg,
           senderTabId: currentTabId,
+          hostToken: hostToken || undefined,
         }),
-      }).catch((e) => {
-        // ignore
-      });
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            console.error(`[Roulette Channel] Remote action dispatch failed (${res.status}):`, errData);
+          }
+        })
+        .catch(() => {
+          // ignore
+        });
     }
   };
 
@@ -192,4 +221,26 @@ export function createRouletteSyncChannel(
   };
 
   return { send, close };
+}
+
+export function saveRouletteRoomSnapshot(roomId: string, state: RouletteSyncState) {
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(`moabogo_roulette_snapshot_${roomId}`, JSON.stringify(state));
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
+export function loadRouletteRoomSnapshot(roomId: string): RouletteSyncState | null {
+  if (typeof window !== 'undefined') {
+    try {
+      const data = window.localStorage.getItem(`moabogo_roulette_snapshot_${roomId}`);
+      if (data) return JSON.parse(data) as RouletteSyncState;
+    } catch (e) {
+      // ignore
+    }
+  }
+  return null;
 }

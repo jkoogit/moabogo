@@ -43,8 +43,11 @@ import {
   generateDefaultLadderGoals,
   generateLadderRungs,
   computeLadderPaths,
+  buildPolylineCurve,
+  samplePolylineAtDistance,
   formatLadderResultText,
   formatStoreOrderText,
+  getStoreMenuEmoji,
 } from './ladderEngine';
 import { LadderViewerSvg } from './LadderViewerSvg';
 import {
@@ -53,7 +56,6 @@ import {
   StoreMenuSelectModal,
   LadderResultModal,
   LadderShareModal,
-  getStoreMenuEmoji,
 } from './LadderModals';
 import { StorePreset, StoreMenuItem } from '../../../sample/data/systemStorePool';
 import {
@@ -162,6 +164,8 @@ export interface LadderGameZoneProps {
   resolvedTheme: string;
   isDark: boolean;
   onRegisterShareHandler?: (handler: () => void) => void;
+  onRegisterLeaveHandler?: (handler: () => void) => void;
+  onRoomModeChange?: (inRoom: boolean, isHost: boolean) => void;
 }
 
 export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
@@ -178,6 +182,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   resolvedTheme,
   isDark,
   onRegisterShareHandler,
+  onRegisterLeaveHandler,
+  onRoomModeChange,
 }) => {
   const [ladderSeed, setLadderSeed] = useState<number>(() => Math.floor(Math.random() * 9999) + 1);
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
@@ -259,6 +265,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const revealedGoalColsRef = useRef<LadderRevealedGoalCols>(revealedGoalCols);
   revealedGoalColsRef.current = revealedGoalCols;
 
+  const isRoomClosedRef = useRef<boolean>(isRoomClosed);
+  isRoomClosedRef.current = isRoomClosed;
+
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+
   const hostTokenRef = useRef<string | null>(hostToken);
   hostTokenRef.current = hostToken;
 
@@ -279,18 +291,47 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     broadcast?: boolean,
     overrideRungs?: LadderRung[],
     overrideGoals?: LadderGoal[],
-    overrideMembers?: Participant[]
+    overrideMembers?: Participant[],
+    overrideSpeed?: number,
+    overrideResults?: LadderResultMap,
+    overrideRevealedGoals?: Record<string, boolean>,
+    overrideRevealedGoalCols?: LadderRevealedGoalCols
   ) => void>(() => { });
   const handleProceedRef = useRef<(
     nextIdx?: number,
     broadcast?: boolean,
     overrideRungs?: LadderRung[],
     overrideGoals?: LadderGoal[],
-    overrideMembers?: Participant[]
+    overrideMembers?: Participant[],
+    overrideSpeed?: number
   ) => void>(() => { });
 
   const ladderSliderRef = useRef<HTMLDivElement>(null);
   const stepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stepTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const panRafIdRef = useRef<number | null>(null);
+  const cameraScrollRef = useRef<number>(0);
+  const cameraLookAheadRef = useRef<number>(0);
+
+  const clearTracingTimers = useCallback(() => {
+    if (stepTimeoutRef.current) {
+      clearTimeout(stepTimeoutRef.current);
+      stepTimeoutRef.current = null;
+    }
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
+    }
+    if (rafIdRef.current !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (panRafIdRef.current !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(panRafIdRef.current);
+      panRafIdRef.current = null;
+    }
+  }, []);
 
   // 참여인원, 당첨인원, 가중치 변경 감지 키
   const membersWeightsKey = useMemo(() => {
@@ -305,11 +346,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   // 언마운트 시 타이머 정리
   useEffect(() => {
     return () => {
-      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
+      clearTracingTimers();
     };
-  }, []);
+  }, [clearTracingTimers]);
 
-  // 🔑 [피드백 1: 초대자/참가자 목표 섞기 보존 - 인원수(length)나 당첨인원수(winnerCount)가 실제로 변경되었을 때만 기본 목표 재설정]
+  // 🔑 [피드백 1: 초대자/참가자 목표 섞기 보존 - 방장/로컬 모드에서 인원수·당첨인원수 변경 시에만 기본 목표 재설정]
   const prevMembersCountRef = useRef<number>(members.length);
   const prevWinnerCountRef = useRef<number>(winnerCount);
   useEffect(() => {
@@ -320,6 +361,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     if (isCountChanged || isWinnerChanged) {
       prevMembersCountRef.current = needed;
       prevWinnerCountRef.current = winnerCount;
+      if (isGuest) return;
       const safeWinners = Math.max(1, Math.min(needed - 1, winnerCount));
       setLadderGoals(generateDefaultLadderGoals(needed, safeWinners));
       if (winnerCount >= needed) {
@@ -331,7 +373,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         channelRef.current.send({ type: 'SYNC_MEMBERS', members }, getHostToken());
       }
     }
-  }, [members.length, winnerCount, setWinnerCount, setLadderGoals, isRoomHost, members, getHostToken]);
+  }, [members.length, winnerCount, setWinnerCount, setLadderGoals, isRoomHost, isGuest, members, getHostToken]);
 
   // 🔑 [항목 2-f: 실제 인원/당첨수/가중치 설정이 변경되었을 때만 초기화하여 즉시결과 및 최종 결과 영구 보존]
   const prevSettingsKeyRef = useRef<string>(`${members.length}:${winnerCount}:${membersWeightsKey}`);
@@ -384,22 +426,59 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           break;
 
         case 'SYNC_STATE':
-          if (!isRoomHost) {
-            setMembers(msg.state.members);
+          if (!isRoomHost && msg.state) {
+            const nextMembers = msg.state.members || membersRef.current;
+            const nextWinnerCount = msg.state.winnerCount ?? winnerCountRef.current;
+            const nextWeightsKey = nextMembers.map((m) => `${m.id}:${m.weight || 1}`).join(',');
+            prevMembersCountRef.current = nextMembers.length;
+            prevWinnerCountRef.current = nextWinnerCount;
+            prevSettingsKeyRef.current = `${nextMembers.length}:${nextWinnerCount}:${nextWeightsKey}`;
+
+            membersRef.current = nextMembers;
+            ladderGoalsRef.current = msg.state.ladderGoals;
+            ladderSeedRef.current = msg.state.ladderSeed;
+            winnerCountRef.current = nextWinnerCount;
+            useLadderWeightRef.current = msg.state.useLadderWeight;
+            ladderSpeedRef.current = msg.state.ladderSpeed;
+            selectedStoreRef.current = msg.state.selectedStore;
+
+            setMembers(nextMembers);
             setLadderGoals(msg.state.ladderGoals);
             setLadderSeed(msg.state.ladderSeed);
-            setWinnerCount(msg.state.winnerCount);
+            setWinnerCount(nextWinnerCount);
             setUseLadderWeight(msg.state.useLadderWeight);
             setLadderSpeed(msg.state.ladderSpeed);
             setSelectedStore(msg.state.selectedStore);
             if (msg.state.ladderResult) {
+              ladderResultRef.current = msg.state.ladderResult;
               setLadderResult(msg.state.ladderResult);
+              const revGoals: Record<string, boolean> = {};
+              const revCols: LadderRevealedGoalCols = {};
+              nextMembers.forEach((m) => {
+                revGoals[m.id] = true;
+                const res = msg.state.ladderResult?.[m.id];
+                if (res) {
+                  revCols[res.goalIndex] = {
+                    memberName: m.name,
+                    avatar: m.avatar,
+                    isWinner: res.isWinner,
+                  };
+                }
+              });
+              revealedGoalsRef.current = revGoals;
+              setRevealedGoals(revGoals);
+              revealedGoalColsRef.current = revCols;
+              setRevealedGoalCols(revCols);
             }
           }
           break;
 
         case 'SYNC_MEMBERS':
           if (!isRoomHost) {
+            prevMembersCountRef.current = msg.members.length;
+            const nextWeightsKey = msg.members.map((m) => `${m.id}:${m.weight || 1}`).join(',');
+            prevSettingsKeyRef.current = `${msg.members.length}:${winnerCountRef.current}:${nextWeightsKey}`;
+            membersRef.current = msg.members;
             setMembers(msg.members);
             setLadderResult(null);
             setRevealedGoals({});
@@ -446,55 +525,90 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           break;
 
         case 'SHUFFLE_MEMBERS':
-          setMembers(msg.members);
           membersRef.current = msg.members;
+          setMembers(msg.members);
           setLadderResult(null);
           setRevealedGoals({});
           setRevealedGoalCols({});
           setArrivalPopup(null);
-          showToast('👥 참가자 순서가 동기화되었습니다.', 'info');
+          showToastRef.current('👥 참가자 순서가 동기화되었습니다.', 'info');
           break;
 
         case 'SHUFFLE_RUNGS':
+          ladderSeedRef.current = msg.seed;
           setLadderSeed(msg.seed);
           setLadderResult(null);
           setRevealedGoals({});
           setRevealedGoalCols({});
           setArrivalPopup(null);
-          showToast('🎲 사다리 가로줄이 동기화되었습니다.', 'info');
+          showToastRef.current('🎲 사다리 가로줄이 동기화되었습니다.', 'info');
           break;
 
         case 'SHUFFLE_GOALS':
+          ladderGoalsRef.current = msg.goals;
           setLadderGoals(msg.goals);
           setLadderResult(null);
           setRevealedGoals({});
           setRevealedGoalCols({});
           setArrivalPopup(null);
-          showToast('✨ 사다리 목표가 동기화되었습니다.', 'info');
+          showToastRef.current('✨ 사다리 목표가 동기화되었습니다.', 'info');
+          break;
+
+        case 'UPDATE_SPEED':
+          if (typeof msg.speed === 'number') {
+            ladderSpeedRef.current = msg.speed;
+            setLadderSpeed(msg.speed);
+          }
           break;
 
         case 'PLAY_LADDER':
           if (msg.speed) {
+            ladderSpeedRef.current = msg.speed;
             setLadderSpeed(msg.speed);
           }
           if (msg.seed !== undefined) {
+            ladderSeedRef.current = msg.seed;
             setLadderSeed(msg.seed);
           }
           if (msg.goals) {
+            ladderGoalsRef.current = msg.goals;
             setLadderGoals(msg.goals);
           }
           if (msg.members && msg.members.length > 0) {
-            setMembers(msg.members);
+            prevMembersCountRef.current = msg.members.length;
+            const nextWeightsKey = msg.members.map((m) => `${m.id}:${m.weight || 1}`).join(',');
+            prevSettingsKeyRef.current = `${msg.members.length}:${winnerCountRef.current}:${nextWeightsKey}`;
             membersRef.current = msg.members;
+            setMembers(msg.members);
           }
-          handlePlayLadderRef.current(msg.skipTrace, false, msg.rungs, msg.goals, msg.members);
+          handlePlayLadderRef.current(
+            msg.skipTrace,
+            false,
+            msg.rungs,
+            msg.goals,
+            msg.members,
+            msg.speed,
+            msg.results,
+            msg.revealedGoals,
+            msg.revealedGoalCols
+          );
           break;
 
-        case 'LADDER_RUNNER_ARRIVED':
+        case 'LADDER_RUNNER_ARRIVED': {
+          // 🔑 [호스트 주도 중계] 전체 즉시 결과 등으로 이미 최종 결과가 확정된 경우 지연 도착한 주자 도착 패킷 무시
+          if (ladderResultRef.current !== null) break;
           // 🔑 [호스트 주도 중계] 방장이 목표 도달 시 게스트도 로컬 타이머를 즉시 정리하고 골인 지점으로 스냅 및 팝업 오픈
-          if (stepIntervalRef.current) {
-            clearInterval(stepIntervalRef.current);
-            stepIntervalRef.current = null;
+          clearTracingTimers();
+          const activeMembers = membersRef.current;
+          const activeGoals = ladderGoalsRef.current;
+          const activeRungs = generateLadderRungs(activeMembers.length, ladderSeedRef.current);
+          const { waypointsMap } = computeLadderPaths(activeMembers, activeGoals, activeRungs);
+          const memberPath = waypointsMap[msg.member.id];
+          if (memberPath && memberPath.length > 0) {
+            const finalPt = memberPath[memberPath.length - 1];
+            setCurrentTracerPosition(finalPt);
+            setCurrentTracedTrail(memberPath);
+            ensureTracerVisible(finalPt.x, undefined, false, false, ladderSpeedRef.current);
           }
           if (msg.revealedGoals) {
             setRevealedGoals(msg.revealedGoals);
@@ -512,23 +626,34 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             nextMemberName: msg.nextMemberName,
           });
           break;
+        }
 
         case 'LADDER_PROCEED_NEXT':
           if (msg.speed) {
+            ladderSpeedRef.current = msg.speed;
             setLadderSpeed(msg.speed);
           }
           if (msg.goals) {
+            ladderGoalsRef.current = msg.goals;
             setLadderGoals(msg.goals);
           }
           if (msg.members && msg.members.length > 0) {
-            setMembers(msg.members);
             membersRef.current = msg.members;
+            setMembers(msg.members);
           }
           setArrivalPopup(null);
-          handleProceedRef.current(msg.nextMemberIndex, false, msg.rungs, msg.goals, msg.members);
+          handleProceedRef.current(
+            msg.nextMemberIndex,
+            false,
+            msg.rungs,
+            msg.goals,
+            msg.members,
+            msg.speed
+          );
           break;
 
         case 'LADDER_COMPLETE':
+          clearTracingTimers();
           if (msg.results) {
             setLadderResult(msg.results);
             ladderResultRef.current = msg.results;
@@ -577,7 +702,13 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           break;
 
         case 'RESET_GAME':
+          clearTracingTimers();
+          setIsLadderTracing(false);
+          setActiveTracingMemberIndex(null);
+          setCurrentTracerPosition(null);
+          setCurrentTracedTrail([]);
           setLadderResult(null);
+          ladderResultRef.current = null;
           setRevealedGoals({});
           setRevealedGoalCols({});
           setArrivalPopup(null);
@@ -590,25 +721,50 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               prev.map((m) => (m.claimedBy === msg.tabId ? { ...m, claimedBy: undefined } : m))
             );
           }
-          showToast('참여자가 게임에서 퇴장했습니다.', 'info');
+          showToastRef.current('참여자가 게임에서 퇴장했습니다.', 'info');
           break;
 
         case 'CLOSE_ROOM':
         case 'ROOM_CLOSED':
+          clearTracingTimers();
+          setIsLadderTracing(false);
+          setActiveTracingMemberIndex(null);
+          setCurrentTracerPosition(null);
+          setCurrentTracedTrail([]);
+          setArrivalPopup(null);
+          isRoomClosedRef.current = true;
           setIsRoomClosed(true);
           if (msg.finalResult) {
             setLadderResult(msg.finalResult);
+            ladderResultRef.current = msg.finalResult;
+            const currentMembers = membersRef.current;
+            const revGoals: Record<string, boolean> = {};
+            const revCols: LadderRevealedGoalCols = {};
+            currentMembers.forEach((m) => {
+              revGoals[m.id] = true;
+              const res = msg.finalResult[m.id];
+              if (res) {
+                revCols[res.goalIndex] = {
+                  memberName: m.name,
+                  avatar: m.avatar,
+                  isWinner: res.isWinner,
+                };
+              }
+            });
+            setRevealedGoals(revGoals);
+            setRevealedGoalCols(revCols);
           }
           if (!isRoomHost) {
-            // 🔑 [항목 2-g: 게임 종료 시 링크 참가자 화면 인터랙션 팝업 오픈]
+            // 🔑 [항목 2-g: 게임 종료 시 링크 참가자 화면 인터랙션 팝업 오픈 -> 개인 플레이 모드 전환 안내]
             setIsGuestCloseNoticeOpen(true);
           }
-          showToast('🔒 방장이 게임을 종료하였습니다. (신규 유입 차단 및 최종 결과 보관)', 'warning');
+          showToastRef.current('🔒 방장이 게임을 종료하였습니다. 개인 플레이 모드로 전환할 수 있습니다.', 'warning');
           break;
 
         case 'PRESENCE_CHANGE':
           setConnectedClients(msg.connectedClients);
           if (msg.members) {
+            membersRef.current = msg.members;
             setMembers(msg.members);
           } else if (msg.seatReleasedTabId) {
             setMembers((prev) =>
@@ -626,10 +782,21 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     if (!isRoomHost) {
       const snapshot = loadRoomSnapshot(roomId);
       if (snapshot) {
-        setMembers(snapshot.members);
+        const nextMembers = snapshot.members || membersRef.current;
+        const nextWinnerCount = snapshot.winnerCount ?? winnerCountRef.current;
+        const nextWeightsKey = nextMembers.map((m) => `${m.id}:${m.weight || 1}`).join(',');
+        prevMembersCountRef.current = nextMembers.length;
+        prevWinnerCountRef.current = nextWinnerCount;
+        prevSettingsKeyRef.current = `${nextMembers.length}:${nextWinnerCount}:${nextWeightsKey}`;
+        membersRef.current = nextMembers;
+        ladderGoalsRef.current = snapshot.ladderGoals;
+        ladderSeedRef.current = snapshot.ladderSeed;
+        winnerCountRef.current = nextWinnerCount;
+        ladderSpeedRef.current = snapshot.ladderSpeed;
+        setMembers(nextMembers);
         setLadderGoals(snapshot.ladderGoals);
         setLadderSeed(snapshot.ladderSeed);
-        setWinnerCount(snapshot.winnerCount);
+        setWinnerCount(nextWinnerCount);
         setUseLadderWeight(snapshot.useLadderWeight);
         setLadderSpeed(snapshot.ladderSpeed);
         setSelectedStore(snapshot.selectedStore);
@@ -641,7 +808,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       channel.close();
       channelRef.current = null;
     };
-  }, [roomId, isRoomHost, currentTabId, showToast]);
+  }, [roomId, isRoomHost, currentTabId, clearTracingTimers]);
 
   // 서버로부터 방 정보 패치 (폐기/종료된 방 접속 시 최종 결과 복원)
   useEffect(() => {
@@ -652,6 +819,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         const roomInfo = data?.room || data;
         if (roomInfo) {
           if (roomInfo.isClosed) {
+            isRoomClosedRef.current = true;
             setIsRoomClosed(true);
             if (!isRoomHost) {
               setIsGuestCloseNoticeOpen(true);
@@ -663,6 +831,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             }
           } else if (roomInfo.data && !isRoomHost) {
             const snap = roomInfo.data;
+            const nextMembers = snap.members || membersRef.current;
+            const nextWinnerCount = snap.winnerCount || winnerCountRef.current;
+            const nextWeightsKey = nextMembers.map((m: Participant) => `${m.id}:${m.weight || 1}`).join(',');
+            prevMembersCountRef.current = nextMembers.length;
+            prevWinnerCountRef.current = nextWinnerCount;
+            prevSettingsKeyRef.current = `${nextMembers.length}:${nextWinnerCount}:${nextWeightsKey}`;
             if (snap.members) {
               setMembers(snap.members);
               membersRef.current = snap.members;
@@ -702,6 +876,11 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         console.warn('Failed to fetch ladder room from server', err);
       });
   }, [roomId, isRoomHost, setLadderGoals, setMembers, setSelectedStore, setWinnerCount]);
+
+  // 상위 SCR_GNT_01에 방 참여/방장 상태 동기화 (개인 모드 전환 시 상단 슬라이더/공유 잠금 즉시 해제)
+  useEffect(() => {
+    onRoomModeChange?.(!!roomId, isRoomHost);
+  }, [roomId, isRoomHost, onRoomModeChange]);
 
   // 매장 변경 또는 연동 해제 시 참가자 메뉴 선택 및 아바타 기본값 복원, 게임결과 초기화
   const prevStoreIdRef = useRef<string | undefined>(selectedStore?.id);
@@ -754,6 +933,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       e.preventDefault();
       e.stopPropagation();
       el.scrollLeft += rawDelta * 1.2;
+      cameraScrollRef.current = el.scrollLeft;
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
@@ -772,6 +952,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     if (ladderSliderRef.current) {
       ladderStartXRef.current = e.pageX - ladderSliderRef.current.offsetLeft;
       ladderScrollLeftRef.current = ladderSliderRef.current.scrollLeft;
+      cameraScrollRef.current = ladderSliderRef.current.scrollLeft;
     }
   };
 
@@ -781,10 +962,20 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     const x = e.pageX - ladderSliderRef.current.offsetLeft;
     const walk = (x - ladderStartXRef.current) * 1.5;
     ladderSliderRef.current.scrollLeft = ladderScrollLeftRef.current - walk;
+    cameraScrollRef.current = ladderSliderRef.current.scrollLeft;
   };
 
   const handleLadderMouseUpOrLeave = () => {
     isDraggingLadderRef.current = false;
+  };
+
+  const handleChangeLadderSpeed = (nextSpeed: number) => {
+    if (isGuest || isRoomClosed) return;
+    ladderSpeedRef.current = nextSpeed;
+    setLadderSpeed(nextSpeed);
+    if (channelRef.current) {
+      channelRef.current.send({ type: 'UPDATE_SPEED', speed: nextSpeed }, getHostToken());
+    }
   };
 
   const handleUpdateMemberWeight = (memberId: string, delta: number) => {
@@ -855,83 +1046,335 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     showToast('👥 참가자 순서가 무작위로 재배치되었습니다!', 'info');
   };
 
-  const handleSkipToResult = (overrideRungs?: LadderRung[], overrideGoals?: LadderGoal[]) => {
-    if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
+  const handleSkipToResult = (
+    overrideRungs?: LadderRung[],
+    overrideGoals?: LadderGoal[],
+    overrideMembers?: Participant[],
+    overrideResults?: LadderResultMap,
+    overrideRevealedGoals?: Record<string, boolean>,
+    overrideRevealedGoalCols?: LadderRevealedGoalCols
+  ) => {
+    clearTracingTimers();
     setIsLadderTracing(false);
     setActiveTracingMemberIndex(null);
     setCurrentTracerPosition(null);
     setCurrentTracedTrail([]);
     setArrivalPopup(null);
 
+    const membersToUse = overrideMembers || membersRef.current;
     const rungsToUse = overrideRungs || ladderRungs;
-    const goalsToUse = overrideGoals || ladderGoals;
-    const { results } = computeLadderPaths(members, goalsToUse, rungsToUse);
+    const goalsToUse = overrideGoals || ladderGoalsRef.current;
+    const results = overrideResults || computeLadderPaths(membersToUse, goalsToUse, rungsToUse).results;
+
+    const revGoals: Record<string, boolean> = overrideRevealedGoals ? { ...overrideRevealedGoals } : {};
+    const revCols: LadderRevealedGoalCols = overrideRevealedGoalCols ? { ...overrideRevealedGoalCols } : {};
+    if (!overrideRevealedGoals || !overrideRevealedGoalCols) {
+      membersToUse.forEach((m) => {
+        if (!overrideRevealedGoals) revGoals[m.id] = true;
+        const res = results[m.id];
+        if (res && !overrideRevealedGoalCols) {
+          revCols[res.goalIndex] = {
+            memberName: m.name,
+            avatar: m.avatar,
+            isWinner: res.isWinner,
+          };
+        }
+      });
+    }
+
     setLadderResult(results);
+    ladderResultRef.current = results;
+    setRevealedGoals(revGoals);
+    revealedGoalsRef.current = revGoals;
+    setRevealedGoalCols(revCols);
+    revealedGoalColsRef.current = revCols;
     setIsResultModalOpen(true);
 
-    const revGoals: Record<string, boolean> = {};
-    const revCols: LadderRevealedGoalCols = {};
-    members.forEach((m) => {
-      revGoals[m.id] = true;
-      const res = results[m.id];
-      if (res) {
-        revCols[res.goalIndex] = {
-          memberName: m.name,
-          avatar: m.avatar,
-          isWinner: res.isWinner,
-        };
-      }
-    });
-    setRevealedGoals(revGoals);
-    setRevealedGoalCols(revCols);
+    return { results, revGoals, revCols };
   };
 
-  // 선제적 오토 가로 스크롤 엔진 (설정 속도 연동 & 사다리 1칸(104px) 선제 시야 확보 & 반 칸 여백 유지)
-  const ensureTracerVisible = (ptX: number, nextPtX?: number, immediate = false, isPanning = false) => {
+  // 게임 속도 연동 실시간 카메라 추적 엔진 (부동소수점 연속 보간 + 감쇠 예측 패닝 + 하드 안전 여백 클램핑)
+  const ensureTracerVisible = (
+    ptX: number,
+    nextPtX?: number,
+    immediate = false,
+    isPanning = false,
+    speedOverride?: number
+  ) => {
     const el = ladderSliderRef.current;
-    if (!el) return;
+    if (!el || isDraggingLadderRef.current) return;
+
+    // 주자 출발 시 모바일 등에서 사다리 영역이 세로 뷰포트를 벗어나 있으면 화면 중앙에 맞춤
+    if (immediate && typeof window !== 'undefined') {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < 56 || rect.bottom > window.innerHeight - 40) {
+        el.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+    }
+
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
 
     const viewWidth = el.clientWidth;
-    // 사다리 반 칸(52px) 기본 안전 여백
-    const halfColPadding = Math.round(LADDER_COL_WIDTH * 0.5); // 52px
-    // 사다리 1칸(104px) 선제 진행 방향 여백 (화면이 사다리 간격만큼 앞서 이동)
-    const fullColAhead = LADDER_COL_WIDTH; // 104px
+    const safeEdgePadding = Math.min(
+      Math.max(56, Math.floor(viewWidth * 0.28)),
+      LADDER_COL_WIDTH
+    );
 
-    // 진행 방향 선제 시야 예측 (사다리 가로줄 이동 시 해당 방향으로 사다리 1칸 104px 이상 선제 확보)
     const lookAheadDir = nextPtX !== undefined ? Math.sign(nextPtX - ptX) : 0;
-    const forwardMargin = lookAheadDir * Math.max(fullColAhead, Math.min(160, viewWidth * 0.3));
+    const forwardMargin = lookAheadDir * Math.min(42, Math.floor(viewWidth * 0.14));
 
-    // 트레이서와 진행 방향을 뷰포트 중심 구역에 선제 배치
-    let desiredCenter = ptX + forwardMargin;
-    let targetScroll = desiredCenter - viewWidth / 2;
-
-    // 반 칸(52px) 및 1칸(104px) 안전 여백 클램핑: 끝에 닿기 전에 사다리 간격만큼 앞서 화면 유지
-    if (ptX - targetScroll < fullColAhead) {
-      targetScroll = ptX - fullColAhead;
+    let targetScroll = ptX + forwardMargin - viewWidth / 2;
+    if (ptX - targetScroll < safeEdgePadding) {
+      targetScroll = ptX - safeEdgePadding;
     }
-    if (targetScroll + viewWidth - ptX < fullColAhead) {
-      targetScroll = ptX + fullColAhead - viewWidth;
+    if (targetScroll + viewWidth - ptX < safeEdgePadding) {
+      targetScroll = ptX + safeEdgePadding - viewWidth;
     }
-
     targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
 
     if (immediate) {
+      cameraScrollRef.current = targetScroll;
       el.scrollLeft = targetScroll;
       return;
     }
 
-    const currentScroll = el.scrollLeft;
+    const activeSpeed = speedOverride ?? ladderSpeedRef.current;
+    const followRate = isPanning
+      ? 0.5
+      : Math.min(0.95, Math.max(0.28, 0.52 * activeSpeed));
+    const currentScroll = cameraScrollRef.current || el.scrollLeft;
     const diff = targetScroll - currentScroll;
 
-    if (Math.abs(diff) > 1) {
-      // 🔑 [피드백 3]: 설정된 속도(ladderSpeed)에 비례하여 화면 추적 계수 조정 (앵커를 놓치지 않고 완벽 추적)
-      const baseEasing = isPanning ? 0.4 : 0.65;
-      const speedMultiplier = Math.max(0.8, Math.min(1.8, ladderSpeed));
-      const easingFactor = Math.min(0.95, baseEasing * speedMultiplier);
-      el.scrollLeft = currentScroll + diff * easingFactor;
+    let nextScroll = Math.abs(diff) > 0.2 ? currentScroll + diff * followRate : targetScroll;
+    if (ptX - nextScroll < safeEdgePadding) {
+      nextScroll = ptX - safeEdgePadding;
     }
+    if (nextScroll + viewWidth - ptX < safeEdgePadding) {
+      nextScroll = ptX + safeEdgePadding - viewWidth;
+    }
+    nextScroll = Math.max(0, Math.min(maxScroll, nextScroll));
+    cameraScrollRef.current = nextScroll;
+    el.scrollLeft = nextScroll;
+  };
+
+  // 출발 컬럼으로 220ms 부드러운 ease-out 팬 (순간 텔레포트/끊김 완화)
+  const smoothPanToStartX = (startX: number) => {
+    const el = ladderSliderRef.current;
+    if (!el) return;
+
+    if (typeof window !== 'undefined') {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < 56 || rect.bottom > window.innerHeight - 40) {
+        el.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+    }
+
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+
+    const targetScroll = Math.max(0, Math.min(maxScroll, startX - el.clientWidth / 2));
+    const fromScroll = el.scrollLeft;
+    cameraLookAheadRef.current = 0;
+
+    if (Math.abs(targetScroll - fromScroll) < 2 || typeof requestAnimationFrame === 'undefined') {
+      cameraScrollRef.current = targetScroll;
+      el.scrollLeft = targetScroll;
+      return;
+    }
+
+    const startTime = performance.now();
+    const duration = 220;
+
+    const panStep = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = fromScroll + (targetScroll - fromScroll) * eased;
+      cameraScrollRef.current = cur;
+      if (!isDraggingLadderRef.current && ladderSliderRef.current) {
+        ladderSliderRef.current.scrollLeft = cur;
+      }
+      if (t < 1) {
+        panRafIdRef.current = requestAnimationFrame(panStep);
+      } else {
+        panRafIdRef.current = null;
+      }
+    };
+
+    panRafIdRef.current = requestAnimationFrame(panStep);
+  };
+
+  // 60/120Hz 프레임 독립적 지수 감쇠 카메라 추종 (VSync 일치 + sub-pixel float 누적)
+  const updateCameraDuringTrace = (
+    ptX: number,
+    vx: number,
+    dt: number,
+    activeSpeed: number
+  ) => {
+    const el = ladderSliderRef.current;
+    if (!el || isDraggingLadderRef.current) return;
+
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+
+    const viewWidth = el.clientWidth;
+    const safeEdgePadding = Math.min(
+      Math.max(56, Math.floor(viewWidth * 0.28)),
+      LADDER_COL_WIDTH
+    );
+
+    // 가로줄 방향 전환 시 42px 급점프 대신 지수 보간으로 시선 오프셋을 부드럽게 이동
+    const desiredLookAhead = vx * Math.min(42, Math.floor(viewWidth * 0.14));
+    const lookAheadAlpha = 1 - Math.exp(-5.0 * dt);
+    cameraLookAheadRef.current +=
+      (desiredLookAhead - cameraLookAheadRef.current) * lookAheadAlpha;
+
+    let targetScroll = ptX + cameraLookAheadRef.current - viewWidth / 2;
+    if (ptX - targetScroll < safeEdgePadding) {
+      targetScroll = ptX - safeEdgePadding;
+    }
+    if (targetScroll + viewWidth - ptX < safeEdgePadding) {
+      targetScroll = ptX + safeEdgePadding - viewWidth;
+    }
+    targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
+
+    const responsiveness = Math.max(8, 10.5 * activeSpeed);
+    const camAlpha = 1 - Math.exp(-responsiveness * dt);
+    let nextScroll =
+      cameraScrollRef.current + (targetScroll - cameraScrollRef.current) * camAlpha;
+
+    // 2차 하드 바운드 클램핑: 어떤 배속에서도 포인트가 안전 시야 밖으로 이탈하지 않도록 보장
+    if (ptX - nextScroll < safeEdgePadding) {
+      nextScroll = ptX - safeEdgePadding;
+    }
+    if (nextScroll + viewWidth - ptX < safeEdgePadding) {
+      nextScroll = ptX + safeEdgePadding - viewWidth;
+    }
+
+    nextScroll = Math.max(0, Math.min(maxScroll, nextScroll));
+    cameraScrollRef.current = nextScroll;
+    el.scrollLeft = nextScroll;
+  };
+
+  // 통합 requestAnimationFrame 연속 보간 주행 엔진 (주자 1 및 후속 주자 공통)
+  const startRunnerTraceAnimation = (
+    member: Participant,
+    memberIdx: number,
+    totalMembers: number,
+    waypoints: { x: number; y: number }[],
+    results: LadderResultMap,
+    membersToUse: Participant[],
+    broadcast: boolean,
+    hostTokenToUse: string | null
+  ) => {
+    clearTracingTimers();
+    const startPt = waypoints[0] || null;
+    setActiveTracingMemberIndex(memberIdx);
+    setCurrentTracerPosition(startPt);
+    setCurrentTracedTrail(startPt ? [startPt] : []);
+
+    if (startPt) {
+      smoothPanToStartX(startPt.x);
+    }
+
+    const curve = buildPolylineCurve(waypoints);
+    const BASE_PX_PER_SEC = 300; // 1.0x 기준 초당 300px
+
+    stepTimeoutRef.current = setTimeout(() => {
+      stepTimeoutRef.current = null;
+      if (panRafIdRef.current !== null && typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(panRafIdRef.current);
+        panRafIdRef.current = null;
+      }
+      if (ladderSliderRef.current) {
+        cameraScrollRef.current = ladderSliderRef.current.scrollLeft;
+      }
+      cameraLookAheadRef.current = 0;
+
+      let traveledDist = 0;
+      let lastTimestamp: number | null = null;
+
+      const stepFrame = (now: number) => {
+        if (lastTimestamp === null) {
+          lastTimestamp = now;
+        }
+        const dt = Math.min(0.05, Math.max(0.001, (now - lastTimestamp) / 1000));
+        lastTimestamp = now;
+
+        const activeSpeed = ladderSpeedRef.current;
+        traveledDist += BASE_PX_PER_SEC * activeSpeed * dt;
+
+        const sample = samplePolylineAtDistance(curve, traveledDist);
+        setCurrentTracerPosition(sample.pos);
+        setCurrentTracedTrail(sample.trail);
+        updateCameraDuringTrace(sample.pos.x, sample.vx, dt, activeSpeed);
+
+        if (!sample.done) {
+          rafIdRef.current = requestAnimationFrame(stepFrame);
+          return;
+        }
+
+        rafIdRef.current = null;
+        const finalPt = waypoints[waypoints.length - 1] || null;
+        setCurrentTracerPosition(finalPt);
+        setCurrentTracedTrail(waypoints);
+        if (finalPt) {
+          ensureTracerVisible(finalPt.x, undefined, false, false, activeSpeed);
+        }
+
+        const newRevealedGoals = { ...revealedGoalsRef.current, [member.id]: true };
+        revealedGoalsRef.current = newRevealedGoals;
+        setRevealedGoals(newRevealedGoals);
+
+        let newRevealedGoalCols = { ...revealedGoalColsRef.current };
+        const currentResult = results[member.id];
+        if (currentResult) {
+          newRevealedGoalCols = {
+            ...newRevealedGoalCols,
+            [currentResult.goalIndex]: {
+              memberName: member.name,
+              avatar: member.avatar,
+              isWinner: currentResult.isWinner,
+            },
+          };
+          revealedGoalColsRef.current = newRevealedGoalCols;
+          setRevealedGoalCols(newRevealedGoalCols);
+        }
+
+        const nextIdx = memberIdx + 1;
+        const isLast = nextIdx >= totalMembers;
+        const nextMember = !isLast ? membersToUse[nextIdx] : undefined;
+
+        setArrivalPopup({
+          member,
+          result: currentResult,
+          memberIndex: memberIdx,
+          totalMembers,
+          nextMemberName: nextMember?.name,
+        });
+
+        // 🔑 [호스트 주도 이벤트 방송]: 주자 도착 팝업 및 주자 매핑 결과를 모든 참가자에게 즉시 방송
+        if (broadcast && isRoomHost && channelRef.current) {
+          channelRef.current.send(
+            {
+              type: 'LADDER_RUNNER_ARRIVED',
+              memberIndex: memberIdx,
+              member,
+              result: currentResult,
+              isLast,
+              totalMembers,
+              nextMemberName: nextMember?.name,
+              revealedGoals: newRevealedGoals,
+              revealedGoalCols: newRevealedGoalCols,
+            },
+            hostTokenToUse
+          );
+        }
+      };
+
+      rafIdRef.current = requestAnimationFrame(stepFrame);
+    }, 250);
   };
 
   const handlePlayLadder = (
@@ -939,49 +1382,66 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     broadcast = true,
     overrideRungs?: LadderRung[],
     overrideGoals?: LadderGoal[],
-    overrideMembers?: Participant[]
+    overrideMembers?: Participant[],
+    overrideSpeed?: number,
+    overrideResults?: LadderResultMap,
+    overrideRevealedGoals?: Record<string, boolean>,
+    overrideRevealedGoalCols?: LadderRevealedGoalCols
   ) => {
     const membersToUse = overrideMembers || membersRef.current;
+    const speedToUse = overrideSpeed ?? ladderSpeedRef.current;
     const hostTokenToUse = getHostToken();
 
     if (skipTrace) {
-      // 🔑 [요구사항 8: 전체 즉시결과 실행 시 순간 사다리 가로줄 섞기(초기화) 후 게임 진행]
-      const nextSeed = ladderSeed + 1;
-      setLadderSeed(nextSeed);
-      if (channelRef.current) {
-        channelRef.current.send({ type: 'SHUFFLE_RUNGS', seed: nextSeed }, hostTokenToUse);
+      // 🔑 [원자적 즉시결과 동기화] SHUFFLE_RUNGS 별도 송신 시 HTTP 레이스로 게스트 결과가 덮어써지는 문제 원천 차단
+      let targetSeed = ladderSeedRef.current;
+      if (broadcast) {
+        targetSeed = ladderSeedRef.current + 1;
+        ladderSeedRef.current = targetSeed;
+        setLadderSeed(targetSeed);
       }
-      const freshRungs = generateLadderRungs(membersToUse.length, nextSeed);
+      const freshRungs = overrideRungs || generateLadderRungs(membersToUse.length, targetSeed);
+      const goalsForSkip = overrideGoals || ladderGoalsRef.current;
+
+      const skipOutcome = handleSkipToResult(
+        freshRungs,
+        goalsForSkip,
+        membersToUse,
+        overrideResults,
+        overrideRevealedGoals,
+        overrideRevealedGoalCols
+      );
 
       if (broadcast && channelRef.current) {
         channelRef.current.send(
           {
             type: 'PLAY_LADDER',
             skipTrace: true,
-            speed: ladderSpeed,
-            seed: nextSeed,
+            speed: speedToUse,
+            seed: targetSeed,
             rungs: freshRungs,
-            goals: ladderGoals,
+            goals: goalsForSkip,
             members: membersToUse,
+            results: skipOutcome.results,
+            revealedGoals: skipOutcome.revGoals,
+            revealedGoalCols: skipOutcome.revCols,
           },
           hostTokenToUse
         );
       }
-
-      handleSkipToResult(freshRungs, ladderGoals);
       return;
     }
 
     const rungsToUse = overrideRungs || ladderRungs;
-    const goalsToUse = overrideGoals || ladderGoals;
+    const goalsToUse = overrideGoals || ladderGoalsRef.current;
 
     if (broadcast && channelRef.current) {
       channelRef.current.send(
         {
           type: 'PLAY_LADDER',
           skipTrace,
-          speed: ladderSpeed,
-          seed: ladderSeed,
+          speed: speedToUse,
+          seed: ladderSeedRef.current,
           rungs: rungsToUse,
           goals: goalsToUse,
           members: membersToUse,
@@ -990,135 +1450,35 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       );
     }
 
-    if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
+    clearTracingTimers();
 
     setArrivalPopup(null);
-    const { results, paths } = computeLadderPaths(membersToUse, goalsToUse, rungsToUse);
+    const { results, waypointsMap } = computeLadderPaths(membersToUse, goalsToUse, rungsToUse);
     setIsLadderTracing(true);
     setLadderResult(null);
+    ladderResultRef.current = null;
     setCurrentTracedTrail([]);
     setRevealedGoals({});
+    revealedGoalsRef.current = {};
     setRevealedGoalCols({});
+    revealedGoalColsRef.current = {};
 
-    // 🔑 [순차 주자 실행 엔진]: idx번째 주자 시작, 도착 팝업 및 카메라 부드러운 패닝 관리
-    const runMemberAnimation = (idx: number) => {
-      if (idx >= membersToUse.length) {
-        setIsLadderTracing(false);
-        setActiveTracingMemberIndex(null);
-        setCurrentTracerPosition(null);
-        setCurrentTracedTrail([]);
-        setLadderResult(results);
-        // 마지막 주자까지 완주 시 결과 모달 오픈
-        setIsResultModalOpen(true);
-        if (isRoomHost && channelRef.current) {
-          channelRef.current.send({ type: 'LADDER_COMPLETE', results }, hostTokenToUse);
-        }
-        return;
-      }
+    const firstMember = membersToUse[0];
+    if (!firstMember) {
+      setIsLadderTracing(false);
+      return;
+    }
 
-      const currentMember = membersToUse[idx];
-      setActiveTracingMemberIndex(idx);
-
-      const memberPoints = paths[currentMember.id] || [];
-      const startPt = memberPoints[0] || null;
-
-      // 이전 마커와 선을 완전히 끊고 새 주자의 최상단 시작점에서 출발
-      setCurrentTracerPosition(startPt);
-      setCurrentTracedTrail(startPt ? [startPt] : []);
-
-      // 🔑 [피드백 3]: 출발 전 해당 시작 위치(기둥 X좌표)로 화면을 먼저 즉시 이동시킨 후, 이동을 시작
-      if (startPt) {
-        ensureTracerVisible(startPt.x, undefined, true);
-      }
-
-      const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
-      let stepIdx = 1;
-
-      const speedInterval =
-        LADDER_SPEED_OPTIONS.find((s) => s.value === ladderSpeed)?.interval || 20;
-
-      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-      // 선제 화면 이동 후 250ms 여유를 두고 앵커 스텝 이동 시작
-      setTimeout(() => {
-        if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-        stepIntervalRef.current = setInterval(() => {
-          if (stepIdx < memberPoints.length) {
-            const pt = memberPoints[stepIdx];
-            const nextPt = stepIdx + 3 < memberPoints.length ? memberPoints[stepIdx + 3] : memberPoints[stepIdx + 1];
-            setCurrentTracerPosition(pt);
-            trailHistory.push(pt);
-            setCurrentTracedTrail([...trailHistory]);
-            // 🔑 [요구사항 4]: 사다리 앵커 추적 시 벽에 닿기 전 반 칸(0.5 step, 52px) 공간 유지
-            ensureTracerVisible(pt.x, nextPt?.x);
-            stepIdx++;
-          } else {
-            if (stepIntervalRef.current) {
-              clearInterval(stepIntervalRef.current);
-              stepIntervalRef.current = null;
-            }
-
-            // 골인 지점에 안착
-            const finalPt = memberPoints[memberPoints.length - 1] || null;
-            setCurrentTracerPosition(finalPt);
-            if (finalPt) {
-              ensureTracerVisible(finalPt.x);
-            }
-
-            const newRevealedGoals = { ...revealedGoalsRef.current, [currentMember.id]: true };
-            revealedGoalsRef.current = newRevealedGoals;
-            setRevealedGoals(newRevealedGoals);
-
-            let newRevealedGoalCols = { ...revealedGoalColsRef.current };
-            const currentResult = results[currentMember.id];
-            if (currentResult) {
-              newRevealedGoalCols = {
-                ...newRevealedGoalCols,
-                [currentResult.goalIndex]: {
-                  memberName: currentMember.name,
-                  avatar: currentMember.avatar,
-                  isWinner: currentResult.isWinner,
-                },
-              };
-              revealedGoalColsRef.current = newRevealedGoalCols;
-              setRevealedGoalCols(newRevealedGoalCols);
-            }
-
-            const nextIdx = idx + 1;
-            const isLast = nextIdx >= membersToUse.length;
-            const nextMember = !isLast ? membersToUse[nextIdx] : undefined;
-
-            // 🔑 [요구사항 6]: 게임 완료/도착 팝업 설정 (링크 참가자도 동일하게 확인)
-            setArrivalPopup({
-              member: currentMember,
-              result: currentResult,
-              memberIndex: idx,
-              totalMembers: membersToUse.length,
-              nextMemberName: nextMember?.name,
-            });
-
-            // 🔑 [호스트 주도 이벤트 방송]: 첫 주자 도착 팝업 및 주자 매핑 결과를 모든 참가자에게 즉시 방송
-            if (broadcast && isRoomHost && channelRef.current) {
-              channelRef.current.send(
-                {
-                  type: 'LADDER_RUNNER_ARRIVED',
-                  memberIndex: idx,
-                  member: currentMember,
-                  result: currentResult,
-                  isLast,
-                  totalMembers: membersToUse.length,
-                  nextMemberName: nextMember?.name,
-                  revealedGoals: newRevealedGoals,
-                  revealedGoalCols: newRevealedGoalCols,
-                },
-                hostTokenToUse
-              );
-            }
-          }
-        }, speedInterval);
-      }, 250);
-    };
-
-    runMemberAnimation(0);
+    startRunnerTraceAnimation(
+      firstMember,
+      0,
+      membersToUse.length,
+      waypointsMap[firstMember.id] || [],
+      results,
+      membersToUse,
+      broadcast,
+      hostTokenToUse
+    );
   };
   handlePlayLadderRef.current = handlePlayLadder;
 
@@ -1127,21 +1487,23 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     broadcast = true,
     overrideRungs?: LadderRung[],
     overrideGoals?: LadderGoal[],
-    overrideMembers?: Participant[]
+    overrideMembers?: Participant[],
+    overrideSpeed?: number
   ) => {
     const membersToUse = overrideMembers || membersRef.current;
     const rungsToUse = overrideRungs || ladderRungs;
-    const goalsToUse = overrideGoals || ladderGoals;
+    const goalsToUse = overrideGoals || ladderGoalsRef.current;
+    const speedToUse = overrideSpeed ?? ladderSpeedRef.current;
 
     const currentArrival = arrivalPopupRef.current || arrivalPopup;
     const nextIdx = targetIdx !== undefined ? targetIdx : (currentArrival ? currentArrival.memberIndex + 1 : 0);
     const isLast = nextIdx >= membersToUse.length;
+    clearTracingTimers();
     setArrivalPopup(null);
     setCurrentTracerPosition(null);
     setCurrentTracedTrail([]);
 
-    const { results, paths } = computeLadderPaths(membersToUse, goalsToUse, rungsToUse);
-
+    const { results, waypointsMap } = computeLadderPaths(membersToUse, goalsToUse, rungsToUse);
     const hostTokenToUse = getHostToken();
 
     if (isLast) {
@@ -1150,7 +1512,6 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       setCurrentTracerPosition(null);
       setLadderResult(results);
       ladderResultRef.current = results;
-      // 🔑 [요구사항 6]: 게임이 끝나면 링크 참가자도 팝업으로 게임 결과 오픈
       setIsResultModalOpen(true);
 
       if (broadcast && isRoomHost && channelRef.current) {
@@ -1170,7 +1531,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           {
             type: 'LADDER_PROCEED_NEXT',
             nextMemberIndex: nextIdx,
-            speed: ladderSpeed,
+            speed: speedToUse,
             rungs: rungsToUse,
             goals: goalsToUse,
             members: membersToUse,
@@ -1181,99 +1542,16 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
       setIsLadderTracing(true);
       const nextMember = membersToUse[nextIdx];
-      setActiveTracingMemberIndex(nextIdx);
-
-      const memberPoints = paths[nextMember.id] || [];
-      const startPt = memberPoints[0] || null;
-
-      // 🔑 [피드백 3]: 다음 참가자 위치로 선제 화면 이동 후 이동 시작
-      setCurrentTracerPosition(startPt);
-      setCurrentTracedTrail(startPt ? [startPt] : []);
-      if (startPt) {
-        ensureTracerVisible(startPt.x, undefined, true);
-      }
-
-      const trailHistory: { x: number; y: number }[] = startPt ? [startPt] : [];
-      let stepIdx = 1;
-
-      const speedInterval =
-        LADDER_SPEED_OPTIONS.find((s) => s.value === ladderSpeed)?.interval || 20;
-
-      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-      setTimeout(() => {
-        if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-        stepIntervalRef.current = setInterval(() => {
-          if (stepIdx < memberPoints.length) {
-            const pt = memberPoints[stepIdx];
-            const nextPt = stepIdx + 3 < memberPoints.length ? memberPoints[stepIdx + 3] : memberPoints[stepIdx + 1];
-            setCurrentTracerPosition(pt);
-            trailHistory.push(pt);
-            setCurrentTracedTrail([...trailHistory]);
-            ensureTracerVisible(pt.x, nextPt?.x);
-            stepIdx++;
-          } else {
-            if (stepIntervalRef.current) {
-              clearInterval(stepIntervalRef.current);
-              stepIntervalRef.current = null;
-            }
-
-            const finalPt = memberPoints[memberPoints.length - 1] || null;
-            setCurrentTracerPosition(finalPt);
-            if (finalPt) {
-              ensureTracerVisible(finalPt.x);
-            }
-
-            const newRevealedGoals = { ...revealedGoalsRef.current, [nextMember.id]: true };
-            revealedGoalsRef.current = newRevealedGoals;
-            setRevealedGoals(newRevealedGoals);
-
-            let newRevealedGoalCols = { ...revealedGoalColsRef.current };
-            const res = results[nextMember.id];
-            if (res) {
-              newRevealedGoalCols = {
-                ...newRevealedGoalCols,
-                [res.goalIndex]: {
-                  memberName: nextMember.name,
-                  avatar: nextMember.avatar,
-                  isWinner: res.isWinner,
-                },
-              };
-              revealedGoalColsRef.current = newRevealedGoalCols;
-              setRevealedGoalCols(newRevealedGoalCols);
-            }
-
-            const afterNextIdx = nextIdx + 1;
-            const isAfterLast = afterNextIdx >= membersToUse.length;
-            const afterNextMember = !isAfterLast ? membersToUse[afterNextIdx] : undefined;
-
-            setArrivalPopup({
-              member: nextMember,
-              result: res,
-              memberIndex: nextIdx,
-              totalMembers: membersToUse.length,
-              nextMemberName: afterNextMember?.name,
-            });
-
-            // 🔑 [호스트 주도 이벤트 방송]: 다음 주자 도착 팝업도 게스트에게 즉시 방송
-            if (broadcast && isRoomHost && channelRef.current) {
-              channelRef.current.send(
-                {
-                  type: 'LADDER_RUNNER_ARRIVED',
-                  memberIndex: nextIdx,
-                  member: nextMember,
-                  result: res,
-                  isLast: isAfterLast,
-                  totalMembers: membersToUse.length,
-                  nextMemberName: afterNextMember?.name,
-                  revealedGoals: newRevealedGoals,
-                  revealedGoalCols: newRevealedGoalCols,
-                },
-                hostTokenToUse
-              );
-            }
-          }
-        }, speedInterval);
-      }, 250);
+      startRunnerTraceAnimation(
+        nextMember,
+        nextIdx,
+        membersToUse.length,
+        waypointsMap[nextMember.id] || [],
+        results,
+        membersToUse,
+        broadcast,
+        hostTokenToUse
+      );
     }
   };
   handleProceedRef.current = handleProceedAfterArrival;
@@ -1591,6 +1869,14 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     const hostTokenToUse = getHostToken();
     const finalResultToUse = ladderResultRef.current || ladderResult;
 
+    clearTracingTimers();
+    setIsLadderTracing(false);
+    setActiveTracingMemberIndex(null);
+    setCurrentTracerPosition(null);
+    setCurrentTracedTrail([]);
+    setArrivalPopup(null);
+    setIsShareModalOpen(false);
+    isRoomClosedRef.current = true;
     setIsRoomClosed(true);
 
     // 당일 이력 저장
@@ -1628,13 +1914,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         },
         hostTokenToUse
       );
-      // 브로드캐스트 전송 후 150ms 여유를 두고 채널 닫기
-      setTimeout(() => {
-        if (channelRef.current) {
-          channelRef.current.close();
-          channelRef.current = null;
-        }
-      }, 150);
+      channelRef.current.close();
+      channelRef.current = null;
     }
 
     // 🔑 [피드백 1: 방장 게임종료 시 상태를 완전히 개인 모드로 전환 및 URL room/host 정리]
@@ -1643,23 +1924,35 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
     } catch (e) {
       // ignore
     }
+    setMembers((prev) => prev.map((m) => ({ ...m, claimedBy: undefined })));
     setRoomId(null);
     setHostToken(null);
     hostTokenRef.current = null;
     setIsRoomHost(false);
+    isRoomClosedRef.current = false;
     setIsRoomClosed(false);
     setConnectedClients(1);
+    onRoomModeChange?.(false, false);
 
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
     url.searchParams.delete('host');
     window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
 
-    showToast('🔒 게임이 종료되었습니다. 초대 링크가 폐기되었으며 개인 게임 모드로 전환되었습니다.', 'info');
+    showToastRef.current('🔒 게임이 종료되었습니다. 초대 링크가 폐기되었으며 개인 게임 모드로 전환되었습니다.', 'info');
   };
 
-  // 참가게임 이탈 핸들러
-  const handleLeaveRoom = () => {
+  // 참가게임 이탈 핸들러 (개인 플레이 모드로 완벽 전환)
+  const handleLeaveRoom = useCallback(() => {
+    clearTracingTimers();
+    setIsLadderTracing(false);
+    setActiveTracingMemberIndex(null);
+    setCurrentTracerPosition(null);
+    setCurrentTracedTrail([]);
+    setArrivalPopup(null);
+    setIsGuestCloseNoticeOpen(false);
+    setIsShareModalOpen(false);
+
     if (roomId) {
       try {
         window.sessionStorage.removeItem(`moabogo_host_token_${roomId}`);
@@ -1668,21 +1961,32 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
       }
     }
     if (roomId && channelRef.current) {
-      channelRef.current.send({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      if (!isRoomClosedRef.current) {
+        channelRef.current.send({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      }
       channelRef.current.close();
       channelRef.current = null;
     }
+    setMembers((prev) => prev.map((m) => ({ ...m, claimedBy: undefined })));
     setRoomId(null);
     setHostToken(null);
+    hostTokenRef.current = null;
     setIsRoomHost(false);
+    isRoomClosedRef.current = false;
     setIsRoomClosed(false);
     setConnectedClients(1);
+    onRoomModeChange?.(false, false);
+
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
     url.searchParams.delete('host');
     window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-    showToast('공유 게임에서 이탈하여 로컬 플레이존으로 복귀했습니다.');
-  };
+    showToastRef.current('개인 플레이 모드로 전환되었습니다. 자유롭게 게임을 계속할 수 있습니다.', 'info');
+  }, [clearTracingTimers, currentTabId, onRoomModeChange, roomId, setMembers]);
+
+  useEffect(() => {
+    onRegisterLeaveHandler?.(handleLeaveRoom);
+  }, [handleLeaveRoom, onRegisterLeaveHandler]);
 
   const handleCopyText = () => {
     if (!ladderResult) return;
@@ -1873,12 +2177,12 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               <button
                 key={opt.value}
                 type="button"
-                disabled={isGuest}
+                disabled={isGuest || isRoomClosed}
                 onClick={() => {
-                  if (isGuest) return;
-                  setLadderSpeed(opt.value);
+                  if (isGuest || isRoomClosed) return;
+                  handleChangeLadderSpeed(opt.value);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest || isRoomClosed ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                   } ${ladderSpeed === opt.value
                     ? 'bg-indigo-600 text-white border-indigo-700'
                     : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
@@ -2021,7 +2325,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           onMouseMove={handleLadderMouseMove}
           onMouseUp={handleLadderMouseUpOrLeave}
           onMouseLeave={handleLadderMouseUpOrLeave}
-          className="w-full overflow-x-auto no-scrollbar scroll-smooth py-2 cursor-grab active:cursor-grabbing select-none"
+          className="w-full overflow-x-auto no-scrollbar py-2 cursor-grab active:cursor-grabbing select-none"
         >
           <div
             className="flex items-start select-none"

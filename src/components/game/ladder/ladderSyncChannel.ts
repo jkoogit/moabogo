@@ -26,7 +26,19 @@ export type LadderSyncMessage =
   | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
   | { type: 'SHUFFLE_RUNGS'; seed: number }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }
-  | { type: 'PLAY_LADDER'; skipTrace: boolean; speed: number; seed?: number; rungs?: LadderRung[]; goals?: LadderGoal[]; members?: Participant[] }
+  | { type: 'UPDATE_SPEED'; speed: number }
+  | {
+      type: 'PLAY_LADDER';
+      skipTrace: boolean;
+      speed: number;
+      seed?: number;
+      rungs?: LadderRung[];
+      goals?: LadderGoal[];
+      members?: Participant[];
+      results?: LadderResultMap;
+      revealedGoals?: Record<string, boolean>;
+      revealedGoalCols?: LadderRevealedGoalCols;
+    }
   | { type: 'RESET_GAME' }
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
@@ -137,14 +149,6 @@ export function createLadderSyncChannel(
         if (!e.data) return;
         try {
           const payload = JSON.parse(e.data);
-          // 🔑 [게임 종료 실시간 전달 보장]
-          if (payload.isClosed) {
-            onMessage({
-              type: 'CLOSE_ROOM',
-              finalResult: payload.finalResult,
-            });
-          }
-
           if (payload.type === 'ACTION_RELAY' && payload.action) {
             // 본인이 발행한 액션은 로컬에서 이미 처리되었으므로 중복 적용 방지
             if (payload.senderTabId !== currentTabId) {
@@ -254,9 +258,11 @@ export function createLadderSyncChannel(
       if (hostToken) {
         headers['x-host-token'] = hostToken;
       }
+      const isUrgent = msg.type === 'CLOSE_ROOM' || msg.type === 'LEAVE_ROOM';
       fetch(`/api/v1/games/rooms/${encodeURIComponent(roomId)}/action`, {
         method: 'POST',
         headers,
+        keepalive: isUrgent,
         body: JSON.stringify({
           action: msg,
           senderTabId: currentTabId,
