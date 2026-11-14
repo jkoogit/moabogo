@@ -107,13 +107,45 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
 
   const handleUpdateItemWeight = (id: string, delta: number) => {
     if (isGuest) return;
-    const updated = items.map((it) => {
-      if (it.id !== id) return it;
-      const nextW = Math.max(1, Math.min(10, (it.weight || 1) + delta));
-      return { ...it, weight: nextW };
-    });
-    setItems(updated);
-    onUpdateItems?.(updated);
+    const target = items.find((it) => it.id === id);
+    if (!target) return;
+    const current = Math.max(0, target.weight ?? 10);
+
+    if (delta < 0) {
+      const nextW = Math.max(0, current + delta);
+      if (current === 0 || nextW === 0) {
+        const otherPositive = items.filter((it) => it.id !== id && (it.weight ?? 10) > 0);
+        if (otherPositive.length > 0) {
+          const minOtherW = Math.min(...otherPositive.map((it) => it.weight ?? 10));
+          const updated = items.map((it) => {
+            if (it.id === id) return { ...it, weight: 0 };
+            const otherW = it.weight ?? 10;
+            if (otherW <= 0) return it;
+            const proportionalBonus = Math.max(1, Math.round(otherW / minOtherW));
+            return { ...it, weight: Math.min(100, otherW + proportionalBonus) };
+          });
+          setItems(updated);
+          onUpdateItems?.(updated);
+          return;
+        } else {
+          const updated = items.map((it) => (it.id === id ? { ...it, weight: 0 } : { ...it, weight: 10 }));
+          setItems(updated);
+          onUpdateItems?.(updated);
+          return;
+        }
+      } else {
+        const updated = items.map((it) => (it.id === id ? { ...it, weight: nextW } : it));
+        setItems(updated);
+        onUpdateItems?.(updated);
+        return;
+      }
+    } else {
+      const nextW = Math.min(100, current + delta);
+      const updated = items.map((it) => (it.id === id ? { ...it, weight: nextW } : it));
+      setItems(updated);
+      onUpdateItems?.(updated);
+      return;
+    }
   };
 
   const handleRemoveItem = (id: string) => {
@@ -220,7 +252,11 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
                     -
                   </button>
                 )}
-                <span className="text-xs font-bold font-mono px-1">{it.weight || 1}x</span>
+                <span className={`text-xs font-bold font-mono px-1 rounded ${
+                  (it.weight ?? 10) <= 0 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 font-bold' : ''
+                }`}>
+                  {(it.weight ?? 10) <= 0 ? '0x 🎈' : `${it.weight ?? 10}x`}
+                </span>
                 {!isGuest && (
                   <button
                     type="button"

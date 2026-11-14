@@ -233,46 +233,74 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
   const measureCtx = measureCanvas.getContext('2d')!;
   measureCtx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
 
-  // 1) 당첨자 행별 높이 사전 계산 (이름 길면 2줄, 그 행 전체 높이 통일)
+  const measureCtxSmall = document.createElement('canvas').getContext('2d')!;
+  measureCtxSmall.font = '500 9.5px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+
+  interface ParticipantItemLines {
+    nameLines: string[];
+    goalText: string;
+    menuLines: string[];
+    totalLines: number;
+  }
+
+  // 1) 당첨자 행별 높이 사전 계산 (이름/메뉴 줄바꿈 시 해당 행 전체 높이 통일)
   const winnerNameMaxWidth = colW - 64; // 아바타(24px) + 당첨배지(28px) + 여백
+  const winnerMenuMaxWidth = colW - 40;
   const winnerRowCount = Math.ceil(winnerList.length / 2);
   const winnerRowHeights: number[] = [];
-  const winnerLinesMap: Array<{ nameLines: string[]; roleText: string }> = [];
+  const winnerLinesMap: ParticipantItemLines[] = [];
 
   for (let i = 0; i < winnerList.length; i++) {
     const p = winnerList[i];
     const nameLines = splitTextToLines(measureCtx, p.name, winnerNameMaxWidth, 2);
-    const roleText = `${p.goalIcon || ''} ${p.goalText}`;
-    winnerLinesMap.push({ nameLines, roleText });
+    const goalText = `${p.goalIcon || ''} ${p.goalText}`;
+    let menuLines: string[] = [];
+    if (p.orderItemName) {
+      const priceStr = p.orderItemPrice !== undefined ? ` ₩${p.orderItemPrice.toLocaleString()}원` : '';
+      const menuFullText = `${p.orderItemName}${priceStr}`;
+      menuLines = splitTextToLines(measureCtxSmall, menuFullText, winnerMenuMaxWidth, 2);
+    }
+    const totalLines = nameLines.length + 1 + menuLines.length;
+    winnerLinesMap.push({ nameLines, goalText, menuLines, totalLines });
   }
 
   for (let r = 0; r < winnerRowCount; r++) {
     const p1 = winnerLinesMap[r * 2];
     const p2 = winnerLinesMap[r * 2 + 1];
-    const isMultiLine = (p1 && p1.nameLines.length > 1) || (p2 && p2.nameLines.length > 1);
-    // 한 명이라도 2줄이면 해당 줄 전체 높이를 56px로 통일, 1줄이면 46px
-    winnerRowHeights.push(isMultiLine ? 56 : 46);
+    const maxLines = Math.max(p1?.totalLines || 2, p2?.totalLines || 2);
+    // 기본 패딩(18px) + 라인 수 * 14px (최소 48px)
+    const rowH = Math.max(48, 18 + maxLines * 14);
+    winnerRowHeights.push(rowH);
   }
 
-  // 2) 통과자 행별 높이 사전 계산 (이름 길면 2줄, 그 행 전체 높이 통일)
+  // 2) 통과자 행별 높이 사전 계산 (이름/메뉴 줄바꿈 시 해당 행 전체 높이 통일)
   const otherNameMaxWidth = colW - 40;
+  const otherMenuMaxWidth = colW - 40;
   const otherRowCount = Math.ceil(otherList.length / 2);
   const otherRowHeights: number[] = [];
-  const otherLinesMap: Array<{ nameLines: string[]; roleText: string }> = [];
+  const otherLinesMap: ParticipantItemLines[] = [];
 
   for (let i = 0; i < otherList.length; i++) {
     const p = otherList[i];
     const nameLines = splitTextToLines(measureCtx, p.name, otherNameMaxWidth, 2);
-    const roleText = `${p.goalIcon || ''} ${p.goalText}`;
-    otherLinesMap.push({ nameLines, roleText });
+    const goalText = `${p.goalIcon || ''} ${p.goalText}`;
+    let menuLines: string[] = [];
+    if (p.orderItemName) {
+      const priceStr = p.orderItemPrice !== undefined ? ` ₩${p.orderItemPrice.toLocaleString()}원` : '';
+      const menuFullText = `${p.orderItemName}${priceStr}`;
+      menuLines = splitTextToLines(measureCtxSmall, menuFullText, otherMenuMaxWidth, 2);
+    }
+    const totalLines = nameLines.length + 1 + menuLines.length;
+    otherLinesMap.push({ nameLines, goalText, menuLines, totalLines });
   }
 
   for (let r = 0; r < otherRowCount; r++) {
     const p1 = otherLinesMap[r * 2];
     const p2 = otherLinesMap[r * 2 + 1];
-    const isMultiLine = (p1 && p1.nameLines.length > 1) || (p2 && p2.nameLines.length > 1);
-    // 한 명이라도 2줄이면 해당 줄 전체 높이를 48px로 통일, 1줄이면 38px
-    otherRowHeights.push(isMultiLine ? 48 : 38);
+    const maxLines = Math.max(p1?.totalLines || 2, p2?.totalLines || 2);
+    // 기본 패딩(18px) + 라인 수 * 14px (최소 42px)
+    const rowH = Math.max(42, 18 + maxLines * 14);
+    otherRowHeights.push(rowH);
   }
 
   // 캔버스 높이 동적 계산 (여백 충분히 확보하여 겹침 방지)
@@ -381,7 +409,7 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         const idx = r * 2 + c;
         if (idx >= winnerList.length) break;
         const p = winnerList[idx];
-        const { nameLines, roleText } = winnerLinesMap[idx];
+        const { nameLines, goalText, menuLines } = winnerLinesMap[idx];
         const itemX = marginX + c * (colW + colGap);
         const itemY = currentY;
 
@@ -392,9 +420,9 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         ctx.strokeStyle = colors.winnerBoxBorder;
         ctx.stroke();
 
-        // 아바타 (세로 중앙: 실물 제품 이미지 우선, 실패 시 메뉴 아이콘/이모지)
+        // 아바타 (세로 중앙 또는 상단 정렬)
         const winnerImg = imageMap.get(p.id);
-        const avatarY = itemY + (rowHeight / 2) + 6;
+        const avatarY = itemY + Math.min(rowHeight / 2, 24) + 4;
         if (winnerImg) {
           ctx.save();
           ctx.beginPath();
@@ -416,18 +444,26 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         // 이름 (말줄임표 대신 다음 줄 표시)
         ctx.fillStyle = colors.winnerName;
         ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
-        if (nameLines.length > 1) {
-          ctx.fillText(nameLines[0], itemX + 32, itemY + 15);
-          ctx.fillText(nameLines[1], itemX + 32, itemY + 27);
-        } else {
-          ctx.fillText(nameLines[0], itemX + 32, itemY + 18);
+        let lineY = itemY + 16;
+        for (const nl of nameLines) {
+          ctx.fillText(nl, itemX + 32, lineY);
+          lineY += 13;
         }
 
         // 목표/역할
         ctx.fillStyle = colors.winnerRole;
-        ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
-        const roleY = isMultiLine ? itemY + 44 : itemY + 34;
-        ctx.fillText(truncateText(ctx, roleText, colW - 36), itemX + 32, roleY);
+        ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+        ctx.fillText(goalText, itemX + 32, lineY);
+        lineY += 13;
+
+        // 선택 메뉴 및 금액 (줄바꿈 완벽 지원, 잘림 없음)
+        if (menuLines && menuLines.length > 0) {
+          ctx.font = '500 9.5px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+          for (const ml of menuLines) {
+            ctx.fillText(ml, itemX + 32, lineY);
+            lineY += 12;
+          }
+        }
       }
 
       currentY += rowHeight + 8;
@@ -445,13 +481,12 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
 
     for (let r = 0; r < otherRowCount; r++) {
       const rowHeight = otherRowHeights[r];
-      const isMultiLine = rowHeight > 38;
 
       for (let c = 0; c < 2; c++) {
         const idx = r * 2 + c;
         if (idx >= otherList.length) break;
         const p = otherList[idx];
-        const { nameLines, roleText } = otherLinesMap[idx];
+        const { nameLines, goalText, menuLines } = otherLinesMap[idx];
         const itemX = marginX + c * (colW + colGap);
         const itemY = currentY;
 
@@ -461,9 +496,9 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
         ctx.strokeStyle = colors.otherBoxBorder;
         ctx.stroke();
 
-        // 아바타 (세로 중앙: 실물 제품 이미지 우선, 실패 시 메뉴 아이콘/이모지)
+        // 아바타
         const otherImg = imageMap.get(p.id);
-        const avatarY = itemY + (rowHeight / 2) + 5;
+        const avatarY = itemY + Math.min(rowHeight / 2, 22) + 3;
         if (otherImg) {
           ctx.save();
           ctx.beginPath();
@@ -479,17 +514,25 @@ export async function generateLadderResultCardBlob(data: LadderCardData): Promis
 
         ctx.fillStyle = colors.otherName;
         ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
-        if (nameLines.length > 1) {
-          ctx.fillText(nameLines[0], itemX + 28, itemY + 14);
-          ctx.fillText(nameLines[1], itemX + 28, itemY + 25);
-        } else {
-          ctx.fillText(nameLines[0], itemX + 28, itemY + 16);
+        let lineY = itemY + 15;
+        for (const nl of nameLines) {
+          ctx.fillText(nl, itemX + 28, lineY);
+          lineY += 13;
         }
 
         ctx.fillStyle = colors.otherRole;
-        ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
-        const roleY = isMultiLine ? itemY + 38 : itemY + 30;
-        ctx.fillText(truncateText(ctx, roleText, colW - 32), itemX + 28, roleY);
+        ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+        ctx.fillText(goalText, itemX + 28, lineY);
+        lineY += 13;
+
+        // 선택 메뉴 및 금액 (줄바꿈 완벽 지원, 잘림 없음)
+        if (menuLines && menuLines.length > 0) {
+          ctx.font = '500 9.5px -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif';
+          for (const ml of menuLines) {
+            ctx.fillText(ml, itemX + 28, lineY);
+            lineY += 12;
+          }
+        }
       }
 
       currentY += rowHeight + 8;

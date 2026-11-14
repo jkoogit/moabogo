@@ -29,7 +29,9 @@ export type RouletteSyncMessage =
   | { type: 'LEAVE_ROOM'; tabId: string }
   | { type: 'CLOSE_ROOM'; finalResult?: any }
   | { type: 'ROOM_CLOSED'; finalResult?: any }
-  | { type: 'PRESENCE_CHANGE'; connectedClients: number };
+  | { type: 'PRESENCE_CHANGE'; connectedClients: number }
+  | { type: 'NAVIGATE_GAME_TAB'; targetTab: 'LADDER' | 'ROULETTE' }
+  | { type: 'SYNC_GAME_MODAL'; modalType: 'RESULT_MODAL'; isOpen: boolean };
 
 export interface RouletteChannelHandle {
   send: (msg: RouletteSyncMessage, hostToken?: string | null) => void;
@@ -93,13 +95,13 @@ export function createRouletteSyncChannel(
               type: 'PRESENCE_CHANGE',
               connectedClients: payload.connectedClients || 1,
             });
-            if (payload.isClosed) {
+            if (payload.isClosed && payload.finalResult && typeof payload.finalResult === 'object' && 'name' in payload.finalResult) {
               onMessage({
                 type: 'CLOSE_ROOM',
                 finalResult: payload.finalResult,
               });
             }
-            if (payload.data && Object.keys(payload.data).length > 0) {
+            if (payload.data && Array.isArray(payload.data.rouletteItems) && payload.data.rouletteItems.length > 0) {
               onMessage({
                 type: 'ROULETTE_SYNC_STATE',
                 state: payload.data as RouletteSyncState,

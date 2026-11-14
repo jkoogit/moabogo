@@ -51,6 +51,7 @@ export const RouletteWheelSvg: React.FC<RouletteWheelSvgProps> = ({
         }}
       >
         {slices.map((slice, i) => {
+          if (slice.angle < 0.5) return null;
           const startRad = (slice.startAngle * Math.PI) / 180;
           const endRad = (slice.endAngle * Math.PI) / 180;
           const x1 = 100 * Math.cos(startRad);

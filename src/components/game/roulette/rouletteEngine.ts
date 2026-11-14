@@ -1,15 +1,30 @@
 import { RouletteSliceItem } from '../types';
 import { RouletteSlice } from './types';
 
+export function getEffectiveItemWeight(item: RouletteSliceItem, allItems: RouletteSliceItem[]): number {
+  const w = Math.max(0, item.weight ?? 10);
+  const anyPositive = allItems.some((it) => Math.max(0, it.weight ?? 10) > 0);
+  if (!anyPositive) return 10;
+  // 0 가중치 항목은 회전판 및 당첨 추첨에서 완전 제외 (비중 0)
+  return w > 0 ? w : 0;
+}
+
 export function calculateRouletteSlices(
   items: RouletteSliceItem[],
-  totalWeight: number
+  _totalWeight?: number
 ): RouletteSlice[] {
   let currentAngle = 0;
-  const safeTotalWeight = Math.max(1, totalWeight);
-  return items.map((item) => {
-    const weight = Math.max(1, item.weight || 1);
-    const angle = (weight / safeTotalWeight) * 360;
+  const anyPositive = items.some((it) => Math.max(0, it.weight ?? 10) > 0);
+  const effectiveWeights = items.map((it) => {
+    const w = Math.max(0, it.weight ?? 10);
+    if (!anyPositive) return 10;
+    return w > 0 ? w : 0;
+  });
+  const effectiveTotal = Math.max(0.001, effectiveWeights.reduce((a, b) => a + b, 0));
+
+  return items.map((item, idx) => {
+    const weight = effectiveWeights[idx];
+    const angle = weight > 0 ? (weight / effectiveTotal) * 360 : 0;
     const slice: RouletteSlice = {
       item,
       startAngle: currentAngle,
@@ -23,20 +38,29 @@ export function calculateRouletteSlices(
 
 export function pickRandomRouletteItem(
   items: RouletteSliceItem[],
-  totalWeight: number
+  _totalWeight?: number
 ): RouletteSliceItem {
   if (items.length === 0) {
-    return { id: 'fallback', name: '항목', avatar: '🎯', weight: 1 };
+    return { id: 'fallback', name: '항목', avatar: '🎯', weight: 10 };
   }
-  let rand = Math.random() * Math.max(1, totalWeight);
-  for (const item of items) {
-    const w = Math.max(1, item.weight || 1);
-    if (rand <= w) {
-      return item;
+  const anyPositive = items.some((it) => Math.max(0, it.weight ?? 10) > 0);
+  const effectiveWeights = items.map((it) => {
+    const w = Math.max(0, it.weight ?? 10);
+    if (!anyPositive) return 10;
+    return w > 0 ? w : 0;
+  });
+  const effectiveTotal = Math.max(0.001, effectiveWeights.reduce((a, b) => a + b, 0));
+
+  let rand = Math.random() * effectiveTotal;
+  for (let i = 0; i < items.length; i++) {
+    const w = effectiveWeights[i];
+    if (w > 0 && rand <= w) {
+      return items[i];
     }
-    rand -= w;
+    if (w > 0) rand -= w;
   }
-  return items[0];
+  const positiveFallback = items.find((it) => Math.max(0, it.weight ?? 10) > 0);
+  return positiveFallback || items[0];
 }
 
 export function calculateTargetRotation(
@@ -45,7 +69,10 @@ export function calculateTargetRotation(
   currentRotation: number,
   isSkip: boolean
 ): { nextRotation: number; duration: number } {
-  const chosenSlice = slices.find((s) => s.item.id === chosen.id);
+  const chosenSlice =
+    slices.find((s) => s.item.id === chosen.id && s.angle >= 0.5) ||
+    slices.find((s) => s.angle >= 0.5) ||
+    slices[0];
   const sliceMidAngle = chosenSlice ? (chosenSlice.startAngle + chosenSlice.endAngle) / 2 : 180;
 
   // 12시 상단 핀 각도(270도)에 슬라이스 중심각(sliceMidAngle)이 정확히 일치하도록 목표 각도 산출

@@ -664,7 +664,7 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
               <div>
                 <p className="text-xs font-black">오늘의 당첨자</p>
                 <p className="text-xs font-semibold mt-0.5">
-                  {winners.map((w) => `${w.avatar} ${w.name}`).join(', ')}
+                  {winners.map((w) => `${w.avatar} ${w.name}${w.selectedMenu ? ` (${getStoreMenuEmoji(w.selectedMenu)} ${w.selectedMenu.name})` : ''}`).join(', ')}
                 </p>
               </div>
             </div>
@@ -701,15 +701,23 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
                   <div className="min-w-0">
                     <p className="text-xs font-bold truncate flex items-center gap-1.5">
                       <span>{m.name}</span>
-                      {m.weight > 1 && (
-                        <span className="text-[9px] px-1 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono">
-                          {m.weight.toFixed(1)}x
+                      {typeof m.weight === 'number' && m.weight !== 10 && (
+                        <span
+                          className={`text-[9px] px-1 rounded font-mono ${
+                            m.weight <= 0
+                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                              : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                          }`}
+                        >
+                          {m.weight <= 0 ? '0x 🎈' : `${m.weight}x`}
                         </span>
                       )}
                     </p>
                     {m.selectedMenu && (
-                      <p className="text-[11px] text-amber-700 dark:text-amber-400 truncate mt-0.5">
-                        선택: {m.selectedMenu.name} (₩{m.selectedMenu.price.toLocaleString()}원)
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium truncate mt-0.5 flex items-center gap-1">
+                        <span>{getStoreMenuEmoji(m.selectedMenu)}</span>
+                        <span>{m.selectedMenu.name}</span>
+                        <span className="font-mono opacity-80">(₩{m.selectedMenu.price.toLocaleString()}원)</span>
                       </p>
                     )}
                   </div>
@@ -808,10 +816,12 @@ export interface LadderShareModalProps {
   connectedClients: number;
   isHost: boolean;
   isClosed?: boolean;
+  initialTab?: 'SHARE' | 'JOIN';
   onCopyUrl: () => void;
   onCopyCode: () => void;
   onLeaveRoom: () => void;
   onCloseRoom?: () => void; // 호스트가 게임을 종료하여 신규 유입 차단
+  onJoinRoom?: (code: string) => void; // 방 코드로 새 방 입장
   resolvedTheme: string;
   isDark: boolean;
 }
@@ -825,17 +835,48 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
   connectedClients,
   isHost,
   isClosed = false,
+  initialTab = 'SHARE',
   onCopyUrl,
   onCopyCode,
   onLeaveRoom,
   onCloseRoom,
+  onJoinRoom,
   resolvedTheme,
   isDark,
 }) => {
+  const [activeTab, setActiveTab] = React.useState<'SHARE' | 'JOIN'>(initialTab);
+  const [joinCodeInput, setJoinCodeInput] = React.useState('');
+  const [joinError, setJoinError] = React.useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+      setJoinCodeInput('');
+      setJoinError('');
+    }
+  }, [isOpen, initialTab]);
+
   if (!isOpen) return null;
 
-  // 인라인 경량 QR 코드 렌더링 (SVG 매트릭스 21x21 스타일 데모 큐브)
-  // 외부 거대 번들 의존성 없이 즉각적인 스캔 인식과 시각적 안내 보장
+  const handleExecuteJoin = () => {
+    const trimmed = joinCodeInput.trim().toUpperCase();
+    if (!trimmed) {
+      setJoinError('초대 방 코드를 입력해주세요.');
+      return;
+    }
+    if (trimmed === roomId) {
+      setJoinError('현재 이미 접속 중인 방 코드입니다.');
+      return;
+    }
+    // 🔑 [기존 방 참여 종료 및 인원수 차감] 기존 방이 활성화되어 있다면 즉시 퇴장 처리
+    if (roomId) {
+      onLeaveRoom();
+    }
+    setJoinError('');
+    onJoinRoom?.(trimmed);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div
@@ -864,44 +905,136 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
           </button>
         </div>
 
-        {/* 접속 현황 배지 */}
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
-          <div className="flex items-center gap-2">
-            <span className="text-base">📱</span>
-            <div>
-              <p className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200">
-                {isClosed ? '게임이 종료되어 신규 참여가 마감되었습니다' : isHost ? '내가 방장(Host)으로 운영 중' : '참가자(Guest)로 접속 중'}
-              </p>
-              <p className="text-[10px] text-indigo-600 dark:text-indigo-400">
-                {isClosed ? '기존 접속자 및 링크는 최종 결과만 열람 가능' : '스마트폰 / 다른 PC 어디서든 실시간 동기화'}
-              </p>
-            </div>
-          </div>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>{connectedClients}명 연결</span>
-          </span>
+        {/* 모드 전환 탭 (공유 게시/관리 vs 방 코드로 참여) */}
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={() => setActiveTab('SHARE')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'SHARE'
+                ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            📢 공유 게시 · 관리
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('JOIN')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'JOIN'
+                ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            🔑 방 코드로 참여
+          </button>
         </div>
 
-        {/* 6자리 방 코드 카드 */}
-        <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 text-center space-y-1">
-          <span className="text-[10px] font-semibold text-slate-400">초대 방 코드 (Type-Prefixed)</span>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-lg font-mono font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider">
-              {roomId}
-            </span>
-            <button
-              type="button"
-              onClick={onCopyCode}
-              disabled={isClosed}
-              className="p-1 rounded-md border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-slate-600 dark:text-zinc-200 hover:bg-slate-100 disabled:opacity-50 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-              title="방 코드 복사"
-            >
-              <Copy className="w-3 h-3 text-indigo-500" />
-              <span>코드 복사</span>
-            </button>
+        {activeTab === 'JOIN' ? (
+          /* [공유 참여 모드] 방 코드 직접 입력 및 입장 */
+          <div className="space-y-3.5 py-1">
+            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-1 text-left">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                <span>🎯</span>
+                <span>실시간 게임 방 참여하기</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-indigo-700 dark:text-indigo-300">
+                전달받으신 초대 방 코드(예: <code>LAD_ABC123</code>, <code>ROU_XYZ456</code>)를 입력하시면 즉시 해당 실시간 게임에 접속합니다.
+              </p>
+            </div>
+
+            {roomId && (
+              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <span>⚠️</span>
+                <span>현재 참여 중인 방(<code>{roomId}</code>)에서 자동 퇴장(인원수 차감) 후 새 방으로 입장합니다.</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-300">
+                초대 방 코드
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) => {
+                    setJoinCodeInput(e.target.value);
+                    if (joinError) setJoinError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleExecuteJoin();
+                  }}
+                  placeholder="예: LAD_492810 또는 ROU_773912"
+                  className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-mono font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleExecuteJoin}
+                  className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-xs cursor-pointer transition-all active:scale-95"
+                >
+                  입장하기
+                </button>
+              </div>
+              {joinError && (
+                <p className="text-[10px] text-rose-500 font-bold mt-1">
+                  {joinError}
+                </p>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-all cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* [공유 게시/관리 모드] 기존 QR, 방 코드 복사, 링크 복사 */
+          <>
+            {/* 접속 현황 배지 */}
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📱</span>
+                <div>
+                  <p className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200">
+                    {isClosed ? '게임이 종료되어 신규 참여가 마감되었습니다' : isHost ? '내가 방장(Host)으로 운영 중' : '참가자(Guest)로 접속 중'}
+                  </p>
+                  <p className="text-[10px] text-indigo-600 dark:text-indigo-400">
+                    {isClosed ? '기존 접속자 및 링크는 최종 결과만 열람 가능' : '스마트폰 / 다른 PC 어디서든 실시간 동기화'}
+                  </p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>{connectedClients}명 연결</span>
+              </span>
+            </div>
+
+            {/* 6자리 방 코드 카드 */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 text-center space-y-1">
+              <span className="text-[10px] font-semibold text-slate-400">초대 방 코드 (Type-Prefixed)</span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg font-mono font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider">
+                  {roomId}
+                </span>
+                <button
+                  type="button"
+                  onClick={onCopyCode}
+                  disabled={isClosed}
+                  className="p-1 rounded-md border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-slate-600 dark:text-zinc-200 hover:bg-slate-100 disabled:opacity-50 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                  title="방 코드 복사"
+                >
+                  <Copy className="w-3 h-3 text-indigo-500" />
+                  <span>코드 복사</span>
+                </button>
+              </div>
+            </div>
 
         {/* QR 코드 시각화 안내 영역 */}
         {!isClosed ? (
@@ -1054,6 +1187,8 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
             </button>
           </div>
         </div>
+        </>
+      )}
       </div>
     </div>
   );
