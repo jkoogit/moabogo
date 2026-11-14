@@ -2812,14 +2812,14 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                         <Minus className="w-2.5 h-2.5" />
                       </button>
                       <span
-                        className={`w-12 py-0.5 rounded-md border text-[10px] font-mono font-bold text-center tabular-nums inline-block shadow-2xs select-none ${
+                        className={`min-w-11 px-1 py-0.5 rounded-md border text-[10px] font-mono font-bold text-center tabular-nums inline-block shadow-2xs select-none ${
                           (m.weight ?? 10) <= 0
                             ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-400 font-bold'
                             : 'bg-slate-100 dark:bg-zinc-800/90 border-slate-200/90 dark:border-zinc-700 text-indigo-600 dark:text-indigo-400'
                         }`}
                         title={(m.weight ?? 10) <= 0 ? '가중치 0 (당첨 제외, 클릭 시 타 참가자 비례 증가)' : `${m.weight ?? 10}배 가중치`}
                       >
-                        {(m.weight ?? 10) <= 0 ? '0x 🎈' : `${m.weight ?? 10}x`}
+                        {(m.weight ?? 10) <= 0 ? '0x🎈' : `${m.weight ?? 10}x`}
                       </span>
                       <button
                         type="button"

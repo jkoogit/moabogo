@@ -255,7 +255,7 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
                 <span className={`text-xs font-bold font-mono px-1 rounded ${
                   (it.weight ?? 10) <= 0 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 font-bold' : ''
                 }`}>
-                  {(it.weight ?? 10) <= 0 ? '0x 🎈' : `${it.weight ?? 10}x`}
+                  {(it.weight ?? 10) <= 0 ? '0x🎈' : `${it.weight ?? 10}x`}
                 </span>
                 {!isGuest && (
                   <button

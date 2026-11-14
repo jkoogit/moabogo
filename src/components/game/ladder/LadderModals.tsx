@@ -709,7 +709,7 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
                               : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
                           }`}
                         >
-                          {m.weight <= 0 ? '0x 🎈' : `${m.weight}x`}
+                          {m.weight <= 0 ? '0x🎈' : `${m.weight}x`}
                         </span>
                       )}
                     </p>
