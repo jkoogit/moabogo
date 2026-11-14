@@ -26,6 +26,9 @@ export type LadderSyncMessage =
   | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
   | { type: 'SHUFFLE_RUNGS'; seed: number }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }
+  | { type: 'UPDATE_WINNER_COUNT'; winnerCount: number; goals?: LadderGoal[] }
+  | { type: 'UPDATE_STORE'; store: StorePreset | null }
+  | { type: 'UPDATE_LADDER_WEIGHT'; useLadderWeight: boolean }
   | { type: 'UPDATE_SPEED'; speed: number }
   | {
       type: 'PLAY_LADDER';

@@ -1240,6 +1240,10 @@ async function startServer() {
     // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SHUFFLE_MEMBERS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
       'UPDATE_SPEED',
+      'UPDATE_WINNER_COUNT',
+      'UPDATE_STORE',
+      'UPDATE_LADDER_WEIGHT',
+      'UPDATE_ROULETTE_CONFIG',
       'PLAY_LADDER',
       'LADDER_RUNNER_ARRIVED',
       'LADDER_PROCEED_NEXT',
@@ -1263,7 +1267,7 @@ async function startServer() {
     }
 
     // State mutations on server
-    if (action.type === 'SYNC_STATE' && action.state) {
+    if ((action.type === 'SYNC_STATE' || action.type === 'ROULETTE_SYNC_STATE') && action.state) {
       room.data = action.state;
     } else if (action.type === 'SYNC_MEMBERS' && action.members) {
       if (room.data) room.data.members = action.members;
@@ -1320,6 +1324,17 @@ async function startServer() {
       if (room.data) room.data.ladderSeed = action.seed;
     } else if (action.type === 'SHUFFLE_GOALS') {
       if (room.data) room.data.ladderGoals = action.goals;
+    } else if (action.type === 'UPDATE_WINNER_COUNT') {
+      if (room.data && typeof action.winnerCount === 'number') {
+        room.data.winnerCount = action.winnerCount;
+        if (action.goals) room.data.ladderGoals = action.goals;
+      }
+    } else if (action.type === 'UPDATE_STORE') {
+      if (room.data) room.data.selectedStore = action.store ?? null;
+    } else if (action.type === 'UPDATE_LADDER_WEIGHT') {
+      if (room.data && typeof action.useLadderWeight === 'boolean') {
+        room.data.useLadderWeight = action.useLadderWeight;
+      }
     } else if (action.type === 'UPDATE_SPEED') {
       if (room.data && typeof action.speed === 'number') {
         room.data.ladderSpeed = action.speed;
@@ -1352,7 +1367,19 @@ async function startServer() {
         if (action.items) room.data.rouletteItems = action.items;
       }
     } else if (action.type === 'SYNC_ROULETTE_ITEMS' || action.type === 'SHUFFLE_ROULETTE_ITEMS') {
-      if (room.data && action.items) room.data.rouletteItems = action.items;
+      if (room.data) {
+        if (action.items) room.data.rouletteItems = action.items;
+        if (action.presetTitle) room.data.roulettePresetTitle = action.presetTitle;
+      }
+    } else if (action.type === 'UPDATE_ROULETTE_CONFIG') {
+      if (room.data) {
+        if (typeof action.useRouletteWeight === 'boolean') {
+          room.data.useRouletteWeight = action.useRouletteWeight;
+        }
+        if (typeof action.excludeWinnerMode === 'boolean') {
+          room.data.excludeWinnerMode = action.excludeWinnerMode;
+        }
+      }
     } else if (action.type === 'SYNC_ROULETTE_RESULT') {
       if (room.data) room.data.selectedWinner = action.winner;
     } else if (action.type === 'RESET_GAME') {

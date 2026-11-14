@@ -90,50 +90,26 @@ export const RouletteWheelSvg: React.FC<RouletteWheelSvgProps> = ({
             </g>
           );
         })}
-
-        {/* 룰렛 중심 원: 즉시 재실행 버튼 */}
-        <g
-          onClick={onCenterClick}
-          className="cursor-pointer group select-none"
-          role="button"
-          aria-label="룰렛 즉시 재실행 (다시 돌리기)"
-        >
-          <circle
-            cx="0"
-            cy="0"
-            r="25"
-            fill="#0f172a"
-            stroke="#ffffff"
-            strokeWidth="3"
-            className="transition-transform group-hover:scale-105 active:scale-95"
-          />
-          <circle cx="0" cy="0" r="22" fill="#1e293b" />
-          <text
-            x="0"
-            y="-4"
-            fill="#38bdf8"
-            fontSize="10"
-            fontWeight="900"
-            textAnchor="middle"
-            dominantBaseline="central"
-            className="pointer-events-none select-none tracking-tighter"
-          >
-            SPIN
-          </text>
-          <text
-            x="0"
-            y="7"
-            fill="#94a3b8"
-            fontSize="7"
-            fontWeight="bold"
-            textAnchor="middle"
-            dominantBaseline="central"
-            className="pointer-events-none select-none tracking-tight"
-          >
-            RESTART
-          </text>
-        </g>
       </svg>
+
+      {/* 룰렛 중심 고정 허브: 회전과 무관하게 항상 정방향 표시 & 연속 클릭 보장 */}
+      <div
+        onClick={onCenterClick}
+        role={onCenterClick ? 'button' : undefined}
+        aria-label="룰렛 즉시 재실행 (다시 돌리기)"
+        className={`absolute inset-0 m-auto z-20 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#0f172a] border-[3px] border-white shadow-xl flex flex-col items-center justify-center select-none transition-transform ${
+          onCenterClick ? 'cursor-pointer hover:scale-105 active:scale-95 group' : 'cursor-default'
+        }`}
+      >
+        <div className="w-[calc(100%-6px)] h-[calc(100%-6px)] rounded-full bg-[#1e293b] flex flex-col items-center justify-center">
+          <span className="text-[#38bdf8] text-[11px] sm:text-xs font-black tracking-tight leading-none group-hover:text-cyan-300">
+            SPIN
+          </span>
+          <span className="text-[#94a3b8] text-[8px] sm:text-[9px] font-bold tracking-tighter leading-none mt-0.5">
+            RESTART
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

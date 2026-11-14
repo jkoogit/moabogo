@@ -554,6 +554,41 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           showToastRef.current('✨ 사다리 목표가 동기화되었습니다.', 'info');
           break;
 
+        case 'UPDATE_WINNER_COUNT':
+          if (typeof msg.winnerCount === 'number') {
+            winnerCountRef.current = msg.winnerCount;
+            prevWinnerCountRef.current = msg.winnerCount;
+            setWinnerCount(msg.winnerCount);
+            if (msg.goals) {
+              ladderGoalsRef.current = msg.goals;
+              setLadderGoals(msg.goals);
+            }
+            setLadderResult(null);
+            setRevealedGoals({});
+            setRevealedGoalCols({});
+            setArrivalPopup(null);
+            showToastRef.current(`🎯 당첨 인원수가 ${msg.winnerCount}명으로 동기화되었습니다.`, 'info');
+          }
+          break;
+
+        case 'UPDATE_STORE':
+          selectedStoreRef.current = msg.store;
+          setSelectedStore(msg.store);
+          showToastRef.current(
+            msg.store ? `🏪 매장 '${msg.store.name}' 연동이 동기화되었습니다.` : '🏪 매장 연동이 해제되었습니다.',
+            'info'
+          );
+          break;
+
+        case 'UPDATE_LADDER_WEIGHT':
+          useLadderWeightRef.current = msg.useLadderWeight;
+          setUseLadderWeight(msg.useLadderWeight);
+          showToastRef.current(
+            msg.useLadderWeight ? '⚖️ 가중치 모드가 활성화되었습니다.' : '⚖️ 균등 모드가 활성화되었습니다.',
+            'info'
+          );
+          break;
+
         case 'UPDATE_SPEED':
           if (typeof msg.speed === 'number') {
             ladderSpeedRef.current = msg.speed;
@@ -1567,10 +1602,70 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   };
 
   const handleSaveGoal = (colIdx: number, newGoal: LadderGoal) => {
-    setLadderGoals((prev) =>
-      prev.map((g, idx) => (idx === colIdx ? newGoal : g))
-    );
+    const updatedGoals = ladderGoalsRef.current.map((g, idx) => (idx === colIdx ? newGoal : g));
+    setLadderGoals(updatedGoals);
+    ladderGoalsRef.current = updatedGoals;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'SHUFFLE_GOALS',
+          goals: updatedGoals,
+        },
+        getHostToken()
+      );
+    }
     showToast(`${colIdx + 1}번 기둥 목표가 '${newGoal.text}'(으)로 변경되었습니다.`);
+  };
+
+  const handleSelectStore = (store: StorePreset | null) => {
+    setSelectedStore(store);
+    selectedStoreRef.current = store;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'UPDATE_STORE',
+          store,
+        },
+        getHostToken()
+      );
+    }
+  };
+
+  const handleToggleLadderWeight = () => {
+    if (isGuest || isRoomClosed) return;
+    const nextVal = !useLadderWeightRef.current;
+    setUseLadderWeight(nextVal);
+    useLadderWeightRef.current = nextVal;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'UPDATE_LADDER_WEIGHT',
+          useLadderWeight: nextVal,
+        },
+        getHostToken()
+      );
+    }
+  };
+
+  const handleWinnerCountChange = (val: number) => {
+    if (isGuest || isRoomClosed) return;
+    setWinnerCount(val);
+    winnerCountRef.current = val;
+    prevWinnerCountRef.current = val;
+    const safeWinners = Math.max(1, Math.min(members.length - 1, val));
+    const newGoals = generateDefaultLadderGoals(members.length, safeWinners);
+    setLadderGoals(newGoals);
+    ladderGoalsRef.current = newGoals;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'UPDATE_WINNER_COUNT',
+          winnerCount: val,
+          goals: newGoals,
+        },
+        getHostToken()
+      );
+    }
   };
 
   const handleOpenStoreMenuPicker = (memberId: string) => {
@@ -2130,10 +2225,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               <button
                 type="button"
                 disabled={isGuest || isRoomClosed}
-                onClick={() => {
-                  if (isGuest || isRoomClosed) return;
-                  setUseLadderWeight((prev) => !prev);
-                }}
+                onClick={handleToggleLadderWeight}
                 className={`text-[11px] px-2 py-0.5 rounded-lg font-bold border transition-all flex items-center gap-1 ${isGuest || isRoomClosed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                   } ${useLadderWeight
                     ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
@@ -2158,10 +2250,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             step={1}
             unit="명"
             disabled={isGuest || isLadderTracing || isRoomClosed}
-            onChange={(val) => {
-              if (isGuest || isRoomClosed) return;
-              setWinnerCount(val);
-            }}
+            onChange={handleWinnerCountChange}
             colorScheme="indigo"
           />
         </div>
@@ -2645,7 +2734,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
         isOpen={isStoreModalOpen}
         onClose={() => setIsStoreModalOpen(false)}
         selectedStore={selectedStore}
-        onSelectStore={setSelectedStore}
+        onSelectStore={handleSelectStore}
         members={members}
         currentMemberId={storeModalMemberId}
         onSelectMenuForMember={handleSelectMenuForMember}

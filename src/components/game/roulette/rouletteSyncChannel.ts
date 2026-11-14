@@ -23,6 +23,7 @@ export type RouletteSyncMessage =
     }
   | { type: 'SYNC_ROULETTE_ITEMS'; items: RouletteSliceItem[]; presetTitle?: string }
   | { type: 'SHUFFLE_ROULETTE_ITEMS'; items: RouletteSliceItem[] }
+  | { type: 'UPDATE_ROULETTE_CONFIG'; useRouletteWeight?: boolean; excludeWinnerMode?: boolean }
   | { type: 'SYNC_ROULETTE_RESULT'; winner: RouletteSliceItem | null }
   | { type: 'RESET_ROULETTE' }
   | { type: 'LEAVE_ROOM'; tabId: string }
