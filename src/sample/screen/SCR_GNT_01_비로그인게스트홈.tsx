@@ -37,6 +37,52 @@ import { formatLadderResultText, formatStoreOrderText } from '../../components/g
 import { formatRouletteResultText } from '../../components/game/roulette/rouletteEngine';
 import { StorePreset } from '../data/systemStorePool';
 
+interface GameZoneErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class GameZoneErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset?: () => void },
+  GameZoneErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode; onReset?: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): GameZoneErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[GameZoneErrorBoundary] Caught render error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full p-6 rounded-2xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-center space-y-3 my-4">
+          <p className="text-sm font-bold text-rose-700 dark:text-rose-300">
+            화면 표시 중 일시적인 오류가 발생했습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onReset?.();
+            }}
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer"
+          >
+            화면 다시 시도
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   onGoLogin?: () => void;
   onGoSignup?: () => void;
@@ -80,11 +126,23 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   // 🔑 [사다리·룰렛 통합 방 공유] 탭 전환 시 URL의 room 파라미터 보존 및 게임 파라미터 동기화
   const handleSwitchGameTab = (nextType: 'SPLIT' | 'LADDER' | 'ROULETTE') => {
+    if (isGuestInRoom) {
+      showToast('초대자(방장)만 게임 탭을 변경할 수 있습니다.', 'info');
+      return;
+    }
     setGameType(nextType);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('game', nextType);
       window.history.replaceState({}, '', url.toString());
+    }
+    // 방장인 경우 현재 열려있는 채널을 통해 모든 참여자 탭 동기화 브로드캐스트
+    if (!isGuestInRoom) {
+      if (gameType === 'LADDER' && ladderBroadcastTabRef.current) {
+        ladderBroadcastTabRef.current(nextType);
+      } else if (gameType === 'ROULETTE' && rouletteBroadcastTabRef.current) {
+        rouletteBroadcastTabRef.current(nextType);
+      }
     }
   };
 
@@ -128,11 +186,13 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     };
   }, []);
 
-  // 상단 헤더 '공유링크 생성' / '참여종료' 핸들러 레지스트리
+  // 상단 헤더 '공유링크 생성' / '참여종료' / '게임 탭 브로드캐스트' 핸들러 레지스트리
   const ladderShareHandlerRef = useRef<(() => void) | null>(null);
   const rouletteShareHandlerRef = useRef<(() => void) | null>(null);
   const ladderLeaveHandlerRef = useRef<(() => void) | null>(null);
   const rouletteLeaveHandlerRef = useRef<(() => void) | null>(null);
+  const ladderBroadcastTabRef = useRef<((tab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void) | null>(null);
+  const rouletteBroadcastTabRef = useRef<((tab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void) | null>(null);
 
   const registerLadderShareHandler = useCallback((fn: () => void) => {
     ladderShareHandlerRef.current = fn;
@@ -146,6 +206,22 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   const registerRouletteLeaveHandler = useCallback((fn: () => void) => {
     rouletteLeaveHandlerRef.current = fn;
   }, []);
+  const registerLadderBroadcastTab = useCallback((fn: (tab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void) => {
+    ladderBroadcastTabRef.current = fn;
+  }, []);
+  const registerRouletteBroadcastTab = useCallback((fn: (tab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void) => {
+    rouletteBroadcastTabRef.current = fn;
+  }, []);
+
+  const handleRemoteNavigateTab = useCallback((targetTab: 'SPLIT' | 'LADDER' | 'ROULETTE') => {
+    setGameType(targetTab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('game', targetTab);
+      window.history.replaceState({}, '', url.toString());
+    }
+    showToast(`방장이 ${targetTab === 'ROULETTE' ? '🎯 룰렛' : targetTab === 'LADDER' ? '🪜 사다리' : '정산'} 화면으로 이동하여 화면이 동기화되었습니다.`, 'info');
+  }, [showToast]);
 
   const handleTopShareClick = () => {
     if (gameType === 'LADDER') {
@@ -464,8 +540,12 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
           >
             <button
               type="button"
+              disabled={isGuestInRoom}
               onClick={() => handleSwitchGameTab('SPLIT')}
-              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
+              title={isGuestInRoom ? '초대자(방장)만 게임 탭을 변경할 수 있습니다' : '더치페이 탭으로 이동'}
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all whitespace-nowrap min-w-0 ${
+                isGuestInRoom ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+              } ${
                 gameType === 'SPLIT'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -479,11 +559,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             >
               <span className="shrink-0 text-sm">⚡</span>
               <span className="whitespace-nowrap font-bold">정산</span>
+              {isGuestInRoom && gameType !== 'SPLIT' && (
+                <Lock className="w-3 h-3 opacity-60 ml-0.5 shrink-0" />
+              )}
             </button>
             <button
               type="button"
+              disabled={isGuestInRoom}
               onClick={() => handleSwitchGameTab('LADDER')}
-              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
+              title={isGuestInRoom ? '초대자(방장)만 게임 탭을 변경할 수 있습니다' : '사다리 게임 탭으로 이동'}
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all whitespace-nowrap min-w-0 ${
+                isGuestInRoom ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+              } ${
                 gameType === 'LADDER'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -497,11 +584,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             >
               <span className="shrink-0 text-sm">🪜</span>
               <span className="whitespace-nowrap font-bold">사다리</span>
+              {isGuestInRoom && gameType !== 'LADDER' && (
+                <Lock className="w-3 h-3 opacity-60 ml-0.5 shrink-0" />
+              )}
             </button>
             <button
               type="button"
+              disabled={isGuestInRoom}
               onClick={() => handleSwitchGameTab('ROULETTE')}
-              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap min-w-0 ${
+              title={isGuestInRoom ? '초대자(방장)만 게임 탭을 변경할 수 있습니다' : '룰렛 게임 탭으로 이동'}
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm transition-all whitespace-nowrap min-w-0 ${
+                isGuestInRoom ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+              } ${
                 gameType === 'ROULETTE'
                   ? resolvedTheme === 'dawn'
                     ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -515,6 +609,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             >
               <span className="shrink-0 text-sm">🎯</span>
               <span className="whitespace-nowrap font-bold">룰렛</span>
+              {isGuestInRoom && gameType !== 'ROULETTE' && (
+                <Lock className="w-3 h-3 opacity-60 ml-0.5 shrink-0" />
+              )}
             </button>
           </div>
         </div>
@@ -646,79 +743,85 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
             </div>
           )}
 
-          {/* -----------------------------------------------------------------
-              1. 인원정산 독립 게임 모듈
-              ----------------------------------------------------------------- */}
-          {gameType === 'SPLIT' && (
-            <SettlementGameZone
-              members={members}
-              setMembers={setMembers}
-              amount={amount}
-              setAmount={setAmount}
-              useSplitWeight={useSplitWeight}
-              setUseSplitWeight={setUseSplitWeight}
-              settlementSummary={settlementSummary}
-              updateSplitMemberWeight={updateSplitMemberWeight}
-              toggleSentStatus={toggleSentStatus}
-              handleAdjustAmount={handleAdjustAmount}
-              showToast={showToast}
-              resolvedTheme={resolvedTheme}
-              isDark={isDark}
-            />
-          )}
+          <GameZoneErrorBoundary onReset={() => setGameType('LADDER')}>
+            {/* -----------------------------------------------------------------
+                1. 인원정산 독립 게임 모듈
+                ----------------------------------------------------------------- */}
+            {gameType === 'SPLIT' && (
+              <SettlementGameZone
+                members={members}
+                setMembers={setMembers}
+                amount={amount}
+                setAmount={setAmount}
+                useSplitWeight={useSplitWeight}
+                setUseSplitWeight={setUseSplitWeight}
+                settlementSummary={settlementSummary}
+                updateSplitMemberWeight={updateSplitMemberWeight}
+                toggleSentStatus={toggleSentStatus}
+                handleAdjustAmount={handleAdjustAmount}
+                showToast={showToast}
+                resolvedTheme={resolvedTheme}
+                isDark={isDark}
+              />
+            )}
 
-          {/* -----------------------------------------------------------------
-              2. 사다리타기 독립 게임 모듈
-              ----------------------------------------------------------------- */}
-          {gameType === 'LADDER' && (
-            <LadderGameZone
-              members={members}
-              setMembers={setMembers}
-              selectedStore={selectedStore}
-              setSelectedStore={setSelectedStore}
-              winnerCount={winnerCount}
-              setWinnerCount={setWinnerCount}
-              ladderGoals={ladderGoals}
-              setLadderGoals={setLadderGoals}
-              currentTabId={currentTabId}
-              showToast={showToast}
-              resolvedTheme={resolvedTheme}
-              isDark={isDark}
-              onRegisterShareHandler={registerLadderShareHandler}
-              onRegisterLeaveHandler={registerLadderLeaveHandler}
-              onRoomModeChange={handleRoomModeChange}
-            />
-          )}
+            {/* -----------------------------------------------------------------
+                2. 사다리타기 독립 게임 모듈
+                ----------------------------------------------------------------- */}
+            {gameType === 'LADDER' && (
+              <LadderGameZone
+                members={members}
+                setMembers={setMembers}
+                selectedStore={selectedStore}
+                setSelectedStore={setSelectedStore}
+                winnerCount={winnerCount}
+                setWinnerCount={setWinnerCount}
+                ladderGoals={ladderGoals}
+                setLadderGoals={setLadderGoals}
+                currentTabId={currentTabId}
+                showToast={showToast}
+                resolvedTheme={resolvedTheme}
+                isDark={isDark}
+                onRegisterShareHandler={registerLadderShareHandler}
+                onRegisterLeaveHandler={registerLadderLeaveHandler}
+                onRoomModeChange={handleRoomModeChange}
+                onNavigateGameTab={handleRemoteNavigateTab}
+                onRegisterBroadcastTab={registerLadderBroadcastTab}
+              />
+            )}
 
-          {/* -----------------------------------------------------------------
-              3. 룰렛 독립 게임 모듈
-              ----------------------------------------------------------------- */}
-          {gameType === 'ROULETTE' && (
-            <RouletteGameZone
-              members={members}
-              roulettePresetTitle={roulettePresetTitle}
-              setRoulettePresetTitle={setRoulettePresetTitle}
-              rouletteItems={rouletteItems}
-              setRouletteItems={setRouletteItems}
-              selectedRouletteWinner={selectedRouletteWinner}
-              setSelectedRouletteWinner={setSelectedRouletteWinner}
-              useRouletteWeight={useRouletteWeight}
-              setUseRouletteWeight={setUseRouletteWeight}
-              excludeWinnerMode={excludeWinnerMode}
-              setExcludeWinnerMode={setExcludeWinnerMode}
-              excludedWinners={excludedWinners}
-              setExcludedWinners={setExcludedWinners}
-              excludedRouletteItems={excludedRouletteItems}
-              setExcludedRouletteItems={setExcludedRouletteItems}
-              currentTabId={currentTabId}
-              showToast={showToast}
-              resolvedTheme={resolvedTheme}
-              isDark={isDark}
-              onRegisterShareHandler={registerRouletteShareHandler}
-              onRegisterLeaveHandler={registerRouletteLeaveHandler}
-              onRoomModeChange={handleRoomModeChange}
-            />
-          )}
+            {/* -----------------------------------------------------------------
+                3. 룰렛 독립 게임 모듈
+                ----------------------------------------------------------------- */}
+            {gameType === 'ROULETTE' && (
+              <RouletteGameZone
+                members={members}
+                roulettePresetTitle={roulettePresetTitle}
+                setRoulettePresetTitle={setRoulettePresetTitle}
+                rouletteItems={rouletteItems}
+                setRouletteItems={setRouletteItems}
+                selectedRouletteWinner={selectedRouletteWinner}
+                setSelectedRouletteWinner={setSelectedRouletteWinner}
+                useRouletteWeight={useRouletteWeight}
+                setUseRouletteWeight={setUseRouletteWeight}
+                excludeWinnerMode={excludeWinnerMode}
+                setExcludeWinnerMode={setExcludeWinnerMode}
+                excludedWinners={excludedWinners}
+                setExcludedWinners={setExcludedWinners}
+                excludedRouletteItems={excludedRouletteItems}
+                setExcludedRouletteItems={setExcludedRouletteItems}
+                currentTabId={currentTabId}
+                showToast={showToast}
+                resolvedTheme={resolvedTheme}
+                isDark={isDark}
+                onRegisterShareHandler={registerRouletteShareHandler}
+                onRegisterLeaveHandler={registerRouletteLeaveHandler}
+                onRoomModeChange={handleRoomModeChange}
+                onNavigateGameTab={handleRemoteNavigateTab}
+                onRegisterBroadcastTab={registerRouletteBroadcastTab}
+              />
+            )}
+          </GameZoneErrorBoundary>
         </div>
       </section>
 

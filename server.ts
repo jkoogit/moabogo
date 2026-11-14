@@ -1253,6 +1253,8 @@ async function startServer() {
       'CLOSE_ROOM',
       'RESET_GAME',
       'RESET_ROULETTE',
+      'NAVIGATE_GAME_TAB',
+      'SYNC_GAME_MODAL',
     ];
 
     if (HOST_ONLY_ACTIONS.includes(action.type)) {
@@ -1268,7 +1270,7 @@ async function startServer() {
 
     // State mutations on server
     if ((action.type === 'SYNC_STATE' || action.type === 'ROULETTE_SYNC_STATE') && action.state) {
-      room.data = action.state;
+      room.data = { ...room.data, ...action.state };
     } else if (action.type === 'SYNC_MEMBERS' && action.members) {
       if (room.data) room.data.members = action.members;
     } else if (action.type === 'UPDATE_MEMBER_NAME' && room.data?.members) {
@@ -1321,7 +1323,12 @@ async function startServer() {
     } else if (action.type === 'SHUFFLE_MEMBERS' && action.members) {
       if (room.data) room.data.members = action.members;
     } else if (action.type === 'SHUFFLE_RUNGS') {
-      if (room.data) room.data.ladderSeed = action.seed;
+      if (room.data) {
+        room.data.ladderSeed = action.seed;
+        if (action.rungs) {
+          room.data.ladderRungs = action.rungs;
+        }
+      }
     } else if (action.type === 'SHUFFLE_GOALS') {
       if (room.data) room.data.ladderGoals = action.goals;
     } else if (action.type === 'UPDATE_WINNER_COUNT') {
@@ -1330,7 +1337,17 @@ async function startServer() {
         if (action.goals) room.data.ladderGoals = action.goals;
       }
     } else if (action.type === 'UPDATE_STORE') {
-      if (room.data) room.data.selectedStore = action.store ?? null;
+      if (room.data) {
+        room.data.selectedStore = action.store ?? null;
+        if (action.members) {
+          room.data.members = action.members;
+        } else if (Array.isArray(room.data.members)) {
+          room.data.members = room.data.members.map((m: any) => ({
+            ...m,
+            selectedMenu: undefined,
+          }));
+        }
+      }
     } else if (action.type === 'UPDATE_LADDER_WEIGHT') {
       if (room.data && typeof action.useLadderWeight === 'boolean') {
         room.data.useLadderWeight = action.useLadderWeight;
@@ -1343,6 +1360,7 @@ async function startServer() {
       if (room.data) {
         if (typeof action.speed === 'number') room.data.ladderSpeed = action.speed;
         if (action.seed !== undefined) room.data.ladderSeed = action.seed;
+        if (action.rungs) room.data.ladderRungs = action.rungs;
         if (action.goals) room.data.ladderGoals = action.goals;
         if (action.members) room.data.members = action.members;
         if (action.skipTrace && action.results) {
@@ -1405,6 +1423,17 @@ async function startServer() {
       room.isClosed = true;
       room.closedAt = Date.now();
       room.finalResult = action.finalResult || room.data?.ladderResult || room.data?.selectedWinner;
+    } else if (action.type === 'NAVIGATE_GAME_TAB') {
+      if (action.targetTab) {
+        room.gameType = action.targetTab;
+        if (room.data) room.data.currentGameTab = action.targetTab;
+      }
+    } else if (action.type === 'SYNC_GAME_MODAL') {
+      if (room.data) {
+        if (action.modalType === 'RESULT_MODAL') {
+          room.data.isResultModalOpen = !!action.isOpen;
+        }
+      }
     }
 
     // Broadcast action to all connected SSE clients

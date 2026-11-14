@@ -281,14 +281,25 @@ export const formatLadderResultText = (
     now.getDate()
   ).padStart(2, '0')}`;
   let text = `[모아보고 사다리타기 최종 결과]\n`;
-  text += `📅 일시: ${dateStr} | 참여 ${members.length}명\n\n`;
+  text += `📅 일시: ${dateStr} | 참여 ${members.length}명\n`;
+  if (selectedStore) {
+    const totalOrderAmount = members.reduce(
+      (acc, m) => acc + (m.selectedMenu ? m.selectedMenu.price : 0),
+      0
+    );
+    text += `🏪 매장: ${selectedStore.name} | 결제 예상 총액: ₩${totalOrderAmount.toLocaleString()}원\n`;
+  }
+  text += `\n`;
 
   const winners = members.filter((m) => results[m.id]?.isWinner);
   if (winners.length > 0) {
     text += `🏆 당첨자 명단:\n`;
     winners.forEach((w) => {
       const res = results[w.id];
-      text += `• ${w.avatar} ${w.name} ➔ ${res?.icon} ${res?.text}\n`;
+      const menuStr = w.selectedMenu
+        ? ` [메뉴: ${getStoreMenuEmoji(w.selectedMenu)} ${w.selectedMenu.name}]`
+        : '';
+      text += `• ${w.avatar} ${w.name}${menuStr} ➔ ${res?.icon} ${res?.text}\n`;
     });
     text += `\n`;
   }
@@ -296,7 +307,10 @@ export const formatLadderResultText = (
   text += `👥 전체 참가자 결과:\n`;
   members.forEach((m) => {
     const res = results[m.id];
-    text += `• ${m.avatar} ${m.name}: ${res?.icon || '❓'} ${res?.text || '대기'}\n`;
+    const menuStr = m.selectedMenu
+      ? ` (선택: ${getStoreMenuEmoji(m.selectedMenu)} ${m.selectedMenu.name} ₩${m.selectedMenu.price.toLocaleString()}원)`
+      : '';
+    text += `• ${m.avatar} ${m.name}: ${res?.icon || '❓'} ${res?.text || '대기'}${menuStr}\n`;
   });
 
   text += `\n스마트 가계부 & 모임 정산 • 모아보고`;

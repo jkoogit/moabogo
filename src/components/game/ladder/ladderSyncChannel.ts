@@ -8,6 +8,7 @@ export interface LadderSyncState {
   members: Participant[];
   ladderGoals: LadderGoal[];
   ladderSeed: number;
+  ladderRungs?: LadderRung[];
   winnerCount: number;
   useLadderWeight: boolean;
   ladderSpeed: number;
@@ -24,10 +25,10 @@ export type LadderSyncMessage =
   | { type: 'UPDATE_MEMBER_NAME'; memberId: string; name: string }
   | { type: 'UPDATE_MEMBER_DETAILS'; memberId: string; name?: string; avatarEmoji?: string; selectedMenu?: any }
   | { type: 'SHUFFLE_MEMBERS'; members: Participant[] }
-  | { type: 'SHUFFLE_RUNGS'; seed: number }
+  | { type: 'SHUFFLE_RUNGS'; seed: number; rungs?: LadderRung[] }
   | { type: 'SHUFFLE_GOALS'; goals: LadderGoal[] }
   | { type: 'UPDATE_WINNER_COUNT'; winnerCount: number; goals?: LadderGoal[] }
-  | { type: 'UPDATE_STORE'; store: StorePreset | null }
+  | { type: 'UPDATE_STORE'; store: StorePreset | null; members?: Participant[] }
   | { type: 'UPDATE_LADDER_WEIGHT'; useLadderWeight: boolean }
   | { type: 'UPDATE_SPEED'; speed: number }
   | {
@@ -64,7 +65,9 @@ export type LadderSyncMessage =
       revealedGoals?: Record<string, boolean>;
       revealedGoalCols?: LadderRevealedGoalCols;
     }
-  | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] };
+  | { type: 'PRESENCE_CHANGE'; connectedClients: number; seatReleasedTabId?: string; members?: Participant[] }
+  | { type: 'NAVIGATE_GAME_TAB'; targetTab: 'LADDER' | 'ROULETTE' }
+  | { type: 'SYNC_GAME_MODAL'; modalType: 'RESULT_MODAL'; isOpen: boolean };
 
 export interface LadderChannelHandle {
   send: (msg: LadderSyncMessage, hostToken?: string | null) => void;
@@ -175,7 +178,7 @@ export function createLadderSyncChannel(
                 finalResult: payload.finalResult,
               });
             }
-            if (payload.data && Object.keys(payload.data).length > 0) {
+            if (payload.data && Array.isArray(payload.data.ladderGoals) && payload.data.ladderGoals.length > 0) {
               onMessage({
                 type: 'SYNC_STATE',
                 state: payload.data as LadderSyncState,
