@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { ElmRng01, ElmSld03, ElmToast01 } from '../elements/Tokens';
 import {
@@ -64,20 +64,18 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
   // 클라이언트 탭/점유자 고유 식별자
   const [currentTabId] = useState<string>(() => 'tab_' + Math.random().toString(36).slice(2, 9));
 
-  // 초대 링크를 통해 접속한 게스트 참여자 여부 식별
+  // 초대 링크를 통해 접속한 게스트 참여자 여부 식별 (동적 상태: 방 종료/이탈 시 개인 모드로 즉시 해제)
   // 🔑 [보안] sessionStorage의 hostToken 유무를 기반으로 참가자(게스트) 여부 판정
-  const isGuestInRoom = useMemo(() => {
+  const [isGuestInRoom, setIsGuestInRoom] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const r = new URLSearchParams(window.location.search).get('room');
     if (!r) return false;
     const token = window.sessionStorage.getItem(`moabogo_host_token_${r}`);
     return !token;
-  }, []);
+  });
 
-  // 🔑 [사다리·룰렛 통합 방 공유] 현재 참여 중인 방 식별자
-  const currentRoomId = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return new URLSearchParams(window.location.search).get('room');
+  const handleRoomModeChange = useCallback((inRoom: boolean, isHost: boolean) => {
+    setIsGuestInRoom(inRoom && !isHost);
   }, []);
 
   // 🔑 [사다리·룰렛 통합 방 공유] 탭 전환 시 URL의 room 파라미터 보존 및 게임 파라미터 동기화
@@ -90,16 +88,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     }
   };
 
-  // 하단 플로팅 토스트/스낵바 상태 (ElmToast01 연동)
+  // 하단 플로팅 토스트/스낵바 상태 (ElmToast01 연동, useCallback 고정으로 SSE 채널 재연결 방지)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<'success' | 'info' | 'warning' | 'error'>('success');
-  const showToast = (msg: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+  const showToast = useCallback((msg: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
-  };
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // 0. 당일 공유 게임 이력 상태 및 자동 갱신 리스너 (LocalStorage SSOT)
+  // 0. 당일 공유 게임 결과 이력 상태 및 자동 갱신 리스너 (LocalStorage SSOT)
   // ---------------------------------------------------------------------------
   const [todayHistory, setTodayHistory] = useState<SharedGameHistoryItem[]>(() =>
     loadTodaySharedGameHistory()
@@ -109,7 +107,16 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
 
   useEffect(() => {
     const refreshHistory = () => {
-      setTodayHistory(loadTodaySharedGameHistory());
+      const next = loadTodaySharedGameHistory();
+      setTodayHistory((prev) => {
+        if (
+          prev.length === next.length &&
+          prev.every((item, idx) => item.id === next[idx]?.id && item.closedAt === next[idx]?.closedAt)
+        ) {
+          return prev;
+        }
+        return next;
+      });
     };
     window.addEventListener('storage', refreshHistory);
     window.addEventListener('focus', refreshHistory);
@@ -121,9 +128,24 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
     };
   }, []);
 
-  // 상단 헤더 '공유링크 생성' 버튼 클릭 시 현재 활성 게임존 공유 트리거
+  // 상단 헤더 '공유링크 생성' / '참여종료' 핸들러 레지스트리
   const ladderShareHandlerRef = useRef<(() => void) | null>(null);
   const rouletteShareHandlerRef = useRef<(() => void) | null>(null);
+  const ladderLeaveHandlerRef = useRef<(() => void) | null>(null);
+  const rouletteLeaveHandlerRef = useRef<(() => void) | null>(null);
+
+  const registerLadderShareHandler = useCallback((fn: () => void) => {
+    ladderShareHandlerRef.current = fn;
+  }, []);
+  const registerRouletteShareHandler = useCallback((fn: () => void) => {
+    rouletteShareHandlerRef.current = fn;
+  }, []);
+  const registerLadderLeaveHandler = useCallback((fn: () => void) => {
+    ladderLeaveHandlerRef.current = fn;
+  }, []);
+  const registerRouletteLeaveHandler = useCallback((fn: () => void) => {
+    rouletteLeaveHandlerRef.current = fn;
+  }, []);
 
   const handleTopShareClick = () => {
     if (gameType === 'LADDER') {
@@ -539,11 +561,19 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                     <button
                       type="button"
                       onClick={() => {
+                        if (gameType === 'LADDER' && ladderLeaveHandlerRef.current) {
+                          ladderLeaveHandlerRef.current();
+                          return;
+                        }
+                        if (gameType === 'ROULETTE' && rouletteLeaveHandlerRef.current) {
+                          rouletteLeaveHandlerRef.current();
+                          return;
+                        }
+                        setIsGuestInRoom(false);
                         const url = new URL(window.location.href);
                         url.searchParams.delete('room');
                         url.searchParams.delete('host');
                         window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-                        window.location.reload();
                       }}
                       className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold text-xs shadow-2xs transition-all cursor-pointer"
                       title="실시간 방 공유를 종료하고 현재 설정된 데이터로 로컬 게임을 이어갑니다"
@@ -654,9 +684,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               showToast={showToast}
               resolvedTheme={resolvedTheme}
               isDark={isDark}
-              onRegisterShareHandler={(fn) => {
-                ladderShareHandlerRef.current = fn;
-              }}
+              onRegisterShareHandler={registerLadderShareHandler}
+              onRegisterLeaveHandler={registerLadderLeaveHandler}
+              onRoomModeChange={handleRoomModeChange}
             />
           )}
 
@@ -684,9 +714,9 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
               showToast={showToast}
               resolvedTheme={resolvedTheme}
               isDark={isDark}
-              onRegisterShareHandler={(fn) => {
-                rouletteShareHandlerRef.current = fn;
-              }}
+              onRegisterShareHandler={registerRouletteShareHandler}
+              onRegisterLeaveHandler={registerRouletteLeaveHandler}
+              onRoomModeChange={handleRoomModeChange}
             />
           )}
         </div>

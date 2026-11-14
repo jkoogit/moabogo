@@ -1134,6 +1134,8 @@ async function startServer() {
       type: 'ROOM_CONNECTED',
       roomId: currentRoom.roomId,
       gameType: currentRoom.gameType,
+      isClosed: Boolean(currentRoom.isClosed),
+      finalResult: currentRoom.finalResult,
       connectedClients: currentRoom.connectedTabs.size,
       data: currentRoom.data,
     });
@@ -1237,11 +1239,13 @@ async function startServer() {
     // 🔑 [보안] 방장 전용 액션 검증 (hostToken 불일치 시 403 Forbidden 차단)
     // 세션 0032: 게스트 상호작용 확대를 위해 SHUFFLE_RUNGS, SHUFFLE_GOALS, SHUFFLE_MEMBERS, SYNC_ROULETTE_ITEMS, SHUFFLE_ROULETTE_ITEMS 허용
     const HOST_ONLY_ACTIONS = [
+      'UPDATE_SPEED',
       'PLAY_LADDER',
       'LADDER_RUNNER_ARRIVED',
       'LADDER_PROCEED_NEXT',
       'LADDER_COMPLETE',
       'SPIN_ROULETTE',
+      'ROULETTE_SPIN_COMPLETE',
       'CLOSE_ROOM',
       'RESET_GAME',
       'RESET_ROULETTE',
@@ -1316,12 +1320,51 @@ async function startServer() {
       if (room.data) room.data.ladderSeed = action.seed;
     } else if (action.type === 'SHUFFLE_GOALS') {
       if (room.data) room.data.ladderGoals = action.goals;
+    } else if (action.type === 'UPDATE_SPEED') {
+      if (room.data && typeof action.speed === 'number') {
+        room.data.ladderSpeed = action.speed;
+      }
+    } else if (action.type === 'PLAY_LADDER') {
+      if (room.data) {
+        if (typeof action.speed === 'number') room.data.ladderSpeed = action.speed;
+        if (action.seed !== undefined) room.data.ladderSeed = action.seed;
+        if (action.goals) room.data.ladderGoals = action.goals;
+        if (action.members) room.data.members = action.members;
+        if (action.skipTrace && action.results) {
+          room.data.ladderResult = action.results;
+        } else if (!action.skipTrace) {
+          room.data.ladderResult = null;
+        }
+      }
+    } else if (action.type === 'LADDER_PROCEED_NEXT') {
+      if (room.data && typeof action.speed === 'number') {
+        room.data.ladderSpeed = action.speed;
+      }
     } else if (action.type === 'LADDER_COMPLETE' && action.results) {
       if (room.data) room.data.ladderResult = action.results;
+    } else if (action.type === 'SPIN_ROULETTE') {
+      if (room.data) {
+        room.data.selectedWinner = null;
+      }
+    } else if (action.type === 'ROULETTE_SPIN_COMPLETE') {
+      if (room.data) {
+        room.data.selectedWinner = action.winner;
+        if (action.items) room.data.rouletteItems = action.items;
+      }
     } else if (action.type === 'SYNC_ROULETTE_ITEMS' || action.type === 'SHUFFLE_ROULETTE_ITEMS') {
       if (room.data && action.items) room.data.rouletteItems = action.items;
     } else if (action.type === 'SYNC_ROULETTE_RESULT') {
       if (room.data) room.data.selectedWinner = action.winner;
+    } else if (action.type === 'RESET_GAME') {
+      room.isClosed = false;
+      room.closedAt = undefined;
+      room.finalResult = undefined;
+      if (room.data) room.data.ladderResult = null;
+    } else if (action.type === 'RESET_ROULETTE') {
+      room.isClosed = false;
+      room.closedAt = undefined;
+      room.finalResult = undefined;
+      if (room.data) room.data.selectedWinner = null;
     } else if (action.type === 'LEAVE_ROOM') {
       if (action.tabId) {
         room.connectedTabs.delete(action.tabId);

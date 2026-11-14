@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Sparkles,
   SlidersHorizontal,
@@ -37,6 +37,8 @@ import {
   RouletteChannelHandle,
   RouletteSyncMessage,
   RouletteSyncState,
+  saveRouletteRoomSnapshot,
+  loadRouletteRoomSnapshot,
 } from './rouletteSyncChannel';
 import { generateGameRoomId, buildRoomShareUrl } from '../ladder/ladderSyncChannel';
 import {
@@ -71,6 +73,8 @@ export interface RouletteGameZoneProps {
   resolvedTheme: string;
   isDark: boolean;
   onRegisterShareHandler?: (handler: () => void) => void;
+  onRegisterLeaveHandler?: (handler: () => void) => void;
+  onRoomModeChange?: (inRoom: boolean, isHost: boolean) => void;
 }
 
 export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
@@ -92,6 +96,8 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   resolvedTheme,
   isDark,
   onRegisterShareHandler,
+  onRegisterLeaveHandler,
+  onRoomModeChange,
 }) => {
   const [rouletteRotation, setRouletteRotation] = useState<number>(0);
   const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3500);
@@ -132,9 +138,12 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   const [connectedClients, setConnectedClients] = useState<number>(1);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
+  const [isGuestCloseNoticeOpen, setIsGuestCloseNoticeOpen] = useState<boolean>(false);
   const channelRef = useRef<RouletteChannelHandle | null>(null);
   const isGuest = !!roomId && !isRoomHost;
-  const handleSpinRouletteRef = useRef<(skip?: boolean, overrideChosen?: RouletteSliceItem, broadcast?: boolean) => void>(() => {});
+  const handleSpinRouletteRef = useRef<
+    (skip?: boolean, overrideChosen?: RouletteSliceItem, broadcast?: boolean, overrideDuration?: number) => void
+  >(() => {});
 
   // Modals
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
@@ -147,9 +156,98 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   const [newItemIcon, setNewItemIcon] = useState<string>('🎯');
 
   const spinTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const guestSpinFallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentSpinChosenRef = useRef<RouletteSliceItem | null>(null);
 
-  // 실시간 룰렛 채널 리스너
+  // 🔑 [안정화] SSE useEffect 의존성 격리 및 비동기 클로저 스테일 방지를 위한 Refs
+  const roulettePresetTitleRef = useRef<string>(roulettePresetTitle);
+  const rouletteItemsRef = useRef<RouletteSliceItem[]>(rouletteItems);
+  const selectedRouletteWinnerRef = useRef<RouletteSliceItem | null>(selectedRouletteWinner);
+  const useRouletteWeightRef = useRef<boolean>(useRouletteWeight);
+  const excludeWinnerModeRef = useRef<boolean>(excludeWinnerMode);
+  const excludedRouletteItemsRef = useRef<RouletteSliceItem[]>(excludedRouletteItems);
+  const rouletteRotationRef = useRef<number>(rouletteRotation);
+  const isSpinningRef = useRef<boolean>(isSpinning);
+  const hostTokenRef = useRef<string | null>(hostToken);
+  const isRoomClosedRef = useRef<boolean>(isRoomClosed);
+  const showToastRef = useRef(showToast);
+
+  useEffect(() => {
+    roulettePresetTitleRef.current = roulettePresetTitle;
+  }, [roulettePresetTitle]);
+
+  useEffect(() => {
+    rouletteItemsRef.current = rouletteItems;
+  }, [rouletteItems]);
+
+  useEffect(() => {
+    selectedRouletteWinnerRef.current = selectedRouletteWinner;
+  }, [selectedRouletteWinner]);
+
+  useEffect(() => {
+    useRouletteWeightRef.current = useRouletteWeight;
+  }, [useRouletteWeight]);
+
+  useEffect(() => {
+    excludeWinnerModeRef.current = excludeWinnerMode;
+  }, [excludeWinnerMode]);
+
+  useEffect(() => {
+    excludedRouletteItemsRef.current = excludedRouletteItems;
+  }, [excludedRouletteItems]);
+
+  useEffect(() => {
+    rouletteRotationRef.current = rouletteRotation;
+  }, [rouletteRotation]);
+
+  useEffect(() => {
+    isSpinningRef.current = isSpinning;
+  }, [isSpinning]);
+
+  useEffect(() => {
+    hostTokenRef.current = hostToken;
+  }, [hostToken]);
+
+  useEffect(() => {
+    isRoomClosedRef.current = isRoomClosed;
+  }, [isRoomClosed]);
+
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
+
+  const getHostToken = useCallback(
+    (targetId?: string | null): string | null => {
+      if (hostTokenRef.current) return hostTokenRef.current;
+      const rid = targetId || roomId;
+      if (rid && typeof window !== 'undefined') {
+        try {
+          const stored = window.sessionStorage.getItem(`moabogo_host_token_${rid}`);
+          if (stored) {
+            hostTokenRef.current = stored;
+            return stored;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      return null;
+    },
+    [roomId]
+  );
+
+  const clearSpinTimer = useCallback(() => {
+    if (spinTimerRef.current) {
+      clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = null;
+    }
+    if (guestSpinFallbackTimerRef.current) {
+      clearTimeout(guestSpinFallbackTimerRef.current);
+      guestSpinFallbackTimerRef.current = null;
+    }
+  }, []);
+
+  // 실시간 룰렛 채널 리스너 (roomId, isRoomHost, currentTabId, clearSpinTimer에만 의존 -> SSE 무한 재연결 원천 차단)
   useEffect(() => {
     if (!roomId) {
       if (channelRef.current) {
@@ -168,11 +266,11 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               state: {
                 roomId,
                 hostTabId: currentTabId,
-                roulettePresetTitle,
-                rouletteItems,
-                selectedWinner: selectedRouletteWinner,
-                useRouletteWeight,
-                excludeWinnerMode,
+                roulettePresetTitle: roulettePresetTitleRef.current,
+                rouletteItems: rouletteItemsRef.current,
+                selectedWinner: selectedRouletteWinnerRef.current,
+                useRouletteWeight: useRouletteWeightRef.current,
+                excludeWinnerMode: excludeWinnerModeRef.current,
                 timestamp: Date.now(),
               },
             });
@@ -182,41 +280,91 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         case 'ROULETTE_SYNC_STATE':
           if (!isRoomHost) {
             setRoulettePresetTitle(msg.state.roulettePresetTitle);
+            roulettePresetTitleRef.current = msg.state.roulettePresetTitle;
             setRouletteItems(msg.state.rouletteItems);
+            rouletteItemsRef.current = msg.state.rouletteItems;
             setSelectedRouletteWinner(msg.state.selectedWinner);
+            selectedRouletteWinnerRef.current = msg.state.selectedWinner;
             setUseRouletteWeight(msg.state.useRouletteWeight);
+            useRouletteWeightRef.current = msg.state.useRouletteWeight;
             setExcludeWinnerMode(msg.state.excludeWinnerMode);
+            excludeWinnerModeRef.current = msg.state.excludeWinnerMode;
           }
           break;
 
         case 'SPIN_ROULETTE':
-          handleSpinRouletteRef.current(false, msg.chosenItem, false);
+          if (!isRoomHost) {
+            handleSpinRouletteRef.current(false, msg.chosenItem, false, msg.duration);
+          }
+          break;
+
+        case 'ROULETTE_SPIN_COMPLETE':
+          if (!isRoomHost) {
+            clearSpinTimer();
+            isSpinningRef.current = false;
+            setIsSpinning(false);
+            setSelectedRouletteWinner(msg.winner);
+            selectedRouletteWinnerRef.current = msg.winner;
+            if (msg.items) {
+              setRouletteItems(msg.items);
+              rouletteItemsRef.current = msg.items;
+            }
+            if (msg.excludedItems) {
+              setExcludedRouletteItems(msg.excludedItems);
+              excludedRouletteItemsRef.current = msg.excludedItems;
+            }
+            setIsResultModalOpen(true);
+          }
           break;
 
         case 'SYNC_ROULETTE_ITEMS':
         case 'SHUFFLE_ROULETTE_ITEMS':
           setRouletteItems(msg.items);
+          rouletteItemsRef.current = msg.items;
           if (msg.type === 'SYNC_ROULETTE_ITEMS' && msg.presetTitle) {
             setRoulettePresetTitle(msg.presetTitle);
+            roulettePresetTitleRef.current = msg.presetTitle;
           }
           setSelectedRouletteWinner(null);
+          selectedRouletteWinnerRef.current = null;
           if (msg.type === 'SHUFFLE_ROULETTE_ITEMS') {
-            showToast('🎲 룰렛 항목 순서가 동기화되었습니다.', 'info');
+            showToastRef.current('🎲 룰렛 항목 순서가 동기화되었습니다.', 'info');
           }
           break;
 
         case 'SYNC_ROULETTE_RESULT':
           setSelectedRouletteWinner(msg.winner);
+          selectedRouletteWinnerRef.current = msg.winner;
+          break;
+
+        case 'RESET_ROULETTE':
+          clearSpinTimer();
+          isSpinningRef.current = false;
+          setIsSpinning(false);
+          isRoomClosedRef.current = false;
+          setIsRoomClosed(false);
+          setIsGuestCloseNoticeOpen(false);
+          setSelectedRouletteWinner(null);
+          selectedRouletteWinnerRef.current = null;
+          setIsResultModalOpen(false);
           break;
 
         case 'CLOSE_ROOM':
         case 'ROOM_CLOSED':
+          if (isRoomClosedRef.current) break;
+          clearSpinTimer();
+          isSpinningRef.current = false;
+          setIsSpinning(false);
+          isRoomClosedRef.current = true;
           setIsRoomClosed(true);
           if (msg.finalResult) {
             setSelectedRouletteWinner(msg.finalResult);
-            setIsResultModalOpen(true);
+            selectedRouletteWinnerRef.current = msg.finalResult;
           }
-          showToast('🔒 방장이 게임을 종료하였습니다. (신규 유입 차단 및 최종 결과 보관)', 'warning');
+          if (!isRoomHost) {
+            setIsGuestCloseNoticeOpen(true);
+          }
+          showToastRef.current('🔒 방장이 게임을 종료하였습니다. 개인 플레이 모드로 전환할 수 있습니다.', 'warning');
           break;
 
         case 'PRESENCE_CHANGE':
@@ -228,14 +376,28 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     channelRef.current = channel;
 
     if (!isRoomHost) {
+      const snapshot = loadRouletteRoomSnapshot(roomId);
+      if (snapshot) {
+        setRoulettePresetTitle(snapshot.roulettePresetTitle);
+        roulettePresetTitleRef.current = snapshot.roulettePresetTitle;
+        setRouletteItems(snapshot.rouletteItems);
+        rouletteItemsRef.current = snapshot.rouletteItems;
+        setSelectedRouletteWinner(snapshot.selectedWinner);
+        selectedRouletteWinnerRef.current = snapshot.selectedWinner;
+        setUseRouletteWeight(snapshot.useRouletteWeight);
+        useRouletteWeightRef.current = snapshot.useRouletteWeight;
+        setExcludeWinnerMode(snapshot.excludeWinnerMode);
+        excludeWinnerModeRef.current = snapshot.excludeWinnerMode;
+      }
       channel.send({ type: 'ROULETTE_SYNC_REQUEST', senderTabId: currentTabId });
     }
 
     return () => {
+      clearSpinTimer();
       channel.close();
       channelRef.current = null;
     };
-  }, [roomId, isRoomHost, currentTabId, roulettePresetTitle, rouletteItems, selectedRouletteWinner, useRouletteWeight, excludeWinnerMode]);
+  }, [roomId, isRoomHost, currentTabId, clearSpinTimer, setExcludeWinnerMode, setExcludedRouletteItems, setRouletteItems, setRoulettePresetTitle, setSelectedRouletteWinner, setUseRouletteWeight]);
 
   // 서버로부터 방 정보 패치 (폐기/종료된 방 접속 시 최종 결과 복원)
   useEffect(() => {
@@ -243,27 +405,52 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     fetch(`/api/v1/games/rooms/${roomId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data?.room) {
-          if (data.room.isClosed) {
+        const roomInfo = data?.room || data;
+        if (roomInfo) {
+          if (roomInfo.isClosed) {
+            isRoomClosedRef.current = true;
             setIsRoomClosed(true);
-            if (data.room.finalResult) {
-              setSelectedRouletteWinner(data.room.finalResult);
-              setIsResultModalOpen(true);
+            if (!isRoomHost) {
+              setIsGuestCloseNoticeOpen(true);
             }
-          } else if (data.room.data && !isRoomHost) {
-            const snap = data.room.data;
-            if (snap.roulettePresetTitle) setRoulettePresetTitle(snap.roulettePresetTitle);
-            if (snap.rouletteItems) setRouletteItems(snap.rouletteItems);
-            if (snap.selectedWinner) setSelectedRouletteWinner(snap.selectedWinner);
-            if (snap.useRouletteWeight !== undefined) setUseRouletteWeight(snap.useRouletteWeight);
-            if (snap.excludeWinnerMode !== undefined) setExcludeWinnerMode(snap.excludeWinnerMode);
+            if (roomInfo.finalResult) {
+              setSelectedRouletteWinner(roomInfo.finalResult);
+              selectedRouletteWinnerRef.current = roomInfo.finalResult;
+            }
+          } else if (roomInfo.data && !isRoomHost) {
+            const snap = roomInfo.data;
+            if (snap.roulettePresetTitle) {
+              setRoulettePresetTitle(snap.roulettePresetTitle);
+              roulettePresetTitleRef.current = snap.roulettePresetTitle;
+            }
+            if (snap.rouletteItems) {
+              setRouletteItems(snap.rouletteItems);
+              rouletteItemsRef.current = snap.rouletteItems;
+            }
+            if (snap.selectedWinner !== undefined) {
+              setSelectedRouletteWinner(snap.selectedWinner);
+              selectedRouletteWinnerRef.current = snap.selectedWinner;
+            }
+            if (snap.useRouletteWeight !== undefined) {
+              setUseRouletteWeight(snap.useRouletteWeight);
+              useRouletteWeightRef.current = snap.useRouletteWeight;
+            }
+            if (snap.excludeWinnerMode !== undefined) {
+              setExcludeWinnerMode(snap.excludeWinnerMode);
+              excludeWinnerModeRef.current = snap.excludeWinnerMode;
+            }
           }
         }
       })
       .catch((err) => {
         console.warn('Failed to fetch roulette room from server', err);
       });
-  }, [roomId, isRoomHost]);
+  }, [roomId, isRoomHost, setExcludeWinnerMode, setRouletteItems, setRoulettePresetTitle, setSelectedRouletteWinner, setUseRouletteWeight]);
+
+  // 상위 SCR_GNT_01에 방 참여/방장 상태 동기화 (개인 모드 전환 시 상단 슬라이더/공유 잠금 즉시 해제)
+  useEffect(() => {
+    onRoomModeChange?.(!!roomId, isRoomHost);
+  }, [roomId, isRoomHost, onRoomModeChange]);
 
   const totalRouletteWeight = useMemo(() => {
     return rouletteItems.reduce((acc, it) => acc + Math.max(1, it.weight || 1), 0);
@@ -272,6 +459,17 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   const rouletteSlices = useMemo(() => {
     return calculateRouletteSlices(rouletteItems, totalRouletteWeight);
   }, [rouletteItems, totalRouletteWeight]);
+
+  const totalRouletteWeightRef = useRef<number>(totalRouletteWeight);
+  const rouletteSlicesRef = useRef(rouletteSlices);
+
+  useEffect(() => {
+    totalRouletteWeightRef.current = totalRouletteWeight;
+  }, [totalRouletteWeight]);
+
+  useEffect(() => {
+    rouletteSlicesRef.current = rouletteSlices;
+  }, [rouletteSlices]);
 
   const handleUpdateRouletteItemCount = (count: number) => {
     setSelectedRouletteWinner(null);
@@ -312,76 +510,140 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     );
   };
 
-  const handleSpinRoulette = (skip = false, overrideChosen?: RouletteSliceItem, forceRestart = false) => {
-    if (rouletteItems.length === 0) return;
+  const handleSpinRoulette = (
+    skip = false,
+    overrideChosen?: RouletteSliceItem,
+    broadcast = false,
+    overrideDuration?: number
+  ) => {
+    const itemsToUse = rouletteItemsRef.current;
+    if (itemsToUse.length === 0) return;
 
-    if (isSpinning && skip) {
-      if (spinTimerRef.current) {
-        clearTimeout(spinTimerRef.current);
-        spinTimerRef.current = null;
-      }
-      const chosen = currentSpinChosenRef.current || overrideChosen || rouletteItems[0];
-      const { nextRotation, duration } = calculateTargetRotation(chosen, rouletteSlices, rouletteRotation, true);
+    const totalWeightToUse = itemsToUse.reduce((acc, it) => acc + Math.max(1, it.weight || 1), 0);
+    const slicesToUse = calculateRouletteSlices(itemsToUse, totalWeightToUse);
+    const currentRotation = rouletteRotationRef.current;
+    const excludeMode = excludeWinnerModeRef.current;
+    const hostTokenToUse = getHostToken();
+
+    if (isSpinningRef.current && skip) {
+      clearSpinTimer();
+      const chosen = currentSpinChosenRef.current || overrideChosen || itemsToUse[0];
+      const { nextRotation, duration } = calculateTargetRotation(chosen, slicesToUse, currentRotation, true);
       setRouletteTransitionDuration(duration);
       setRouletteRotation(nextRotation);
+      rouletteRotationRef.current = nextRotation;
+      isSpinningRef.current = false;
       setIsSpinning(false);
       setSelectedRouletteWinner(chosen);
+      selectedRouletteWinnerRef.current = chosen;
       setIsResultModalOpen(true);
-      if (excludeWinnerMode && rouletteItems.length > 2) {
-        setExcludedRouletteItems((prev) => [...prev, chosen]);
-        setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
+
+      let nextItems: RouletteSliceItem[] | undefined;
+      let nextExcluded: RouletteSliceItem[] | undefined;
+      if (excludeMode && itemsToUse.length > 2) {
+        nextExcluded = [...excludedRouletteItemsRef.current, chosen];
+        nextItems = itemsToUse.filter((it) => it.id !== chosen.id);
+        setExcludedRouletteItems(nextExcluded);
+        excludedRouletteItemsRef.current = nextExcluded;
+        setRouletteItems(nextItems);
+        rouletteItemsRef.current = nextItems;
+      }
+
+      if (isRoomHost && channelRef.current) {
+        channelRef.current.send(
+          {
+            type: 'ROULETTE_SPIN_COMPLETE',
+            winner: chosen,
+            items: nextItems,
+            excludedItems: nextExcluded,
+          },
+          hostTokenToUse
+        );
       }
       return;
     }
 
-    if (isSpinning && !forceRestart) return;
+    // 🔑 [호스트 주도 중계] 게스트는 SPIN_ROULETTE 수신 시 즉시 재시작 가능, 로컬 버튼 중복 클릭 방지
+    if (isSpinningRef.current && broadcast) return;
 
-    if (spinTimerRef.current) {
-      clearTimeout(spinTimerRef.current);
-      spinTimerRef.current = null;
-    }
+    clearSpinTimer();
 
     setSelectedRouletteWinner(null);
-    const chosen = overrideChosen || pickRandomRouletteItem(rouletteItems, totalRouletteWeight);
+    selectedRouletteWinnerRef.current = null;
+    setIsResultModalOpen(false);
+    const chosen = overrideChosen || pickRandomRouletteItem(itemsToUse, totalWeightToUse);
     currentSpinChosenRef.current = chosen;
 
-    const { nextRotation, duration } = calculateTargetRotation(chosen, rouletteSlices, rouletteRotation, skip);
+    const { nextRotation, duration } = calculateTargetRotation(chosen, slicesToUse, currentRotation, skip);
+    const effectiveDuration = overrideDuration ?? duration;
+    isSpinningRef.current = true;
     setIsSpinning(true);
-    setRouletteTransitionDuration(duration);
+    setRouletteTransitionDuration(effectiveDuration);
     setRouletteRotation(nextRotation);
+    rouletteRotationRef.current = nextRotation;
 
-    if (forceRestart && channelRef.current) {
+    if (broadcast && isRoomHost && channelRef.current) {
       channelRef.current.send(
         {
           type: 'SPIN_ROULETTE',
           targetAngle: nextRotation,
           chosenItem: chosen,
-          duration,
+          duration: effectiveDuration,
         },
-        hostToken
+        hostTokenToUse
       );
     }
 
+    if (!isRoomHost && roomId) {
+      // 게스트는 방장의 ROULETTE_SPIN_COMPLETE를 기다리되 네트워크 지연 대비 폴백 타이머 유지
+      guestSpinFallbackTimerRef.current = setTimeout(() => {
+        guestSpinFallbackTimerRef.current = null;
+        if (!isSpinningRef.current) return;
+        isSpinningRef.current = false;
+        setIsSpinning(false);
+        setSelectedRouletteWinner(chosen);
+        selectedRouletteWinnerRef.current = chosen;
+        setIsResultModalOpen(true);
+      }, effectiveDuration + 1200);
+      return;
+    }
+
     spinTimerRef.current = setTimeout(() => {
+      spinTimerRef.current = null;
+      isSpinningRef.current = false;
       setIsSpinning(false);
       setSelectedRouletteWinner(chosen);
+      selectedRouletteWinnerRef.current = chosen;
       setIsResultModalOpen(true);
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'SYNC_ROULETTE_RESULT',
-          winner: chosen,
-        });
+
+      let nextItems: RouletteSliceItem[] | undefined;
+      let nextExcluded: RouletteSliceItem[] | undefined;
+      if (excludeMode && itemsToUse.length > 2) {
+        nextExcluded = [...excludedRouletteItemsRef.current, chosen];
+        nextItems = itemsToUse.filter((it) => it.id !== chosen.id);
+        setExcludedRouletteItems(nextExcluded);
+        excludedRouletteItemsRef.current = nextExcluded;
+        setRouletteItems(nextItems);
+        rouletteItemsRef.current = nextItems;
       }
-      if (excludeWinnerMode && rouletteItems.length > 2) {
-        setExcludedRouletteItems((prev) => [...prev, chosen]);
-        setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
+
+      if (broadcast && isRoomHost && channelRef.current) {
+        channelRef.current.send(
+          {
+            type: 'ROULETTE_SPIN_COMPLETE',
+            winner: chosen,
+            items: nextItems,
+            excludedItems: nextExcluded,
+          },
+          getHostToken()
+        );
       }
-    }, duration);
+    }, effectiveDuration);
   };
   handleSpinRouletteRef.current = handleSpinRoulette;
 
   // 실시간 룰렛 방 생성 및 공유 핸들러
-  const handleShareRoom = () => {
+  const handleShareRoom = useCallback(() => {
     let targetRoomId = roomId;
     if (!targetRoomId) {
       targetRoomId = generateGameRoomId('ROULETTE');
@@ -398,13 +660,15 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       const stateSnapshot: RouletteSyncState = {
         roomId: targetRoomId,
         hostTabId: currentTabId,
-        roulettePresetTitle,
-        rouletteItems,
-        selectedWinner: selectedRouletteWinner,
-        useRouletteWeight,
-        excludeWinnerMode,
+        roulettePresetTitle: roulettePresetTitleRef.current,
+        rouletteItems: rouletteItemsRef.current,
+        selectedWinner: selectedRouletteWinnerRef.current,
+        useRouletteWeight: useRouletteWeightRef.current,
+        excludeWinnerMode: excludeWinnerModeRef.current,
         timestamp: Date.now(),
       };
+
+      saveRouletteRoomSnapshot(targetRoomId, stateSnapshot);
 
       fetch('/api/v1/games/rooms', {
         method: 'POST',
@@ -421,6 +685,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         .then((data) => {
           if (data?.hostToken) {
             setHostToken(data.hostToken);
+            hostTokenRef.current = data.hostToken;
             try {
               window.sessionStorage.setItem(`moabogo_host_token_${targetRoomId}`, data.hostToken);
             } catch (e) {
@@ -431,10 +696,50 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         .catch((e) => {
           console.warn('Failed to register roulette room to server', e);
         });
+    } else {
+      const existingToken = getHostToken(targetRoomId);
+      fetch('/api/v1/games/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: targetRoomId,
+          gameType: 'ROULETTE',
+          hostTabId: currentTabId,
+          hostToken: existingToken || undefined,
+          hostName: '호스트',
+          data: {
+            roomId: targetRoomId,
+            hostTabId: currentTabId,
+            roulettePresetTitle: roulettePresetTitleRef.current,
+            rouletteItems: rouletteItemsRef.current,
+            selectedWinner: selectedRouletteWinnerRef.current,
+            useRouletteWeight: useRouletteWeightRef.current,
+            excludeWinnerMode: excludeWinnerModeRef.current,
+            timestamp: Date.now(),
+          },
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.hostToken) {
+            setHostToken(data.hostToken);
+            hostTokenRef.current = data.hostToken;
+            try {
+              window.sessionStorage.setItem(`moabogo_host_token_${targetRoomId}`, data.hostToken);
+            } catch (e) {
+              // ignore
+            }
+          }
+        })
+        .catch((e) => {
+          console.warn('Failed to re-register roulette room to server', e);
+        });
     }
 
+    isRoomClosedRef.current = false;
+    setIsRoomClosed(false);
     setIsShareModalOpen(true);
-  };
+  }, [currentTabId, getHostToken, roomId]);
 
   useEffect(() => {
     onRegisterShareHandler?.(handleShareRoom);
@@ -473,26 +778,35 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
 
   const handleCloseRoom = () => {
     if (!roomId) return;
+    const targetRoomId = roomId;
+    const hostTokenToUse = getHostToken(targetRoomId);
+    const winnerToUse = selectedRouletteWinnerRef.current || selectedRouletteWinner;
+
+    clearSpinTimer();
+    isSpinningRef.current = false;
+    setIsSpinning(false);
+    setIsShareModalOpen(false);
+    isRoomClosedRef.current = true;
     setIsRoomClosed(true);
 
-    const winnerSummary = selectedRouletteWinner
-      ? `${selectedRouletteWinner.avatar} ${selectedRouletteWinner.name} 당첨`
+    const winnerSummary = winnerToUse
+      ? `${winnerToUse.avatar} ${winnerToUse.name} 당첨`
       : '룰렛 종료';
 
     saveSharedGameHistory({
-      id: `hist_${roomId}_${Date.now()}`,
-      roomId,
+      id: `hist_${targetRoomId}_${Date.now()}`,
+      roomId: targetRoomId,
       gameType: 'ROULETTE',
-      title: roulettePresetTitle,
+      title: roulettePresetTitleRef.current,
       dateStr: new Date().toISOString().slice(0, 10),
       timestamp: Date.now(),
-      participantsCount: rouletteItems.length,
+      participantsCount: rouletteItemsRef.current.length,
       winnerSummary,
       closedAt: Date.now(),
       data: {
-        roulettePresetTitle,
-        rouletteItems,
-        selectedWinner: selectedRouletteWinner,
+        roulettePresetTitle: roulettePresetTitleRef.current,
+        rouletteItems: rouletteItemsRef.current,
+        selectedWinner: winnerToUse,
       },
     });
 
@@ -500,16 +814,43 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       channelRef.current.send(
         {
           type: 'CLOSE_ROOM',
-          finalResult: selectedRouletteWinner,
+          finalResult: winnerToUse,
         },
-        hostToken
+        hostTokenToUse
       );
+      channelRef.current.close();
+      channelRef.current = null;
     }
 
-    showToast('🔒 룰렛 게임이 종료되었습니다. 초대 링크가 폐기되었으며 당일 이력에 보관되었습니다.', 'info');
+    try {
+      window.sessionStorage.removeItem(`moabogo_host_token_${targetRoomId}`);
+    } catch (e) {
+      // ignore
+    }
+    setRoomId(null);
+    setHostToken(null);
+    hostTokenRef.current = null;
+    setIsRoomHost(false);
+    isRoomClosedRef.current = false;
+    setIsRoomClosed(false);
+    setConnectedClients(1);
+    onRoomModeChange?.(false, false);
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    url.searchParams.delete('host');
+    window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+
+    showToastRef.current('🔒 룰렛 게임이 종료되었습니다. 초대 링크가 폐기되었으며 개인 게임 모드로 전환되었습니다.', 'info');
   };
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = useCallback(() => {
+    clearSpinTimer();
+    isSpinningRef.current = false;
+    setIsSpinning(false);
+    setIsGuestCloseNoticeOpen(false);
+    setIsShareModalOpen(false);
+
     if (roomId) {
       try {
         window.sessionStorage.removeItem(`moabogo_host_token_${roomId}`);
@@ -518,20 +859,31 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       }
     }
     if (roomId && channelRef.current) {
+      if (!isRoomClosedRef.current) {
+        channelRef.current.send({ type: 'LEAVE_ROOM', tabId: currentTabId });
+      }
       channelRef.current.close();
       channelRef.current = null;
     }
     setRoomId(null);
     setHostToken(null);
+    hostTokenRef.current = null;
     setIsRoomHost(false);
+    isRoomClosedRef.current = false;
     setIsRoomClosed(false);
     setConnectedClients(1);
+    onRoomModeChange?.(false, false);
+
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
     url.searchParams.delete('host');
     window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-    showToast('공유 게임에서 이탈하여 로컬 모드로 복귀했습니다.');
-  };
+    showToastRef.current('개인 플레이 모드로 전환되었습니다. 자유롭게 게임을 계속할 수 있습니다.', 'info');
+  }, [clearSpinTimer, currentTabId, onRoomModeChange, roomId]);
+
+  useEffect(() => {
+    onRegisterLeaveHandler?.(handleLeaveRoom);
+  }, [handleLeaveRoom, onRegisterLeaveHandler]);
 
   const handleApplyMembersToRoulette = () => {
     if (members.length < 2) {
@@ -541,14 +893,23 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     setSelectedRouletteWinner(null);
     setIsResultModalOpen(false);
     setRoulettePresetTitle('👥 참여 멤버 룰렛');
-    setRouletteItems(
-      members.map((m) => ({
-        id: m.id,
-        name: m.name,
-        avatar: m.avatar,
-        weight: Math.max(1, m.weight || 1),
-      }))
-    );
+    const mapped = members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      avatar: m.avatar,
+      weight: Math.max(1, m.weight || 1),
+    }));
+    setRouletteItems(mapped);
+    if (channelRef.current) {
+      channelRef.current.send(
+        {
+          type: 'SYNC_ROULETTE_ITEMS',
+          items: mapped,
+          presetTitle: '👥 참여 멤버 룰렛',
+        },
+        getHostToken()
+      );
+    }
     showToast(`참여 멤버 ${members.length}명이 룰렛 항목에 반영되었습니다.`);
   };
 
@@ -567,7 +928,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           type: 'SHUFFLE_ROULETTE_ITEMS',
           items: shuffled,
         },
-        hostToken
+        getHostToken()
       );
     }
     showToast('🎲 룰렛 항목 순서를 무작위로 섞었습니다!');
@@ -591,7 +952,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           items: newItems,
           presetTitle: preset.title,
         },
-        hostToken
+        getHostToken()
       );
     }
     showToast(`'${preset.title}' 프리셋이 적용되었습니다.`);
@@ -703,15 +1064,42 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   };
 
   const handleInstantResultInModal = () => {
-    const chosen = pickRandomRouletteItem(rouletteItems, totalRouletteWeight);
-    const { nextRotation } = calculateTargetRotation(chosen, rouletteSlices, rouletteRotation, true);
+    clearSpinTimer();
+    isSpinningRef.current = false;
+    setIsSpinning(false);
+    const itemsToUse = rouletteItemsRef.current;
+    const totalWeightToUse = itemsToUse.reduce((acc, it) => acc + Math.max(1, it.weight || 1), 0);
+    const slicesToUse = calculateRouletteSlices(itemsToUse, totalWeightToUse);
+    const chosen = pickRandomRouletteItem(itemsToUse, totalWeightToUse);
+    const { nextRotation } = calculateTargetRotation(chosen, slicesToUse, rouletteRotationRef.current, true);
     setRouletteTransitionDuration(0);
     setRouletteRotation(nextRotation);
+    rouletteRotationRef.current = nextRotation;
     setSelectedRouletteWinner(chosen);
+    selectedRouletteWinnerRef.current = chosen;
     showToast(`즉시 결과: '${chosen.name}'(이)가 당첨되었습니다!`);
-    if (excludeWinnerMode && rouletteItems.length > 2) {
-      setExcludedRouletteItems((prev) => [...prev, chosen]);
-      setRouletteItems((prev) => prev.filter((it) => it.id !== chosen.id));
+
+    let nextItems: RouletteSliceItem[] | undefined;
+    let nextExcluded: RouletteSliceItem[] | undefined;
+    if (excludeWinnerModeRef.current && itemsToUse.length > 2) {
+      nextExcluded = [...excludedRouletteItemsRef.current, chosen];
+      nextItems = itemsToUse.filter((it) => it.id !== chosen.id);
+      setExcludedRouletteItems(nextExcluded);
+      excludedRouletteItemsRef.current = nextExcluded;
+      setRouletteItems(nextItems);
+      rouletteItemsRef.current = nextItems;
+    }
+
+    if (isRoomHost && channelRef.current) {
+      channelRef.current.send(
+        {
+          type: 'ROULETTE_SPIN_COMPLETE',
+          winner: chosen,
+          items: nextItems,
+          excludedItems: nextExcluded,
+        },
+        getHostToken()
+      );
     }
   };
 
@@ -764,13 +1152,20 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             )}
             <button
               type="button"
+              disabled={isGuest}
               onClick={handleShareRoom}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                roomId
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-400/40'
-                  : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-indigo-400'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
+                isGuest
+                  ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-800 text-slate-400'
+                  : roomId
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-400/40 cursor-pointer'
+                  : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer'
               }`}
-              title="실시간 룰렛 다자간 방 공유 및 QR 코드 열기"
+              title={
+                isGuest
+                  ? '참가자 모드에서는 공유 링크를 생성할 수 없습니다 (방장 전용)'
+                  : '실시간 룰렛 다자간 방 공유 및 QR 코드 열기'
+              }
             >
               <Share2 className="w-3.5 h-3.5 text-indigo-500" />
               <span>{roomId ? '실시간 공유 / QR' : '다자간 방 만들기'}</span>
@@ -976,13 +1371,20 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
 
             <button
               type="button"
+              disabled={isGuest}
               onClick={handleShareRoom}
-              className={`p-2 rounded-xl border transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                roomId
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-400/30'
-                  : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600'
+              className={`p-2 rounded-xl border transition-all shadow-2xs ${
+                isGuest
+                  ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-800 text-slate-400'
+                  : roomId
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-400/30 cursor-pointer active:scale-95'
+                  : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600 cursor-pointer active:scale-95'
               }`}
-              title="실시간 다자간 방 공유 및 QR 코드 열기"
+              title={
+                isGuest
+                  ? '참가자 모드에서는 공유 링크를 생성할 수 없습니다 (방장 전용)'
+                  : '실시간 다자간 방 공유 및 QR 코드 열기'
+              }
               aria-label="실시간 방 공유"
             >
               <Share2 className="w-4 h-4" />
@@ -1027,19 +1429,26 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               >
                 <button
                   type="button"
+                  disabled={isGuest}
                   onClick={() => handleOpenIconPicker(item.id)}
-                  className="hover:scale-125 transition-transform cursor-pointer shrink-0"
-                  title="아이콘 변경"
+                  className={`transition-transform shrink-0 ${
+                    isGuest ? 'cursor-not-allowed opacity-80' : 'hover:scale-125 cursor-pointer'
+                  }`}
+                  title={isGuest ? '방장만 아이콘을 변경할 수 있습니다' : '아이콘 변경'}
                 >
                   {item.avatar}
                 </button>
                 <input
                   type="text"
                   value={item.name}
-                  onChange={(e) => handleUpdateItemName(item.id, e.target.value)}
+                  readOnly={isGuest}
+                  onChange={(e) => {
+                    if (isGuest) return;
+                    handleUpdateItemName(item.id, e.target.value);
+                  }}
                   placeholder={`항목${idx + 1}`}
                   className="bg-transparent border-b border-transparent hover:border-current focus:border-current outline-none text-xs font-bold w-16 sm:w-20 px-0.5 text-center transition-colors truncate"
-                  title="클릭하여 항목명 바로 수정"
+                  title={isGuest ? '방장만 항목명을 수정할 수 있습니다' : '클릭하여 항목명 바로 수정'}
                 />
                 <span className="text-[10px] opacity-60 font-mono shrink-0">{pct}%</span>
                 {/* 룰렛 가중치 인라인 조절 컨트롤 */}
@@ -1047,8 +1456,9 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
                   <div className="flex items-center gap-0.5 ml-0.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
+                      disabled={isGuest}
                       onClick={() => handleUpdateItemWeight(item.id, -1)}
-                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                       title="가중치 1 감소"
                       aria-label="1 감소"
                     >
@@ -1059,8 +1469,9 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
                     </span>
                     <button
                       type="button"
+                      disabled={isGuest}
                       onClick={() => handleUpdateItemWeight(item.id, 1)}
-                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform"
+                      className="p-0.5 rounded bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-600 dark:text-zinc-300 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                       title="가중치 1 증가"
                       aria-label="1 증가"
                     >
@@ -1108,7 +1519,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               <button
                 type="button"
                 disabled={isRoomClosed}
-                onClick={() => handleSpinRoulette(true)}
+                onClick={() => handleSpinRoulette(true, undefined, true)}
                 className={`py-3 px-4 rounded-xl border font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                   resolvedTheme === 'dawn'
                     ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
@@ -1260,6 +1671,58 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         resolvedTheme={resolvedTheme}
         isDark={isDark}
       />
+
+      {/* 방장이 게임을 종료했을 때 게스트 화면 인터랙션 알림 모달 */}
+      {isGuestCloseNoticeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-sm rounded-2xl border p-6 shadow-2xl flex flex-col items-center justify-center gap-4 text-center ${
+              resolvedTheme === 'dawn'
+                ? 'bg-white border-[#bfdbfe]'
+                : isDark
+                ? 'bg-[#1e1e22] border-[#2e2e34]'
+                : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center text-2xl">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-zinc-100">
+                방장이 게임을 종료하였습니다
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                방장이 공유 방을 마감하여 실시간 참여가 종료되었습니다.<br />
+                최종 결과를 확인하거나 <strong>[참여종료 및 혼자 게임 계속하기]</strong>로 현재 항목들과 함께 자유롭게 게임을 이어갈 수 있습니다.
+              </p>
+            </div>
+            <div className="w-full flex flex-col gap-2 pt-2">
+              {selectedRouletteWinner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGuestCloseNoticeOpen(false);
+                    setIsResultModalOpen(true);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md cursor-pointer transition-all"
+                >
+                  최종 결과 팝업 보기
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGuestCloseNoticeOpen(false);
+                  handleLeaveRoom();
+                }}
+                className="w-full py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs cursor-pointer transition-all shadow-2xs"
+              >
+                참여종료 및 혼자 게임 계속하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

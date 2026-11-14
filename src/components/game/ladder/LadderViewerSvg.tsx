@@ -117,7 +117,6 @@ export const LadderViewerSvg: React.FC<LadderViewerSvgProps> = ({
             strokeWidth="5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="animate-in fade-in"
           />
         )}
 
