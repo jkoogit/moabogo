@@ -332,6 +332,25 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           }
           break;
 
+        case 'UPDATE_ROULETTE_CONFIG':
+          if (typeof msg.useRouletteWeight === 'boolean') {
+            setUseRouletteWeight(msg.useRouletteWeight);
+            useRouletteWeightRef.current = msg.useRouletteWeight;
+            showToastRef.current(
+              msg.useRouletteWeight ? '⚖️ 룰렛 가중치 모드가 켜졌습니다.' : '⚖️ 룰렛 균등 모드로 변경되었습니다.',
+              'info'
+            );
+          }
+          if (typeof msg.excludeWinnerMode === 'boolean') {
+            setExcludeWinnerMode(msg.excludeWinnerMode);
+            excludeWinnerModeRef.current = msg.excludeWinnerMode;
+            showToastRef.current(
+              msg.excludeWinnerMode ? '🎯 당첨자 제외 모드가 켜졌습니다.' : '🎯 당첨자 제외 모드가 꺼졌습니다.',
+              'info'
+            );
+          }
+          break;
+
         case 'SYNC_ROULETTE_RESULT':
           setSelectedRouletteWinner(msg.winner);
           selectedRouletteWinnerRef.current = msg.winner;
@@ -471,43 +490,93 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     rouletteSlicesRef.current = rouletteSlices;
   }, [rouletteSlices]);
 
+  const broadcastRouletteItems = useCallback(
+    (newItems: RouletteSliceItem[], presetTitle?: string) => {
+      setRouletteItems(newItems);
+      rouletteItemsRef.current = newItems;
+      if (channelRef.current && isRoomHost) {
+        channelRef.current.send(
+          {
+            type: 'SYNC_ROULETTE_ITEMS',
+            items: newItems,
+            presetTitle: presetTitle || roulettePresetTitleRef.current,
+          },
+          getHostToken()
+        );
+      }
+    },
+    [getHostToken, isRoomHost, setRouletteItems]
+  );
+
+  const handleToggleRouletteWeight = useCallback(() => {
+    if (isGuest || isRoomClosed) return;
+    const nextVal = !useRouletteWeightRef.current;
+    setUseRouletteWeight(nextVal);
+    useRouletteWeightRef.current = nextVal;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'UPDATE_ROULETTE_CONFIG',
+          useRouletteWeight: nextVal,
+        },
+        getHostToken()
+      );
+    }
+  }, [getHostToken, isGuest, isRoomClosed, isRoomHost, setUseRouletteWeight]);
+
+  const handleToggleExcludeWinnerMode = useCallback(() => {
+    if (isGuest || isRoomClosed) return;
+    const nextVal = !excludeWinnerModeRef.current;
+    setExcludeWinnerMode(nextVal);
+    excludeWinnerModeRef.current = nextVal;
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'UPDATE_ROULETTE_CONFIG',
+          excludeWinnerMode: nextVal,
+        },
+        getHostToken()
+      );
+    }
+  }, [excludeWinnerModeRef, getHostToken, isGuest, isRoomClosed, isRoomHost, setExcludeWinnerMode]);
+
   const handleUpdateRouletteItemCount = (count: number) => {
     setSelectedRouletteWinner(null);
     setIsResultModalOpen(false);
-    setRouletteItems((prev) => {
-      const diff = count - prev.length;
-      if (diff === 0) return prev;
-      if (diff > 0) {
-        const added = Array.from({ length: diff }, (_, i) => {
-          const idx = prev.length + i + 1;
-          return {
-            id: `item_${Date.now()}_${idx}`,
-            name: `항목${idx}`,
-            avatar: '🎯',
-            weight: 1,
-          };
-        });
-        return [...prev, ...added];
-      }
-      return prev.slice(0, count);
-    });
+    const prev = rouletteItemsRef.current;
+    const diff = count - prev.length;
+    if (diff === 0) return;
+    let next: RouletteSliceItem[];
+    if (diff > 0) {
+      const added = Array.from({ length: diff }, (_, i) => {
+        const idx = prev.length + i + 1;
+        return {
+          id: `item_${Date.now()}_${idx}`,
+          name: `항목${idx}`,
+          avatar: '🎯',
+          weight: 1,
+        };
+      });
+      next = [...prev, ...added];
+    } else {
+      next = prev.slice(0, count);
+    }
+    broadcastRouletteItems(next);
   };
 
   const handleUpdateItemName = (id: string, name: string) => {
-    setRouletteItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, name } : it))
-    );
+    const next = rouletteItemsRef.current.map((it) => (it.id === id ? { ...it, name } : it));
+    broadcastRouletteItems(next);
   };
 
   const handleUpdateItemWeight = (id: string, delta: number) => {
-    setRouletteItems((prev) =>
-      prev.map((it) => {
-        if (it.id !== id) return it;
-        const current = it.weight || 1;
-        const next = Math.max(1, Math.min(10, current + delta));
-        return { ...it, weight: next };
-      })
-    );
+    const next = rouletteItemsRef.current.map((it) => {
+      if (it.id !== id) return it;
+      const current = it.weight || 1;
+      const nextW = Math.max(1, Math.min(10, current + delta));
+      return { ...it, weight: nextW };
+    });
+    broadcastRouletteItems(next);
   };
 
   const handleSpinRoulette = (
@@ -563,9 +632,8 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
       return;
     }
 
-    // 🔑 [호스트 주도 중계] 게스트는 SPIN_ROULETTE 수신 시 즉시 재시작 가능, 로컬 버튼 중복 클릭 방지
-    if (isSpinningRef.current && broadcast) return;
-
+    // 🔑 [호스트 주도 중계 & 중앙 버튼 연속 회전 보장]
+    // 회전 중 다시 누르면 이전 타이머를 취소하고 현재 각도 기준 새 랜덤 아이템 및 타겟 회전각으로 즉시 연속 회전
     clearSpinTimer();
 
     setSelectedRouletteWinner(null);
@@ -1045,21 +1113,23 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     if (iconPickerTargetId === 'new_item') {
       setNewItemIcon(icon);
     } else if (iconPickerTargetId) {
-      setRouletteItems((prev) =>
-        prev.map((it) => (it.id === iconPickerTargetId ? { ...it, avatar: icon } : it))
+      const next = rouletteItemsRef.current.map((it) =>
+        it.id === iconPickerTargetId ? { ...it, avatar: icon } : it
       );
+      broadcastRouletteItems(next);
     }
   };
 
   const handleAddNewItem = () => {
-    if (!newItemName.trim() || rouletteItems.length >= 20) return;
+    if (!newItemName.trim() || rouletteItemsRef.current.length >= 20) return;
     const item: RouletteSliceItem = {
       id: `item_custom_${Date.now()}`,
       name: newItemName.trim(),
       avatar: newItemIcon,
       weight: 1,
     };
-    setRouletteItems((prev) => [...prev, item]);
+    const next = [...rouletteItemsRef.current, item];
+    broadcastRouletteItems(next);
     setNewItemName('');
   };
 
@@ -1187,10 +1257,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             <button
               type="button"
               disabled={isGuest}
-              onClick={() => {
-                if (isGuest) return;
-                setUseRouletteWeight((prev) => !prev);
-              }}
+              onClick={handleToggleRouletteWeight}
               className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 ${
                 isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               } ${
@@ -1617,6 +1684,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         onClose={() => setIsSettingModalOpen(false)}
         items={rouletteItems}
         setItems={setRouletteItems}
+        onUpdateItems={broadcastRouletteItems}
         useWeight={useRouletteWeight}
         setUseWeight={setUseRouletteWeight}
         newItemName={newItemName}
@@ -1626,6 +1694,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         onAddItem={handleAddNewItem}
         resolvedTheme={resolvedTheme}
         isDark={isDark}
+        isGuest={isGuest}
         onSelectIconTrigger={handleOpenIconPicker}
       />
 
@@ -1652,6 +1721,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         onDownloadImageCard={handleDownloadImageCard}
         resolvedTheme={resolvedTheme}
         isDark={isDark}
+        isGuest={isGuest}
       />
 
       {/* 실시간 룰렛 다자간 방 공유 및 크로스 디바이스 QR 코드 모달 */}

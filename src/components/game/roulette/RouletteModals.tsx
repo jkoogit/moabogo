@@ -74,6 +74,7 @@ export interface RouletteItemSettingModalProps {
   onClose: () => void;
   items: RouletteSliceItem[];
   setItems: React.Dispatch<React.SetStateAction<RouletteSliceItem[]>>;
+  onUpdateItems?: (items: RouletteSliceItem[]) => void;
   useWeight: boolean;
   setUseWeight: React.Dispatch<React.SetStateAction<boolean>>;
   newItemName: string;
@@ -83,6 +84,7 @@ export interface RouletteItemSettingModalProps {
   onAddItem: () => void;
   resolvedTheme: string;
   isDark: boolean;
+  isGuest?: boolean;
   onSelectIconTrigger: (itemId: string) => void;
 }
 
@@ -91,29 +93,34 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
   onClose,
   items,
   setItems,
+  onUpdateItems,
   newItemName,
   setNewItemName,
   newItemIcon,
   onAddItem,
   resolvedTheme,
   isDark,
+  isGuest = false,
   onSelectIconTrigger,
 }) => {
   if (!isOpen) return null;
 
   const handleUpdateItemWeight = (id: string, delta: number) => {
-    setItems((prev) =>
-      prev.map((it) => {
-        if (it.id !== id) return it;
-        const nextW = Math.max(1, Math.min(10, (it.weight || 1) + delta));
-        return { ...it, weight: nextW };
-      })
-    );
+    if (isGuest) return;
+    const updated = items.map((it) => {
+      if (it.id !== id) return it;
+      const nextW = Math.max(1, Math.min(10, (it.weight || 1) + delta));
+      return { ...it, weight: nextW };
+    });
+    setItems(updated);
+    onUpdateItems?.(updated);
   };
 
   const handleRemoveItem = (id: string) => {
-    if (items.length <= 2) return;
-    setItems((prev) => prev.filter((it) => it.id !== id));
+    if (isGuest || items.length <= 2) return;
+    const updated = items.filter((it) => it.id !== id);
+    setItems(updated);
+    onUpdateItems?.(updated);
   };
 
   return (
@@ -141,36 +148,46 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
           </button>
         </div>
 
-        {/* 새 항목 추가 폼 */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onSelectIconTrigger('new_item')}
-            className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-base shrink-0 bg-slate-50 dark:bg-zinc-800 hover:scale-105 transition-transform"
-            title="새 항목 아이콘 변경"
-          >
-            {newItemIcon}
-          </button>
-          <input
-            type="text"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onAddItem();
-            }}
-            placeholder="추가할 항목명 입력..."
-            className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold outline-none focus:border-indigo-500"
-          />
-          <button
-            type="button"
-            onClick={onAddItem}
-            disabled={!newItemName.trim() || items.length >= 20}
-            className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 disabled:opacity-40 cursor-pointer"
-            title="항목 추가"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
+        {/* 게스트 모드 읽기 전용 안내 배너 */}
+        {isGuest && (
+          <div className="p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold flex items-center gap-2 shrink-0">
+            <span className="text-sm">🔒</span>
+            <span>참여자(게스트) 모드입니다. 항목 및 가중치는 방장만 변경할 수 있으며 실시간으로 동기화됩니다.</span>
+          </div>
+        )}
+
+        {/* 새 항목 추가 폼 (방장 전용) */}
+        {!isGuest && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => onSelectIconTrigger('new_item')}
+              className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-base shrink-0 bg-slate-50 dark:bg-zinc-800 hover:scale-105 transition-transform"
+              title="새 항목 아이콘 변경"
+            >
+              {newItemIcon}
+            </button>
+            <input
+              type="text"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onAddItem();
+              }}
+              placeholder="추가할 항목명 입력..."
+              className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold outline-none focus:border-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={onAddItem}
+              disabled={!newItemName.trim() || items.length >= 20}
+              className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 disabled:opacity-40 cursor-pointer"
+              title="항목 추가"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* 항목 목록 스크롤 뷰 */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
@@ -182,8 +199,11 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <button
                   type="button"
+                  disabled={isGuest}
                   onClick={() => onSelectIconTrigger(it.id)}
-                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-sm hover:scale-110 transition-transform shrink-0"
+                  className={`p-1 rounded bg-slate-100 dark:bg-zinc-800 text-sm shrink-0 ${
+                    isGuest ? 'cursor-default opacity-80' : 'hover:scale-110 transition-transform cursor-pointer'
+                  }`}
                 >
                   {it.avatar}
                 </button>
@@ -191,26 +211,30 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleUpdateItemWeight(it.id, -1)}
-                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:bg-slate-200"
-                >
-                  -
-                </button>
+                {!isGuest && (
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateItemWeight(it.id, -1)}
+                    className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:bg-slate-200 cursor-pointer"
+                  >
+                    -
+                  </button>
+                )}
                 <span className="text-xs font-bold font-mono px-1">{it.weight || 1}x</span>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateItemWeight(it.id, 1)}
-                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:bg-slate-200"
-                >
-                  +
-                </button>
-                {items.length > 2 && (
+                {!isGuest && (
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateItemWeight(it.id, 1)}
+                    className="p-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:bg-slate-200 cursor-pointer"
+                  >
+                    +
+                  </button>
+                )}
+                {!isGuest && items.length > 2 && (
                   <button
                     type="button"
                     onClick={() => handleRemoveItem(it.id)}
-                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors ml-1"
+                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors ml-1 cursor-pointer"
                     title="항목 삭제"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -226,7 +250,7 @@ export const RouletteItemSettingModal: React.FC<RouletteItemSettingModalProps> =
           onClick={onClose}
           className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer shrink-0"
         >
-          설정 완료
+          {isGuest ? '닫기' : '설정 완료'}
         </button>
       </div>
     </div>
@@ -308,6 +332,7 @@ export interface RouletteResultModalProps {
   onDownloadImageCard: () => void;
   resolvedTheme: string;
   isDark: boolean;
+  isGuest?: boolean;
 }
 
 export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
@@ -323,6 +348,7 @@ export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
   onDownloadImageCard,
   resolvedTheme,
   isDark,
+  isGuest = false,
 }) => {
   if (!isOpen || !winner) return null;
 
@@ -454,35 +480,43 @@ export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
             </div>
           </div>
 
-          {/* 2행: 재실행, 즉시결과, 닫기 버튼 (다음 줄로 표시) */}
+          {/* 2행: 재실행, 즉시결과, 닫기 버튼 (방장/게스트 권한 분기) */}
           <div className="flex items-center gap-2 pt-1 border-t border-black/5 dark:border-white/5">
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onSpinAgain();
-              }}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>재실행</span>
-            </button>
+            {isGuest ? (
+              <div className="flex-1 py-2 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[11px] font-bold text-center">
+                🎮 방장이 다시 돌리면 결과가 모든 화면에 자동 반영됩니다
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onSpinAgain();
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>재실행</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={onInstantResult}
-              className={`py-2.5 px-3 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                resolvedTheme === 'dawn'
-                  ? 'bg-amber-100/80 border-amber-300 text-amber-900 hover:bg-amber-200/80'
-                  : isDark
-                  ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/60'
-                  : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-              }`}
-              title="모달 내에서 즉시 새로운 당첨자 재추첨"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>즉시결과</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={onInstantResult}
+                  className={`py-2.5 px-3 rounded-xl border font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    resolvedTheme === 'dawn'
+                      ? 'bg-amber-100/80 border-amber-300 text-amber-900 hover:bg-amber-200/80'
+                      : isDark
+                      ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/60'
+                      : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                  }`}
+                  title="모달 내에서 즉시 새로운 당첨자 재추첨"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>즉시결과</span>
+                </button>
+              </>
+            )}
 
             <button
               type="button"
