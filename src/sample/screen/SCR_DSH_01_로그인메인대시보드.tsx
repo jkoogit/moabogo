@@ -8,7 +8,13 @@ import {
   ElmCnt01,
   ElmSld03,
   ElmFab01,
+  ElmToast01,
 } from '../elements/Tokens';
+import {
+  CartoonStackedBookObject,
+  getThicknessScale,
+  type LedgerBook,
+} from './SCR_LED_01_그룹가계부관리상세';
 import {
   Wallet,
   Sparkles,
@@ -28,6 +34,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   BookOpen,
+  Book,
   ArrowUpDown,
   Eye,
   EyeOff,
@@ -285,7 +292,52 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   });
 
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
-  const [bookshelfViewMode, setBookshelfViewMode] = useState<'GRID' | 'LIST'>('GRID');
+  const [floatingToast, setFloatingToast] = useState<string | null>(null);
+
+  // ExtendedLedgerInfo -> LedgerBook 어댑터 (장부책장 카툰 북 스택 1:1 동일 렌더링용, 요청 2번)
+  const asLedgerBook = (item: ExtendedLedgerInfo): LedgerBook => ({
+    id: item.ledger.ledger_id,
+    title: item.ledger.ledger_name,
+    type: item.ledger.ledger_type || 'PERSONAL',
+    periodType: 'LONG_TERM',
+    subType: 'STANDARD',
+    closingStatus: 'OPEN',
+    balance: item.total_asset || item.budget_total || 1000000,
+    currency: 'KRW',
+    description: `${item.last_item} (${item.tx_count}건)`,
+    designStyle:
+      item.accent_color === 'emerald'
+        ? 'LEATHER'
+        : item.accent_color === 'amber'
+        ? 'KRAFT'
+        : item.accent_color === 'purple'
+        ? 'VINTAGE_BURGUNDY'
+        : 'HARDCOVER',
+    colorTheme: {
+      bg:
+        item.accent_color === 'emerald'
+          ? 'from-emerald-900/10 via-emerald-800/5 to-transparent'
+          : item.accent_color === 'amber'
+          ? 'from-amber-900/10 via-amber-800/5 to-transparent'
+          : 'from-indigo-900/10 via-indigo-800/5 to-transparent',
+      border: 'border-indigo-600/40',
+      spineGrad:
+        item.accent_color === 'emerald'
+          ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-950 text-emerald-100'
+          : item.accent_color === 'amber'
+          ? 'bg-gradient-to-r from-amber-600 via-yellow-700 to-amber-900 text-yellow-100'
+          : 'bg-gradient-to-r from-indigo-800 via-blue-900 to-indigo-950 text-indigo-100',
+      labelBg: 'bg-indigo-950/80 border border-indigo-500/40',
+      labelText: 'text-indigo-300',
+      bookmarkColor: 'bg-indigo-500 text-white',
+      accent: 'text-indigo-600 dark:text-indigo-400',
+    },
+    membersCount: item.ledger.ledger_type === 'GROUP' ? 4 : 1,
+    createdAt: '2026-01-01',
+    settlementCycle: '매월 말일 결산',
+  });
+
+  const [bookshelfViewMode, setBookshelfViewMode] = useState<'GRID' | 'LIST' | 'SHELF'>('GRID');
   const [isBookshelfExpanded, setIsBookshelfExpanded] = useState<boolean>(true);
   const [isInboundExpanded, setIsInboundExpanded] = useState<boolean>(true);
   const [isFinancialExpanded, setIsFinancialExpanded] = useState<boolean>(true);
@@ -1000,56 +1052,53 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* ===================================================================
-          Top Header & Action Bar (SCR-LED-01 기준 상단 여백 축소 및 타이틀 정돈)
+          Top Header & Action Bar (화면타이틀 반응형 처리 표준 규칙 준수)
+          1행: 좌측 [타이틀 + SCR-DSH-01 뱃지] ↔ 우측 [검색 / 맞춤설정 / 환경설정]
+          2행: 화면 설명 문구 (버튼 다음 줄 전폭 줄바꿈 표시)
           =================================================================== */}
-      <div className="flex items-center justify-between gap-3 border-b pb-3 border-slate-200 dark:border-zinc-800">
-        <div className="flex items-center gap-2 min-w-0">
-          <ElmTyp01
-            title="메인 대시보드"
-            subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
-            className="min-w-0"
-          />
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold border border-slate-200 dark:border-zinc-700 shrink-0 opacity-70">
-            SCR-DSH-01
-          </span>
-        </div>
+      <div className="border-b pb-3 border-slate-200 dark:border-zinc-800">
+        <ElmTyp01
+          title="메인 대시보드"
+          badge="SCR-DSH-01"
+          subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
+          actions={
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenCommand && (
+                <button
+                  type="button"
+                  onClick={onOpenCommand}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                  title="검색 및 명령어 바 열기 (⌘K)"
+                >
+                  <Search className="w-4 h-4 text-slate-400" />
+                  <span className="hidden md:inline">검색 / 명령</span>
+                  <kbd className="hidden sm:inline font-mono text-[10px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                    ⌘K
+                  </kbd>
+                </button>
+              )}
 
-        {/* 툴바 액션: 검색, 맞춤설정, 환경설정 */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {onOpenCommand && (
-            <button
-              type="button"
-              onClick={onOpenCommand}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs"
-              title="검색 및 명령어 바 열기 (⌘K)"
-            >
-              <Search className="w-4 h-4 text-slate-400" />
-              <span className="hidden md:inline">검색 / 명령</span>
-              <kbd className="hidden sm:inline font-mono text-[10px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
-                ⌘K
-              </kbd>
-            </button>
-          )}
+              <button
+                type="button"
+                onClick={() => setIsCustomizeOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs whitespace-nowrap shrink-0"
+                title="대시보드 위젯 및 배치 설정"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-slate-500 shrink-0" />
+                <span className="hidden sm:inline">맞춤 설정</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setIsCustomizeOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs"
-            title="대시보드 위젯 On/Off 및 배치 커스터마이징"
-          >
-            <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-            <span className="hidden sm:inline">맞춤 설정</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate && onNavigate('SCR-SET-01')}
-            className="p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
-            title="사용자 환경설정"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('SCR-SET-01')}
+                className="p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
+                title="사용자 환경설정"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          }
+        />
       </div>
 
       {/* 인라인 알림 배너 (Toast) */}
@@ -1100,8 +1149,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
-            <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
-              {/* 카드 / 목록 뷰어 전환 아이콘 버튼 (요청 3번) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto self-end sm:self-auto shrink-0 flex-wrap">
+              {/* 카드 / 목록 / 책장 뷰어 전환 아이콘 버튼 (요청 5-c) */}
               <div
                 className={`flex items-center p-0.5 rounded-lg border ${
                   resolvedTheme === 'dawn'
@@ -1143,13 +1192,29 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 >
                   <List className="w-3.5 h-3.5" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setBookshelfViewMode('SHELF')}
+                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                    bookshelfViewMode === 'SHELF'
+                      ? resolvedTheme === 'dawn'
+                        ? 'bg-[#1b2b54] text-indigo-300 shadow-2xs font-bold'
+                        : isDark
+                        ? 'bg-zinc-700 text-indigo-400 shadow-2xs font-bold'
+                        : 'bg-white text-indigo-600 shadow-2xs font-bold'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                  }`}
+                  title="책장 뷰어 (카툰 북 더미 & 책등)"
+                >
+                  <Book className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* 새 가계부 버튼 */}
               <button
                 type="button"
                 onClick={() => setIsNewLedgerOpen(true)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer border shadow-2xs ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer border shadow-2xs whitespace-nowrap shrink-0 ${
                   resolvedTheme === 'dawn'
                     ? 'bg-[#1b2b54] text-indigo-300 border-[#2a437e] hover:bg-[#233768]'
                     : isDark
@@ -1158,7 +1223,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                 }`}
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>새 가계부</span>
+                <span className="hidden xs:inline">새 가계부</span>
+                <span className="xs:hidden">추가</span>
               </button>
 
               {/* 표준 아코디언 토글 버튼 */}
@@ -1500,6 +1566,97 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   </table>
                 </div>
               )}
+
+              {/* 3.3 책장 뷰어 (SHELF Mode - SCR-LED-01 1:1 정품 카툰 북 스택 오브젝트 렌더링, 요청 2번) */}
+              {bookshelfViewMode === 'SHELF' && (
+                <div className="pt-4 pb-3 px-1 sm:px-3">
+                  <div className="max-h-[500px] overflow-y-auto pl-1 pr-1 sm:px-3 pt-3 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden scroll-smooth">
+                    {sortedLedgers.map((item, idx) => {
+                      const book = asLedgerBook(item);
+                      const maxBal = Math.max(...sortedLedgers.map((l) => l.total_asset || l.budget_total || 1), 1);
+                      const thickness = getThicknessScale(book.balance, maxBal);
+                      const isCurrent = item.ledger.ledger_id === currentLedgerId;
+
+                      return (
+                        <div
+                          key={item.ledger.ledger_id}
+                          className={`relative select-none group/row transition-all duration-200 ease-out flex items-center gap-2 sm:gap-3 ${
+                            idx > 0 ? '-mt-[28px] xs:-mt-[30px] sm:-mt-[22px]' : ''
+                          }`}
+                          style={{
+                            zIndex: isCurrent ? 50 : sortedLedgers.length - idx + 10,
+                          }}
+                        >
+                          {/* 좌측 선택 및 순번 배지 핸들 */}
+                          <div
+                            onClick={() => {
+                              setCurrentLedgerId(item.ledger.ledger_id);
+                              if (onNavigate) {
+                                localStorage.setItem('moabogo_selected_ledger_id', item.ledger.ledger_id);
+                                localStorage.setItem('moabogo_bookshelf_close_mode', 'true');
+                                onNavigate('SCR-LED-01');
+                              }
+                            }}
+                            className={`shrink-0 w-8.5 sm:w-10 rounded-xl border-2 shadow-xs flex flex-col items-center justify-center gap-0.5 select-none cursor-pointer transition-all hover:scale-105 ${
+                              isCurrent
+                                ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                                : 'border-stone-300 dark:border-zinc-700 bg-white dark:bg-zinc-850 text-stone-400 hover:border-indigo-400'
+                            }`}
+                            style={{
+                              height: `${Math.round(40 * Math.min(1.4, thickness))}px`,
+                              minHeight: '38px',
+                              maxHeight: '62px',
+                            }}
+                            title={isCurrent ? '현재 선택된 가계부' : '클릭하여 선택 및 장부 관리 상세로 이동'}
+                          >
+                            <Book className="w-4 h-4 stroke-[2.2]" />
+                            <span className="text-[8.5px] font-black font-mono">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                          </div>
+
+                          {/* 책 이미지 본체 (SCR-LED-01 CartoonStackedBookObject 정품 렌더링) */}
+                          <div className="flex-1 min-w-0">
+                            <CartoonStackedBookObject
+                              book={book}
+                              idx={idx}
+                              total={sortedLedgers.length}
+                              thicknessScale={thickness}
+                              isSelected={isCurrent}
+                              onSelect={() => {
+                                setCurrentLedgerId(item.ledger.ledger_id);
+                                if (onNavigate) {
+                                  localStorage.setItem('moabogo_selected_ledger_id', item.ledger.ledger_id);
+                                  localStorage.setItem('moabogo_bookshelf_close_mode', 'true');
+                                  onNavigate('SCR-LED-01');
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 하단 책장 상세 화면 진입 가이드 */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-slate-400">
+                      카툰 책을 클릭하면 해당 장부 집중(책장닫기) 모드로 상세화면에 진입합니다.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('moabogo_bookshelf_close_mode', 'false');
+                        if (onNavigate) onNavigate('SCR-LED-01');
+                      }}
+                      className="inline-flex items-center gap-1 font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer text-xs whitespace-nowrap shrink-0"
+                    >
+                      <span>장부책장 전체보기</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -1751,7 +1908,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             ================================================================= */}
         {isEnabled('financial_brief') && (
           <div
-            className={`lg:col-span-2 p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
+            className={`lg:col-span-2 p-3.5 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -1761,18 +1918,18 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           >
             <div>
               <div className="flex items-center justify-between gap-2 flex-wrap mb-3.5">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
                     <Wallet className="w-4 h-4" />
                   </span>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      순수 생활비
-                      <span className="text-[11px] font-normal text-slate-400">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                      <span className="whitespace-nowrap">순수 생활비</span>
+                      <span className="text-[11px] font-normal text-slate-400 truncate">
                         ({activeLedgerData.ledger.ledger_name})
                       </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-400 truncate hidden xs:block">
                       계좌 간 단순 이동(TRANSFER) 분리 및 당월 순수 소비 현황
                     </p>
                   </div>
@@ -1799,13 +1956,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
               {isFinancialExpanded && (
                 <>
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <span className="text-3xl font-black tracking-tight font-mono text-slate-900 dark:text-white">
+                      <span className="text-2xl sm:text-3xl font-black tracking-tight font-mono text-slate-900 dark:text-white whitespace-nowrap block">
                         ₩{activeLedgerData.spent_amount.toLocaleString()}
                       </span>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        당월 예산 ₩{activeLedgerData.budget_total.toLocaleString()} 중{' '}
+                      <p className="text-[11px] text-slate-400 mt-1 break-keep">
+                        당월 예산 <span className="font-mono whitespace-nowrap">₩{activeLedgerData.budget_total.toLocaleString()}</span> 중{' '}
                         <strong className="text-emerald-500 font-mono">
                           {Math.round(
                             (activeLedgerData.spent_amount / activeLedgerData.budget_total) * 100
@@ -1844,15 +2001,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         ? 'bg-zinc-900/60 border-zinc-800'
                         : 'bg-slate-50 border-slate-100'
                     }`}>
-                      <div className="flex justify-between font-medium">
-                        <span className="text-slate-500 dark:text-zinc-400">총 자산 잔액</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-zinc-100">
+                      <div className="flex justify-between font-medium items-baseline gap-2">
+                        <span className="text-slate-500 dark:text-zinc-400 whitespace-nowrap shrink-0">총 자산 잔액</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-zinc-100 whitespace-nowrap">
                           ₩{activeLedgerData.total_asset.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between font-medium">
-                        <span className="text-slate-500 dark:text-zinc-400">순수 당월 수입</span>
-                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      <div className="flex justify-between font-medium items-baseline gap-2">
+                        <span className="text-slate-500 dark:text-zinc-400 whitespace-nowrap shrink-0">순수 당월 수입</span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                           +₩{activeLedgerData.income_amount.toLocaleString()}
                         </span>
                       </div>
@@ -1864,15 +2021,15 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                           ? 'border-zinc-800'
                           : 'border-slate-200'
                       }`}>
-                        <div className="flex justify-between items-baseline font-medium">
-                          <span className="text-amber-700 dark:text-amber-400 text-[11px] font-bold">
-                            자산이체(용돈·저축 등)
+                        <div className="flex justify-between items-baseline font-medium gap-2">
+                          <span className="text-amber-700 dark:text-amber-400 text-[11px] font-bold whitespace-nowrap shrink-0">
+                            자산이체(용돈·저축)
                           </span>
-                          <span className="font-mono font-black text-sm text-amber-700 dark:text-amber-400">
+                          <span className="font-mono font-black text-xs sm:text-sm text-amber-700 dark:text-amber-400 whitespace-nowrap">
                             ₩{activeLedgerData.asset_transfer_amount.toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 leading-tight">
+                        <p className="text-[10px] text-slate-400 leading-tight break-keep">
                           * 계좌 간 단순 이동(TRANSFER)으로 순수 생활비 지출 통계에서 안전하게 분리 제외됨
                         </p>
                       </div>
@@ -2766,7 +2923,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  대시보드 위젯 및 배치 커스터마이징
+                  대시보드 위젯 및 배치 설정
                 </h3>
               </div>
               <button
@@ -2778,10 +2935,10 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </button>
             </div>
 
-            {/* 프리셋 버튼 */}
+            {/* 프리셋 버튼 (추천 프리셋, 요청 3-a-ii) */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400">
-                라이프스타일 원클릭 프리셋
+                추천 프리셋
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
@@ -2806,43 +2963,75 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
-            {/* 모듈별 On/Off & 정렬 리스트 */}
+            {/* 상세설정 (위젯 On/Off 체크박스 및 노출 순서, 요청 1-c, 1-d, 1-e) */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400">
-                위젯 On/Off 및 노출 순서
-              </label>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                    상세설정
+                  </label>
+                  {/* 전체항목 체크박스 (요청 1-c) */}
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-zinc-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={modules.length > 0 && modules.every((m) => m.enabled)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setModules((prev) => prev.map((m) => ({ ...m, enabled: checked })));
+                      }}
+                      className="w-3.5 h-3.5 rounded border-slate-300 dark:border-zinc-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span>전체</span>
+                  </label>
+                  {/* 초기화 아이콘 (요청 1-d) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModules(DEFAULT_MODULES);
+                      setCurrentPreset('DEFAULT');
+                      localStorage.removeItem(STORAGE_KEY);
+                      setFloatingToast('대시보드 배치가 기본값으로 초기화되었습니다.');
+                    }}
+                    className="p-1 rounded-md text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                    title="대시보드 배치 초기화"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  체크박스로 위젯 노출 제어
+                </span>
+              </div>
               <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                 {modules.map((m, idx) => (
                   <div
                     key={m.id}
                     className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-850/50"
                   >
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleModule(m.id)}
-                        className={`p-1 rounded-md transition-colors cursor-pointer ${
-                          m.enabled
-                            ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60'
-                            : 'text-slate-300 dark:text-zinc-600'
-                        }`}
-                      >
-                        {m.enabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                      </button>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900 dark:text-white">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* 체크박스 단독 제어 (눈 아이콘 제거, 요청 1-e) */}
+                      <input
+                        type="checkbox"
+                        id={`widget-chk-${m.id}`}
+                        checked={m.enabled}
+                        onChange={() => toggleModule(m.id)}
+                        className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                      />
+                      <label htmlFor={`widget-chk-${m.id}`} className="cursor-pointer min-w-0">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                           {m.title}
                         </div>
-                        <div className="text-[10px] text-slate-400">{m.description}</div>
-                      </div>
+                        <div className="text-[10px] text-slate-400 truncate">{m.description}</div>
+                      </label>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => moveModule(idx, 'UP')}
                         disabled={idx === 0}
                         className="p-1 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 cursor-pointer"
+                        title="위로 이동"
                       >
                         ▲
                       </button>
@@ -2851,6 +3040,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                         onClick={() => moveModule(idx, 'DOWN')}
                         disabled={idx === modules.length - 1}
                         className="p-1 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 cursor-pointer"
+                        title="아래로 이동"
                       >
                         ▼
                       </button>
@@ -2860,19 +3050,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-2">
+            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end items-center gap-2">
+              {/* 저장완료 버튼 옆 '닫기' 버튼 (요청 1-b) */}
               <button
                 type="button"
-                onClick={() => {
-                  setModules(DEFAULT_MODULES);
-                  setCurrentPreset('DEFAULT');
-                  localStorage.removeItem(STORAGE_KEY);
-                  showToast('대시보드 배치를 기본값으로 초기화했습니다.');
-                }}
-                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                onClick={() => setIsCustomizeOpen(false)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700 cursor-pointer transition-colors"
               >
-                초기화
+                닫기
               </button>
+              {/* 저장 완료 및 플로팅 팝업 표시 (요청 1-a) */}
               <button
                 type="button"
                 onClick={() => {
@@ -2881,9 +3068,9 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                     JSON.stringify({ preset: currentPreset, modules })
                   );
                   setIsCustomizeOpen(false);
-                  showToast('대시보드 맞춤 설정이 영속 저장되었습니다.');
+                  setFloatingToast('✓ 대시보드 위젯 및 배치 설정이 영속 저장되었습니다.');
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer shadow-xs"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer shadow-xs transition-colors"
               >
                 저장 완료
               </button>
@@ -3414,6 +3601,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           ]);
           showToast(`✓ [${newLedger.ledger_name}] 가계부가 책꽂이에 등록되었습니다.`);
         }}
+      />
+
+      {/* 10. 플로팅 토스트 알림 (ElmToast01, 요청 1-a) */}
+      <ElmToast01
+        message={floatingToast}
+        type="success"
+        onClose={() => setFloatingToast(null)}
       />
     </div>
   );

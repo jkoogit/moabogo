@@ -97,23 +97,23 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
             </button>
           </div>
 
-          {/* ① [상단] 공통 및 필수 항목 헤더 요약 바 (Top) */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* ① [상단] 공통 및 필수 항목 헤더 요약 바 (Top, 360px 반응형 최적화) */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
                 <span className="text-[11px] text-slate-400 block font-medium">최종 대사 확정 금액</span>
-                <div className="text-2xl font-black font-mono text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>₩{selectedTx.amount.toLocaleString()}원</span>
+                <div className="text-xl sm:text-2xl font-black font-mono text-slate-900 dark:text-white flex flex-wrap items-baseline gap-2">
+                  <span className="whitespace-nowrap shrink-0">₩{selectedTx.amount.toLocaleString()}원</span>
                   {selectedTx.statementDiscount && selectedTx.statementDiscount > 0 && (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800">
+                    <span className="text-[10.5px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap shrink-0">
                       카드사 청구할인 -₩{selectedTx.statementDiscount.toLocaleString()} 반영됨
                     </span>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>대사 수렴 상태: {selectedTx.reconciliationStatus || 'CONFIRMED'}</span>
                 </span>
               </div>
@@ -121,25 +121,25 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
 
             {/* 필수 메타데이터 4열 그리드 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pt-2 border-t border-slate-200 dark:border-zinc-700/60">
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-slate-400 block font-medium">승인 및 결제일시</span>
-                <span className="font-bold text-slate-800 dark:text-zinc-200">{selectedTx.date}</span>
+                <span className="font-bold text-slate-800 dark:text-zinc-200 truncate block">{selectedTx.date}</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-slate-400 block font-medium">표준 카테고리</span>
-                <span className="font-bold text-slate-800 dark:text-zinc-200">{selectedTx.category}</span>
+                <span className="font-bold text-slate-800 dark:text-zinc-200 truncate block">{selectedTx.category}</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-slate-400 block font-medium">결제자 / 수단</span>
-                <span className="font-bold text-slate-800 dark:text-zinc-200">
+                <span className="font-bold text-slate-800 dark:text-zinc-200 truncate block">
                   {selectedTx.payerName}
                   {selectedTx.statementCardName ? ` (${selectedTx.statementCardName})` : ''}
                 </span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-slate-400 block font-medium">단방향 장부 귀속</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                  {currentLedger.title} (기준참조)
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate block">
+                  {currentLedger.title}
                 </span>
               </div>
             </div>
@@ -202,33 +202,30 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
                 <button
                   type="button"
                   onClick={() => setDetailProofFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                    detailProofFilter === 'ALL'
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${detailProofFilter === 'ALL'
                       ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
-                  }`}
+                    }`}
                 >
                   전체보기 ({proofs.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setDetailProofFilter('STATEMENT')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                    detailProofFilter === 'STATEMENT'
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${detailProofFilter === 'STATEMENT'
                       ? 'bg-indigo-600 text-white shadow-2xs'
                       : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
-                  }`}
+                    }`}
                 >
                   명세보기
                 </button>
                 <button
                   type="button"
                   onClick={() => setDetailProofFilter('RECEIPT')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                    detailProofFilter === 'RECEIPT'
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${detailProofFilter === 'RECEIPT'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400'
-                  }`}
+                    }`}
                 >
                   영수보기
                 </button>
@@ -247,23 +244,21 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
                     <div
                       key={prf.id}
                       onClick={() => setSelectedProofItemId(prf.id)}
-                      className={`p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                        isSelected
+                      className={`p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-all ${isSelected
                           ? 'bg-indigo-50/90 dark:bg-indigo-950/40 border-l-4 border-indigo-600'
                           : 'hover:bg-slate-50/80 dark:hover:bg-zinc-800/40'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold ${
-                            prf.type === 'STATEMENT_LINE'
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold ${prf.type === 'STATEMENT_LINE'
                               ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
                               : prf.type === 'RECEIPT_OCR'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                              : prf.type === 'SMS_NOTIFICATION'
-                              ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                          }`}
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                : prf.type === 'SMS_NOTIFICATION'
+                                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                            }`}
                         >
                           {prf.type === 'STATEMENT_LINE' ? (
                             <CreditCard className="w-4 h-4" />
@@ -293,10 +288,10 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
                               {prf.type === 'STATEMENT_LINE'
                                 ? '명세서수집'
                                 : prf.type === 'RECEIPT_OCR'
-                                ? '영수보기'
-                                : prf.type === 'SMS_NOTIFICATION'
-                                ? '승인문자'
-                                : '영수보기'}
+                                  ? '영수보기'
+                                  : prf.type === 'SMS_NOTIFICATION'
+                                    ? '승인문자'
+                                    : '영수보기'}
                             </span>
                             {isSelected && (
                               <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-black shrink-0 whitespace-nowrap">
@@ -476,9 +471,8 @@ export const LedgerProofReconcileModal: React.FC<LedgerProofReconcileModalProps>
                               <td className="p-2 text-right font-mono text-slate-500">
                                 ₩{item.unitPrice.toLocaleString()}
                               </td>
-                              <td className={`p-2 text-right font-mono font-bold ${
-                                item.totalPrice < 0 ? 'text-emerald-600' : 'text-slate-900 dark:text-white'
-                              }`}>
+                              <td className={`p-2 text-right font-mono font-bold ${item.totalPrice < 0 ? 'text-emerald-600' : 'text-slate-900 dark:text-white'
+                                }`}>
                                 ₩{item.totalPrice.toLocaleString()}
                               </td>
                             </tr>

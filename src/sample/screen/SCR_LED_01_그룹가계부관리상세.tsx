@@ -404,7 +404,7 @@ export const SAMPLE_RECEIPTS = [
   },
 ];
 
-interface CartoonBookObjectProps {
+export interface CartoonBookObjectProps {
   book: LedgerBook;
   idx: number; // 0 = 맨 위 책, total-1 = 맨 아래 책
   total: number;
@@ -415,7 +415,7 @@ interface CartoonBookObjectProps {
   isDragOver?: boolean;
 }
 
-function adjustBrightness(hex: string, percent: number): string {
+export function adjustBrightness(hex: string, percent: number): string {
   const cleanHex = hex.replace('#', '');
   if (cleanHex.length !== 6) return hex;
   const num = parseInt(cleanHex, 16);
@@ -426,7 +426,13 @@ function adjustBrightness(hex: string, percent: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
+export function getThicknessScale(balance: number, maxBal: number): number {
+  if (maxBal <= 0) return 1.0;
+  const ratio = Math.max(0, Math.min(1, Math.abs(balance) / maxBal));
+  return 1.0 + ratio * 1.0;
+}
+
+export const CartoonStackedBookObject: React.FC<CartoonBookObjectProps> = ({
   book,
   idx,
   total,
@@ -1191,13 +1197,6 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
     return Math.max(...ledgers.map((l) => Math.abs(l.balance)), 1);
   }, [ledgers]);
 
-  // 상대 금액에 따른 두께 스케일: 최대 금액 장부는 정확히 2.0배(2배 두께), 최소/0원은 1.0배
-  const getThicknessScale = (balance: number, maxBal: number) => {
-    if (maxBal <= 0) return 1.0;
-    const ratio = Math.max(0, Math.min(1, Math.abs(balance) / maxBal));
-    return 1.0 + ratio * 1.0;
-  };
-
   // --------------------------------------------------------------------------
   // --------------------------------------------------------------------------
   // 1-2. 상단 뱃지 선택에 따른 장부 유형 필터 상태 (전체/개인/장기/단기 다중 필터)
@@ -1250,8 +1249,28 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
 
   // --------------------------------------------------------------------------
   // 1-3. 책장 열기/닫기 토글 상태 (닫으면 현재 선택된 장부 1권만 표시)
+  // 대시보드(SCR-DSH-01)에서 특정 장부 선택 진입 시 책장닫기 모드로 자동 연동 (요청 5-e)
   // --------------------------------------------------------------------------
-  const [isBookshelfOpen, setIsBookshelfOpen] = useState<boolean>(true);
+  const [isBookshelfOpen, setIsBookshelfOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const closeMode = localStorage.getItem('moabogo_bookshelf_close_mode');
+      if (closeMode === 'true') {
+        localStorage.removeItem('moabogo_bookshelf_close_mode');
+        return false;
+      }
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const selectedId = localStorage.getItem('moabogo_selected_ledger_id');
+      if (selectedId) {
+        localStorage.removeItem('moabogo_selected_ledger_id');
+        setActiveLedgerId(selectedId);
+      }
+    }
+  }, []);
 
   // 실제로 책장에 표시할 장부 목록 (책장이 닫히면 선택된 장부만 표시)
   const displayedLedgers = useMemo(() => {
@@ -2986,95 +3005,114 @@ export const SCR_LED_01_그룹가계부관리상세: React.FC<SCR_LED_01_Props> 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 landscape:p-3 space-y-4 sm:space-y-5 landscape:space-y-3 bg-slate-50 dark:bg-zinc-950 min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
       {/* ==================================================================== */}
-      {/* 1. 표준 상단 헤더 (Section 1 Header: ElmTyp01 & SCR-LED-01 뱃지) */}
+      {/* 1. 표준 상단 헤더 (화면타이틀 반응형 처리 표준 규칙 준수) */}
       {/* ==================================================================== */}
-      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3.5 border-slate-200 dark:border-zinc-800">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <ElmTyp01
-            title="통합 장부 · 지출내역 종합관리"
-            badge="SCR-LED-01"
-            subtitle="장부 책장 & 3대 뷰(타임라인/카테고리/캘린더) & SSOT 원장 관리"
-            className="min-w-0"
-          />
-        </div>
-
-        {/* 상단 퀵 액션 */}
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setNewLedgerModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95"
-            title="새 장부 개설하기"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>새 장부 개설</span>
-          </button>
-        </div>
+      <section className="border-b pb-3.5 border-slate-200 dark:border-zinc-800">
+        <ElmTyp01
+          title="통합 장부 · 지출내역 종합관리"
+          badge="SCR-LED-01"
+          subtitle="장부 책장 & 3대 뷰(타임라인/카테고리/캘린더) & SSOT 원장 관리"
+          actions={
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setNewLedgerModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95 whitespace-nowrap shrink-0"
+                title="새 장부 개설하기"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>새 장부 개설</span>
+              </button>
+            </div>
+          }
+        />
       </section>
 
       {/* ==================================================================== */}
       {/* 2. 가계부 책꽂이: 사용자 이미지 기반 카툰 북 스택 (그림처럼 차곡차곡 쌓인 책 더미) */}
       {/* ==================================================================== */}
       <div className="relative pt-0 pb-2 sm:pt-0 sm:pb-3 landscape:py-1 px-1 sm:px-4">
-        {/* 상단 장부책장 반응형 헤더 (1행: 타이틀 + 우측 컨트롤러 / 2행: 장부구분 필터 슬라이더) */}
+        {/* 상단 장부책장 반응형 헤더 (모바일 360px 맞춤 2단 정렬 및 터치영역 확보) */}
         <div className="space-y-2 pb-2 mb-1.5 border-b border-stone-200 dark:border-stone-800">
-          {/* 1행: 타이틀 및 우측 제어 컨트롤러 ([+ 새 장부] [건수] [책장 열기/닫기] [▲▼ 방향]) */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            {/* 타이틀 */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
-                장부책장
-              </span>
+          {/* 1행: 타이틀 및 컨트롤러 (모바일: 타이틀+건수 & 스크롤버튼 / sm: 1열 전체배치) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
+            {/* 타이틀 및 건수 뱃지 */}
+            <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 font-sans tracking-tight">
+                  장부책장
+                </span>
+                <span
+                  className="text-[11px] sm:text-xs font-mono px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
+                  title="현재 노출된 장부 건수 / 전체 건수"
+                >
+                  {(() => {
+                    const totalCount = ledgers.length;
+                    const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
+                    return currentDisplayedCount === totalCount ? `${totalCount}건` : `${currentDisplayedCount}/${totalCount}건`;
+                  })()}
+                </span>
+              </div>
+
+              {/* 모바일에서만 우측에 표시되는 방향 이동 버튼 (스택 스크롤) */}
+              {isBookshelfOpen && visibleLedgers.length > 1 && (
+                <div className="flex sm:hidden items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollBooks('UP')}
+                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+                    title="스택 위로 스크롤"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollBooks('DOWN')}
+                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+                    title="스택 아래로 스크롤"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* 통합 우측 제어 컨트롤러 */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* 새 장부 등록 버튼 */}
+            {/* 통합 컨트롤러 (모바일: 2행 가로 100% 2단 분할 버튼 / sm: 인라인 우측 정렬) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+              {/* 새 장부 등록 버튼 (모바일 min-h-[38px] 터치 영역 보장) */}
               <button
                 type="button"
                 onClick={() => setNewLedgerModalOpen(true)}
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95 min-h-[36px]"
                 title="새 장부 개설하기"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>새 장부</span>
               </button>
 
-              {/* 건수 뱃지 */}
-              <span
-                className="text-[11px] sm:text-xs font-mono px-2 sm:px-2.5 py-1 rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-black shadow-2xs whitespace-nowrap"
-                title="현재 노출된 장부 건수 / 전체 건수"
-              >
-                {(() => {
-                  const totalCount = ledgers.length;
-                  const currentDisplayedCount = isBookshelfOpen ? visibleLedgers.length : 1;
-                  return currentDisplayedCount === totalCount ? `${totalCount}건` : `${currentDisplayedCount}/${totalCount}건`;
-                })()}
-              </span>
-
-              {/* 책장 열기 / 닫기 버튼 */}
+              {/* 책장 열기 / 닫기 버튼 (모바일 min-h-[38px] 터치 영역 보장) */}
               <button
                 type="button"
                 onClick={() => setIsBookshelfOpen((prev) => !prev)}
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:py-1 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all shadow-2xs cursor-pointer select-none whitespace-nowrap active:scale-95 min-h-[36px]"
                 title={isBookshelfOpen ? "책장을 닫고 선택한 장부만 표시합니다" : "책장을 열어 전체 장부를 표시합니다"}
               >
                 {isBookshelfOpen ? (
                   <>
                     <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[2.2]" />
-                    <span className="hidden xs:inline sm:inline">책장 </span><span>닫기</span>
+                    <span>책장 닫기</span>
                   </>
                 ) : (
                   <>
                     <Book className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 stroke-[2.2]" />
-                    <span className="hidden xs:inline sm:inline">책장 </span><span>열기</span>
+                    <span>책장 열기</span>
                   </>
                 )}
               </button>
 
-              {/* 방향 이동 버튼 */}
+              {/* 데스크톱 방향 이동 버튼 */}
               {isBookshelfOpen && visibleLedgers.length > 1 && (
-                <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
+                <div className="hidden sm:flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-300 dark:border-stone-700 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => handleScrollBooks('UP')}
