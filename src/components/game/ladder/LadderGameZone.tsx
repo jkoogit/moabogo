@@ -17,6 +17,7 @@ import {
   Users,
   Lock,
   Smile,
+  HelpCircle,
 } from 'lucide-react';
 import {
   createLadderSyncChannel,
@@ -28,7 +29,7 @@ import {
   generateGameRoomId,
   buildRoomShareUrl,
 } from './ladderSyncChannel';
-import { ElmRng01 } from '../../../sample/elements/Tokens';
+import { ElmRng01, ElmSld03 } from '../../../sample/elements/Tokens';
 import { Participant, PRESET_CHARACTERS, loadUserGoalPresets, saveSharedGameHistory } from '../types';
 import {
   LadderRung,
@@ -245,6 +246,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
   const [isGuestCloseNoticeOpen, setIsGuestCloseNoticeOpen] = useState<boolean>(false);
+  const [showStoreHelp, setShowStoreHelp] = useState<boolean>(false);
   const channelRef = useRef<LadderChannelHandle | null>(null);
   const isRoomJoined = !!roomId;
   const isGuest = isRoomJoined && !isRoomHost;
@@ -2483,22 +2485,48 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
             : 'bg-slate-50 border-slate-200/80'
           }`}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">☕</span>
-          <div>
-            <h4 className="text-xs font-bold flex items-center gap-1.5">
-              <span>{selectedStore ? selectedStore.name : '매장 연동 사다리타기'}</span>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <span className="text-xl shrink-0">☕</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="text-xs font-bold flex items-center gap-1.5 shrink-0">
+              <span className="whitespace-nowrap">{selectedStore ? selectedStore.name : '매장 연동 사다리타기'}</span>
               {selectedStore && (
-                <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold">
+                <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold shrink-0">
                   주문서 자동 생성
                 </span>
               )}
             </h4>
-            <p className="text-[11px] text-slate-400">
-              {selectedStore
-                ? `${selectedStore.category} 메뉴가 연동되어 결제 당첨자 주문서가 산출됩니다.`
-                : '카페/음료 매장을 선택하면 각자 메뉴를 고르고 결제자를 사다리로 정할 수 있습니다.'}
-            </p>
+            {/* ? 아이콘 레이어드 팝업 */}
+            <div className="relative inline-flex items-center">
+              <button
+                type="button"
+                onClick={() => setShowStoreHelp((prev) => !prev)}
+                className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                title="매장 연동 안내"
+                aria-label="매장 연동 안내"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+              {showStoreHelp && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-72 max-w-[85vw] p-3 rounded-xl border shadow-xl bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-100 dark:border-zinc-800 font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                    <span>🏪 매장 연동 사다리타기 안내</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowStoreHelp(false)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p>
+                    {selectedStore
+                      ? `${selectedStore.category} 메뉴가 연동되어 사다리 결과에 따라 결제 당첨자 주문서가 산출됩니다.`
+                      : '카페/음료 매장을 선택하면 각자 메뉴를 고르고 결제자를 사다리로 정할 수 있습니다.'}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2552,7 +2580,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
                   }`}
                 title={isGuest ? '방장만 가중치를 제어할 수 있습니다' : '가중치 모드 토글'}
               >
-                <span>
+                <span className="whitespace-nowrap shrink-0">
                   {useLadderWeight
                     ? `가중치 ON (${members.filter((m) => (m.weight ?? 10) !== 10).length}명)`
                     : '가중치 OFF'}
@@ -2572,29 +2600,36 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
         {/* 퀵 액션 버튼 바: 속도 조절(모바일 줄바꿈 방지 슬라이드), 주사위 재배치, 셔플 */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap py-0.5 shrink min-w-0 max-w-full">
+          <div className="flex items-center gap-1.5 shrink min-w-0 max-w-full overflow-hidden">
             <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 shrink-0 flex items-center gap-1">
-              <span>속도:</span>
+              <span className="whitespace-nowrap">속도:</span>
               {isGuest && <Lock className="w-3 h-3 text-slate-400" />}
             </span>
-            {LADDER_SPEED_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={isGuest || isRoomClosed}
-                onClick={() => {
-                  if (isGuest || isRoomClosed) return;
-                  handleChangeLadderSpeed(opt.value);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest || isRoomClosed ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-                  } ${ladderSpeed === opt.value
-                    ? 'bg-indigo-600 text-white border-indigo-700'
-                    : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
-                  }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+            <ElmSld03
+              showNavButtons={false}
+              stepWidth={120}
+              className="min-w-0 flex-1"
+              innerClassName="flex items-center gap-1.5 py-0.5 whitespace-nowrap"
+            >
+              {LADDER_SPEED_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={isGuest || isRoomClosed}
+                  onClick={() => {
+                    if (isGuest || isRoomClosed) return;
+                    handleChangeLadderSpeed(opt.value);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest || isRoomClosed ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                    } ${ladderSpeed === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-700'
+                      : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </ElmSld03>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -2647,40 +2682,37 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           }`}
       >
         {/* 사다리 플레이존 타이틀 헤더 */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
+        <div className="w-full flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-200/80 dark:border-zinc-800">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2 text-slate-900 dark:text-zinc-100">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-              <span>사다리 플레이존</span>
+            <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-1.5 text-slate-900 dark:text-zinc-100 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+              <span className="whitespace-nowrap shrink-0">사다리 플레이존</span>
             </h3>
             {roomId && (
-              <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300">
+              <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
                 {roomId}
               </span>
             )}
             {isRoomClosed ? (
-              <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold border border-rose-200 dark:border-rose-900 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold border border-rose-200 dark:border-rose-900 flex items-center gap-1 shrink-0">
                 <Lock className="w-3 h-3" />
-                <span>종료됨 (초대 폐기)</span>
+                <span className="whitespace-nowrap">종료됨 (초대 폐기)</span>
               </span>
             ) : roomId ? (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>{connectedClients}명 동시 접속</span>
+                <span className="whitespace-nowrap">{connectedClients}명 동시 접속</span>
               </span>
             ) : null}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
             {roomId && isRoomHost && !isRoomClosed && (
               <button
                 type="button"
                 onClick={handleCloseRoom}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0"
                 title="초대 링크를 폐기하고 신규 유입을 차단합니다"
               >
                 <Lock className="w-3.5 h-3.5 text-rose-600" />
-                <span>게임 종료</span>
+                <span className="whitespace-nowrap">게임 종료</span>
               </button>
             )}
           </div>
@@ -2953,7 +2985,7 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
               <span className="text-[11px] text-slate-400">{members.length}명 전원 완료</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {members.map((m) => {
                 const res = ladderResult[m.id];
                 return (
