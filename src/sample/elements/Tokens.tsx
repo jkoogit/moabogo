@@ -37,30 +37,65 @@ import {
 } from 'lucide-react';
 
 /* =========================================================================
-   ELM-TYP-01 : 메인 타이틀 (수직 100% 중앙 정렬)
+   ELM-TYP-01 : 메인 타이틀 (수직 100% 중앙 정렬 & 화면타이틀 반응형 처리 표준 규칙 준수)
+   - 모바일(최소 360px): 1행에 [타이틀 + 뱃지] 및 [우측 액션 버튼들]을 배치하고,
+     설명 문구(subtitle)는 액션 버튼 다음 행(2행)으로 줄바꿈 분리하여 가로 폭 100% 가독성 확보
    ========================================================================= */
 export const ElmTyp01: React.FC<{
   title: string;
   badge?: string;
   subtitle?: string;
   className?: string;
-}> = ({ title, badge, subtitle, className = '' }) => (
-  <div className={`flex flex-col justify-center ${className}`}>
-    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-h-[32px]">
-      <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight leading-none flex items-center break-keep">
-        {title}
-      </h2>
-      {badge && (
-        <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800 leading-none whitespace-nowrap shrink-0">
-          {badge}
-        </span>
+  actions?: React.ReactNode;
+}> = ({ title, badge, subtitle, className = '', actions }) => {
+  if (actions) {
+    return (
+      <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 w-full ${className}`}>
+        {/* 1행 좌측: 타이틀 및 뱃지 */}
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight leading-none flex items-center break-keep">
+            {title}
+          </h2>
+          {badge && (
+            <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800 leading-none whitespace-nowrap shrink-0">
+              {badge}
+            </span>
+          )}
+        </div>
+
+        {/* 1행 우측: 액션 버튼 그룹 */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {actions}
+        </div>
+
+        {/* 2행: 화면 설명 문구 (버튼 다음 줄 전폭 줄바꿈 표시) */}
+        {subtitle && (
+          <p className="w-full text-xs text-slate-500 dark:text-zinc-400 mt-0.5 leading-normal break-keep">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex flex-col justify-center ${className}`}>
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-h-[32px]">
+        <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight leading-none flex items-center break-keep">
+          {title}
+        </h2>
+        {badge && (
+          <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800 leading-none whitespace-nowrap shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
+      {subtitle && (
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 leading-normal break-keep">{subtitle}</p>
       )}
     </div>
-    {subtitle && (
-      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 leading-normal break-keep">{subtitle}</p>
-    )}
-  </div>
-);
+  );
+};
 
 /* =========================================================================
    ELM-INP-01 : 일반 입력필드 (상시 X 클리어 버튼 내장, 수직 중앙 정렬)
@@ -2394,10 +2429,10 @@ export const ElmQck01: React.FC<{
               onOpenMoney();
               setIsExpanded(false);
             }}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer whitespace-nowrap shrink-0"
           >
             <Coins className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>빠른 머니 등록</span>
+            <span className="whitespace-nowrap shrink-0">빠른 머니 등록</span>
           </button>
 
           <button
@@ -2406,10 +2441,10 @@ export const ElmQck01: React.FC<{
               onOpenDuty();
               setIsExpanded(false);
             }}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all min-h-[44px] cursor-pointer whitespace-nowrap shrink-0"
           >
             <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
-            <span>빠른 수행 등록</span>
+            <span className="whitespace-nowrap shrink-0">빠른 수행 등록</span>
           </button>
         </div>
       )}
