@@ -629,8 +629,8 @@ export const SCR_GNT_01_비로그인게스트홈: React.FC<{
                 {gameType === 'LADDER' && '🪜'}
                 {gameType === 'ROULETTE' && '🎯'}
               </span>
-              <h3 className="text-base sm:text-lg font-bold tracking-tight leading-none flex items-center gap-2">
-                <span>
+              <h3 className="text-base sm:text-lg font-bold tracking-tight leading-none flex items-center gap-2 flex-wrap">
+                <span className="whitespace-nowrap shrink-0">
                   {gameType === 'SPLIT' && '정산 플레이 존'}
                   {gameType === 'LADDER' && '사다리 플레이 존'}
                   {gameType === 'ROULETTE' && '룰렛 플레이 존'}

@@ -9,6 +9,7 @@ import {
   Check,
   Camera,
   Download,
+  HelpCircle,
 } from 'lucide-react';
 import { ElmInp01 } from '../../../sample/elements/Tokens';
 import { Participant } from '../types';
@@ -52,6 +53,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
   isDark,
 }) => {
   const [isGeneratingCard, setIsGeneratingCard] = useState<boolean>(false);
+  const [showWeightHelp, setShowWeightHelp] = useState<boolean>(false);
 
   // 정산 만원 프리셋 슬라이드 드래그/휠 스크롤 Ref & 네이티브 논패시브 휠 리스너 (페이지 스크롤 전파 차단)
   const presetScrollRef = useRef<HTMLDivElement>(null);
@@ -205,7 +207,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
   return (
     <div className="space-y-6">
       <div
-        className={`grid grid-cols-1 md:grid-cols-2 gap-5 p-4 rounded-xl border ${
+        className={`p-4 rounded-xl border space-y-3 ${
           resolvedTheme === 'dawn'
             ? 'bg-[#f0f7ff] border-[#bfdbfe]'
             : isDark
@@ -214,18 +216,71 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
         }`}
       >
         {/* 금액 입력 & 만원/천원 증감 */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold flex items-center gap-1.5">
-              <Coins className="w-4 h-4 text-indigo-400" />
-              <span>총 결제 금액 (원)</span>
-            </label>
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs font-bold flex items-center gap-1.5 shrink-0">
+                <Coins className="w-4 h-4 text-indigo-400" />
+                <span className="whitespace-nowrap">총 결제 금액 (원)</span>
+              </label>
+
+              {/* 가중치 모드 토글 버튼 */}
+              <button
+                type="button"
+                onClick={() => setUseSplitWeight((prev) => !prev)}
+                className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  useSplitWeight
+                    ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
+                    : resolvedTheme === 'dawn'
+                    ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                    : isDark
+                    ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span>{useSplitWeight ? '가중치 ON' : '가중치 OFF'}</span>
+              </button>
+
+              {/* ? 아이콘 레이어 팝업 */}
+              <div className="relative inline-flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowWeightHelp((prev) => !prev)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                  title="정산 방식 안내"
+                  aria-label="정산 방식 안내"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                {showWeightHelp && (
+                  <div className="absolute left-0 top-full mt-1.5 z-40 w-72 max-w-[85vw] p-3 rounded-xl border shadow-xl bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-100 dark:border-zinc-800 font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                      <span>{useSplitWeight ? '⚖️ 가중치 차등 정산 안내' : '⚡ 1/N 균등 정산 안내'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowWeightHelp(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p>
+                      {useSplitWeight
+                        ? '참가자별로 0배(면제), 0.5배, 1배, 2배 등 차등 가중치를 부여하여 각자의 소비에 맞춰 공정하게 정산합니다.'
+                        : '총 결제 금액을 전체 인원수로 나누어 100원 단위로 깔끔하게 절사하여 1인당 송금액을 산출합니다.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {amount && (
-              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
                 ₩{parseInt(amount.replace(/[^0-9]/g, '') || '0', 10).toLocaleString()}원
               </span>
             )}
           </div>
+
           <ElmInp01
             value={amount}
             onChange={(val: string) => setAmount(val.replace(/[^0-9]/g, ''))}
@@ -235,10 +290,11 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
             lang="ko"
             onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
           />
+
           {/* 만원/천원 증감 퀵 인디케이터 */}
           <div className="flex flex-col gap-2 pt-1 w-full overflow-hidden">
             {/* 1행: 좌측 [+ 만원 -] [+ 천원 -] 인디케이터 & 우측 초기화 버튼 */}
-            <div className="flex items-center justify-between gap-2 w-full shrink-0">
+            <div className="flex items-center justify-between gap-2 w-full shrink-0 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* 만원 인디케이터 */}
                 <div
@@ -253,7 +309,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   <button
                     type="button"
                     onClick={() => handleAdjustAmount(10000)}
-                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
                     title="1만원 증가"
                   >
                     + 만원
@@ -262,7 +318,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   <button
                     type="button"
                     onClick={() => handleAdjustAmount(-10000)}
-                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
                     title="1만원 감소"
                   >
                     - 만원
@@ -282,7 +338,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   <button
                     type="button"
                     onClick={() => handleAdjustAmount(1000)}
-                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
                     title="1천원 증가"
                   >
                     + 천원
@@ -291,7 +347,7 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   <button
                     type="button"
                     onClick={() => handleAdjustAmount(-1000)}
-                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                    className="px-2 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
                     title="1천원 감소"
                   >
                     - 천원
@@ -342,73 +398,6 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
                   +{val >= 10000 ? `${val / 10000}만` : `${val / 1000}천`}
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 정산 모드 옵션 & 빠른 안내 */}
-        <div className="flex flex-col justify-between space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold flex items-center gap-1.5">
-              <SlidersHorizontal className="w-4 h-4 text-emerald-500" />
-              <span>정산 옵션 설정</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setUseSplitWeight((prev) => !prev)}
-              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-                useSplitWeight
-                  ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
-                  : resolvedTheme === 'dawn'
-                  ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
-                  : isDark
-                  ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <span>{useSplitWeight ? '가중치 ON' : '가중치 OFF'}</span>
-            </button>
-          </div>
-
-          <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-            {useSplitWeight
-              ? '💡 참가자별로 0배(면제), 0.5배, 1배, 2배 등 차등 가중치를 부여하여 공정하게 계산합니다.'
-              : '💡 총 금액을 참여 인원수로 나누어 100원 단위로 깔끔하게 절사하여 1인당 송금액을 산출합니다.'}
-          </p>
-
-          {/* 결과 복사 타이틀 및 3건의 아이콘 */}
-          <div className="flex items-center justify-between pt-1 border-t border-black/5 dark:border-white/5">
-            <span className="text-xs font-bold text-slate-600 dark:text-zinc-300">
-              결과 복사:
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleCopyText}
-                disabled={settlementSummary.total === 0}
-                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                title="정산 결과 텍스트 클립보드 복사"
-              >
-                <Copy className="w-4 h-4 text-indigo-500" />
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyImageCard}
-                disabled={settlementSummary.total === 0 || isGeneratingCard}
-                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                title="정산 결과 이미지 카드 클립보드 복사"
-              >
-                <Camera className="w-4 h-4 text-indigo-500" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadImageCard}
-                disabled={settlementSummary.total === 0 || isGeneratingCard}
-                className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                title="정산 결과 이미지 파일 다운로드"
-              >
-                <Download className="w-4 h-4 text-emerald-500" />
-              </button>
             </div>
           </div>
         </div>
@@ -603,6 +592,47 @@ export const SettlementGameZone: React.FC<SettlementGameZoneProps> = ({
               </div>
             );
           })}
+        </div>
+
+        {/* 결과 복사 타이틀 및 3건의 아이콘 */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-800/40">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+              정산 결과 복사:
+            </span>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              (텍스트 · 카드 이미지 · 파일 저장)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleCopyText}
+              disabled={settlementSummary.total === 0}
+              className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              title="정산 결과 텍스트 클립보드 복사"
+            >
+              <Copy className="w-4 h-4 text-indigo-500" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyImageCard}
+              disabled={settlementSummary.total === 0 || isGeneratingCard}
+              className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              title="정산 결과 이미지 카드 클립보드 복사"
+            >
+              <Camera className="w-4 h-4 text-indigo-500" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadImageCard}
+              disabled={settlementSummary.total === 0 || isGeneratingCard}
+              className="p-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-bold text-xs shadow-2xs hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              title="정산 결과 이미지 파일 다운로드"
+            >
+              <Download className="w-4 h-4 text-emerald-500" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -931,60 +931,63 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
           </button>
         </div>
 
+        <div className="min-h-[420px] max-h-[72vh] overflow-y-auto no-scrollbar pr-0.5 space-y-4 flex flex-col justify-between">
         {activeTab === 'JOIN' ? (
           /* [공유 참여 모드] 방 코드 직접 입력 및 입장 */
-          <div className="space-y-3.5 py-1">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-1 text-left">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                <span>🎯</span>
-                <span>실시간 게임 방 참여하기</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-indigo-700 dark:text-indigo-300">
-                전달받으신 초대 방 코드(예: <code>LAD_ABC123</code>, <code>ROU_XYZ456</code>)를 입력하시면 즉시 해당 실시간 게임에 접속합니다.
-              </p>
-            </div>
-
-            {roomId && (
-              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 flex items-center gap-2">
-                <span>⚠️</span>
-                <span>현재 참여 중인 방(<code>{roomId}</code>)에서 자동 퇴장(인원수 차감) 후 새 방으로 입장합니다.</span>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-300">
-                초대 방 코드
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={joinCodeInput}
-                  onChange={(e) => {
-                    setJoinCodeInput(e.target.value);
-                    if (joinError) setJoinError('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleExecuteJoin();
-                  }}
-                  placeholder="예: LAD_492810 또는 ROU_773912"
-                  className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-mono font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 uppercase"
-                />
-                <button
-                  type="button"
-                  onClick={handleExecuteJoin}
-                  className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-xs cursor-pointer transition-all active:scale-95"
-                >
-                  입장하기
-                </button>
-              </div>
-              {joinError && (
-                <p className="text-[10px] text-rose-500 font-bold mt-1">
-                  {joinError}
+          <div className="space-y-3.5 py-1 flex-1 flex flex-col justify-between">
+            <div className="space-y-3.5">
+              <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-1 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                  <span>🎯</span>
+                  <span>실시간 게임 방 참여하기</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-indigo-700 dark:text-indigo-300">
+                  전달받으신 초대 방 코드(예: <code>LAD_ABC123</code>, <code>ROU_XYZ456</code>)를 입력하시면 즉시 해당 실시간 게임에 접속합니다.
                 </p>
+              </div>
+
+              {roomId && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>현재 참여 중인 방(<code>{roomId}</code>)에서 자동 퇴장(인원수 차감) 후 새 방으로 입장합니다.</span>
+                </div>
               )}
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-300">
+                  초대 방 코드
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={joinCodeInput}
+                    onChange={(e) => {
+                      setJoinCodeInput(e.target.value);
+                      if (joinError) setJoinError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleExecuteJoin();
+                    }}
+                    placeholder="예: LAD_492810 또는 ROU_773912"
+                    className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-mono font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleExecuteJoin}
+                    className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    입장하기
+                  </button>
+                </div>
+                {joinError && (
+                  <p className="text-[10px] text-rose-500 font-bold mt-1">
+                    {joinError}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
+            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 mt-auto">
               <button
                 type="button"
                 onClick={onClose}
@@ -996,7 +999,7 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
           </div>
         ) : (
           /* [공유 게시/관리 모드] 기존 QR, 방 코드 복사, 링크 복사 */
-          <>
+          <div className="space-y-4 flex-1 flex flex-col justify-between">
             {/* 접속 현황 배지 */}
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
               <div className="flex items-center gap-2">
@@ -1131,64 +1134,51 @@ export const LadderShareModal: React.FC<LadderShareModalProps> = ({
           </div>
         </div>
 
-        {/* 초대 링크 복사 & 호스트 전용 게임종료/나가기 액션 */}
-        <div className="space-y-2">
-          {!isClosed ? (
-            <button
-              type="button"
-              onClick={onCopyUrl}
-              className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>원클릭 초대 링크 복사하기</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onCopyUrl}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5 text-indigo-500" />
-              <span>결과 확인용 링크 복사하기</span>
-            </button>
-          )}
+          {/* 초대 링크 복사 & 나가기 액션 */}
+          <div className="space-y-2 pt-2">
+            {!isClosed ? (
+              <button
+                type="button"
+                onClick={onCopyUrl}
+                className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>원클릭 초대 링크 복사하기</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onCopyUrl}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-indigo-500" />
+                <span>결과 확인용 링크 복사하기</span>
+              </button>
+            )}
 
-          {isHost && !isClosed && onCloseRoom && (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('게임을 종료하시겠습니까? 게임을 종료하면 초대 링크 유입이 차단되고 최종 결과만 보관됩니다.')) {
-                  onCloseRoom();
-                }
-              }}
-              className="w-full py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>🔒 게임 종료 (초대 링크 폐기 및 유입 차단)</span>
-            </button>
-          )}
-
-          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
-            <button
-              type="button"
-              onClick={() => {
-                onLeaveRoom();
-                onClose();
-              }}
-              className="py-1.5 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-[11px] font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
-            >
-              방 나가기 (로컬 복귀)
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-1.5 px-3 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-all cursor-pointer"
-            >
-              닫기
-            </button>
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => {
+                  onLeaveRoom();
+                  onClose();
+                }}
+                className="py-1.5 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-[11px] font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
+              >
+                방 나가기 (로컬 복귀)
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-1.5 px-3 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-slate-300 dark:hover:bg-zinc-600 transition-all cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
           </div>
+          </div>
+        )}
         </div>
-        </>
-      )}
       </div>
     </div>
   );

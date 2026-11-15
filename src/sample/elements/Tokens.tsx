@@ -1828,9 +1828,9 @@ export const ElmRng01: React.FC<{
     return (
       <div className={`space-y-1.5 ${className}`}>
         {label && (
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-700 dark:text-zinc-300 break-keep">{label}</span>
+          <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-700 dark:text-zinc-300 whitespace-nowrap shrink-0">{label}</span>
               {labelExtra}
             </div>
             {showInput && (
