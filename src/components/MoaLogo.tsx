@@ -49,7 +49,7 @@ export const MoaLogo: React.FC<{
 
         {showTag && (
           <span
-            className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold border transition-colors ${
+            className={`hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold border transition-colors ${
               resolvedTheme === 'dawn'
                 ? 'bg-sky-500/10 text-sky-400 border-sky-500/25'
                 : resolvedTheme === 'dark'

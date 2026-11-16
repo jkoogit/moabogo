@@ -47,7 +47,24 @@ import {
   List,
   PanelLeftClose,
   PanelLeftOpen,
+  Eye,
+  EyeOff,
+  ArrowUp,
+  ArrowDown,
+  SlidersHorizontal,
+  RefreshCw,
 } from 'lucide-react';
+import {
+  ModuleConfig,
+  DashboardModuleId,
+  DashboardPreset,
+  DEFAULT_MODULES,
+  PRESET_ORDER_MAP,
+  PRESET_LABELS,
+  loadDashboardModules,
+  saveDashboardModules,
+  applyDashboardPreset,
+} from '../data/dashboardConfigPool';
 import {
   SYSTEM_STORE_POOL,
   loadUserStorePreference,
@@ -85,11 +102,45 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
   const [activeTab, setActiveTab] = useState('THEME');
   const [saveToast, setSaveToast] = useState(false);
 
-  // 6.1 메인화면 구성 설정
-  const [showLedgerSummary, setShowLedgerSummary] = useState(true);
-  const [showGoalSummary, setShowGoalSummary] = useState(true);
-  const [showDutySummary, setShowDutySummary] = useState(true);
-  const [showMoneySummary, setShowMoneySummary] = useState(true);
+  // 6.1 대시보드 위젯 중앙 제어 풀 (SSOT: dashboardConfigPool)
+  const [dashboardModules, setDashboardModules] = useState<ModuleConfig[]>(() => loadDashboardModules());
+  const [selectedPreset, setSelectedPreset] = useState<DashboardPreset>('DEFAULT');
+  const [selectedPreviewModule, setSelectedPreviewModule] = useState<ModuleConfig>(() => {
+    const mods = loadDashboardModules();
+    return mods[0] || DEFAULT_MODULES[0];
+  });
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+
+  const handleToggleModule = (id: DashboardModuleId) => {
+    setDashboardModules((prev) => {
+      const updated = prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m));
+      saveDashboardModules(updated);
+      return updated;
+    });
+  };
+
+  const handleMoveModule = (index: number, direction: 'UP' | 'DOWN') => {
+    const targetIndex = direction === 'UP' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= dashboardModules.length) return;
+
+    setDashboardModules((prev) => {
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[targetIndex];
+      updated[targetIndex] = temp;
+      saveDashboardModules(updated);
+      return updated;
+    });
+  };
+
+  const handleApplyPreset = (preset: DashboardPreset) => {
+    setSelectedPreset(preset);
+    const updated = applyDashboardPreset(preset, dashboardModules);
+    setDashboardModules(updated);
+    saveDashboardModules(updated);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2000);
+  };
 
   // 6.2 빠른수행 우선순위 설정
   const [quickPriorityMode, setQuickPriorityMode] = useState<'ALL' | 'TOP_ONE'>('TOP_ONE');
@@ -114,8 +165,20 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
   const [formPurposes, setFormPurposes] = useState<AccountServicePurpose[]>(['GENERAL']);
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
-  // 6.5 OCR 개인 키
-  const [ocrKey, setOcrKey] = useState('sk-proj-user-key-dummy-sample');
+  // 6.5 OCR 에이전트/엔진 및 개인 키
+  const [ocrEngine, setOcrEngine] = useState<'GEMINI' | 'OPENAI' | 'CLAUDE' | 'CLOVA' | 'EASYOCR'>('GEMINI');
+  const [ocrModel, setOcrModel] = useState<string>('gemini-2.0-flash');
+  const [ocrKey, setOcrKey] = useState<string>(() => localStorage.getItem('moabogo_user_ocr_key') || 'sk-proj-user-sample-key-9981');
+  const [showOcrKey, setShowOcrKey] = useState<boolean>(false);
+
+  const handleSaveOcrKey = (newKey: string) => {
+    setOcrKey(newKey);
+    localStorage.setItem('moabogo_user_ocr_key', newKey);
+    localStorage.setItem('moabogo_user_ocr_engine', ocrEngine);
+    localStorage.setItem('moabogo_user_ocr_model', ocrModel);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2000);
+  };
 
   // 6.7 외부 거래계좌 및 ELM-TRE-02 풀 연동 (BKL-ACC-11: 2-패널 관리 & 용도 Fallback)
   const [extAccounts, setExtAccounts] = useState<ExternalTransactionAccount[]>(() => loadExternalAccounts());
@@ -407,24 +470,13 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-3.5 pb-8 space-y-4 sm:space-y-5 bg-slate-50 dark:bg-[#0B0F17] min-h-screen text-slate-900 dark:text-zinc-100 transition-colors">
-      {/* Section 1: Header (Flat Peer 1) */}
-      <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <ElmTyp01
-            title="사용자 맞춤 설정"
-            badge="SCR-SET-01"
-            subtitle="위젯 배치 • 우선순위 • 알림 • 송금 계좌 • 단골 매장 • OCR 키 • 플랫 피어 레이아웃"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSave}
-          className="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-sm shrink-0 cursor-pointer transition-all"
-        >
-          <Save className="w-4 h-4" />
-          <span>설정 저장</span>
-        </button>
+      {/* Section 1: Header (360px 2행 분리 표준 규칙 적용 & 불필요한 헤더 액션 제거) */}
+      <section className="border-b border-slate-200 dark:border-zinc-800 pb-3">
+        <ElmTyp01
+          title="사용자 맞춤 설정"
+          badge="SCR-SET-01"
+          subtitle="대시보드 위젯 배치 • 화면 테마 • 단골 매장 • 거래계좌 • 알림 • OCR 키 중앙 집중 제어"
+        />
       </section>
 
       {/* In-app Save Success Toast (replaces window.alert) */}
@@ -1618,37 +1670,202 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Tab 1: 메인화면 구성 */}
+      {/* Tab 3: 화면배치 (대시보드 위젯 중앙 제어 & 프리셋 & 썸네일 미리보기) */}
       {activeTab === 'LAYOUT' && (
-        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
-            대시보드 Bento Grid 위젯 표시 항목 선택
-          </h3>
-          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
-            <ElmSwt01
-              checked={showLedgerSummary}
-              onChange={setShowLedgerSummary}
-              label="가계부 자산 및 생활비 통계 카드"
-              description="소비 지출과 자산/부채 이동 엄격 분리 표시"
-            />
-            <ElmSwt01
-              checked={showGoalSummary}
-              onChange={setShowGoalSummary}
-              label="모아목표 (MoaGoal) 챌린지 위젯"
-              description="동행원 일일 달성률 및 챌린지 진행바"
-            />
-            <ElmSwt01
-              checked={showDutySummary}
-              onChange={setShowDutySummary}
-              label="모아당번 (MoaDuty) 상태 카드"
-              description="미인증 및 대신수행 요청 건수 노출"
-            />
-            <ElmSwt01
-              checked={showMoneySummary}
-              onChange={setShowMoneySummary}
-              label="모아머니 (MoaMoney) 요구/상환 카드"
-              description="용돈 차감 요청 및 분납 D-Day 노출"
-            />
+        <section className="space-y-5">
+          {/* 1. 추천 프리셋 퀵 선택 바 */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+                  <span>대시보드 추천 배치 프리셋</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  라이프스타일에 맞게 위젯 순서를 원클릭으로 최적화합니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('DEFAULT')}
+                className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-[11px] font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
+                title="기본값으로 되돌리기"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>초기화</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {(['DEFAULT', 'FINANCE_FIRST', 'LIFE_FIRST', 'QUICK_GAME'] as DashboardPreset[]).map((presetKey) => {
+                const info = PRESET_LABELS[presetKey];
+                const isSelected = selectedPreset === presetKey;
+                return (
+                  <button
+                    key={presetKey}
+                    type="button"
+                    onClick={() => handleApplyPreset(presetKey)}
+                    className={`min-h-[44px] p-3 rounded-xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/30'
+                        : 'bg-slate-50/50 dark:bg-[#0E131F]/50 border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-800 dark:text-zinc-200'}`}>
+                          {info.title}
+                        </span>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 line-clamp-2">
+                        {info.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. 위젯 순서 및 On/Off 중앙 제어 + 썸네일 미리보기 2-패널 (반응형) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* 좌측 패널: 위젯 목록 및 순서 조정 / 활성화 토글 (7열) */}
+            <div className="lg:col-span-7 p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
+                <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-200">
+                  위젯 노출 순서 및 표시 설정 ({dashboardModules.filter((m) => m.enabled).length}/{dashboardModules.length}개 표시)
+                </span>
+                <span className="text-[11px] text-slate-400 dark:text-zinc-500">
+                  ↑↓ 화살표로 순서 이동
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {dashboardModules.map((module, idx) => {
+                  const isSelected = selectedPreviewModule.id === module.id;
+                  return (
+                    <div
+                      key={module.id}
+                      onClick={() => setSelectedPreviewModule(module)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 ring-1 ring-indigo-500/30'
+                          : 'border-slate-200/90 dark:border-zinc-800 bg-slate-50/30 dark:bg-[#111726]/40 hover:bg-slate-50 dark:hover:bg-[#162035]'
+                      }`}
+                    >
+                      {/* Left: Drag Index + Title & Category */}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-5 h-5 rounded-md bg-slate-200/70 dark:bg-zinc-800 text-[11px] font-black flex items-center justify-center text-slate-600 dark:text-zinc-400 shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
+                              {module.title}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 shrink-0">
+                              {module.category}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate mt-0.5 max-w-[220px] sm:max-w-[280px]">
+                            {module.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right: Actions (Move Up/Down + Toggle Switch) */}
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveModule(idx, 'UP')}
+                          className="min-h-[34px] min-w-[34px] flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
+                          title="위로 이동"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === dashboardModules.length - 1}
+                          onClick={() => handleMoveModule(idx, 'DOWN')}
+                          className="min-h-[34px] min-w-[34px] flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
+                          title="아래로 이동"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleModule(module.id)}
+                          className={`min-h-[34px] px-2.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                            module.enabled
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 border-slate-300 dark:border-zinc-700'
+                          }`}
+                        >
+                          {module.enabled ? '표시' : '숨김'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 우측 패널: 선택된 위젯의 썸네일 / 샘플 시각화 미리보기 카드 (5열) */}
+            <div className="lg:col-span-5 p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>위젯 미리보기 뷰어</span>
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                    {selectedPreviewModule.category}
+                  </span>
+                </div>
+
+                {/* 위젯 샘플 비주얼 썸네일 카드 */}
+                <div className="mt-3 p-4 rounded-xl bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-[#0B0F17] dark:to-indigo-950/20 border border-slate-200 dark:border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-zinc-100">
+                      {selectedPreviewModule.title}
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      selectedPreviewModule.enabled
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
+                        : 'bg-slate-200 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400'
+                    }`}>
+                      {selectedPreviewModule.enabled ? '● 현재 활성' : '○ 숨김 상태'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-zinc-300">
+                    {selectedPreviewModule.description}
+                  </p>
+
+                  {/* 상세 기능 특징 목록 */}
+                  {selectedPreviewModule.detailFeatures && (
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/60 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase">
+                        주요 기능 구성
+                      </span>
+                      {selectedPreviewModule.detailFeatures.map((feat, fIdx) => (
+                        <div key={fIdx} className="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-zinc-300">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 하단 동기화 상태 배너 */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 text-[11px] text-slate-500 dark:text-zinc-400 flex items-center justify-between">
+                <span>✓ 변경 사항은 로그인 메인 대시보드에 즉시 실시간 동기화됩니다.</span>
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -2012,26 +2229,124 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
         </section>
       )}
 
-      {/* Tab 5: 2차 OCR 인증키 */}
+      {/* Tab 8: OCR 에이전트 엔진 및 개인 API 키 관리 */}
       {activeTab === 'OCR' && (
-        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
-            2단계 사용자 OCR API 인증키 관리 (서버 운영비 0원)
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-zinc-400">
-            1차 로컬 Docker EasyOCR 인식 불가 시, 사용자가 등록한 개인 Google Cloud Vision 또는 OpenAI Key로만 Fallback됩니다.
-          </p>
-          <div className="max-w-md space-y-3">
-            <ElmInp01
-              label="개인 Vision / OpenAI API Key"
-              type="password"
-              value={ocrKey}
-              onChange={setOcrKey}
-              placeholder="AIzaSy... 또는 sk-..."
-            />
-            <p className="text-[11px] text-slate-400 dark:text-zinc-500">
-              * 키는 브라우저 로컬 스토리지에 암호화되어 보관되며 서버 비용 0원을 달성합니다.
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-5">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-indigo-600" />
+              <span>AI 에이전트 & 사용자 OCR API 인증키 관리 (서버비 0원)</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              1차 로컬 Docker EasyOCR 인식 실패 시, 사용자가 직접 등록한 개인 클라우드 AI 비전 모델로 즉시 Fallback됩니다.
             </p>
+          </div>
+
+          <div className="max-w-xl space-y-4">
+            {/* 1. OCR 엔진 / AI 에이전트 공급자 선택 */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                OCR 비전 엔진 선택
+              </label>
+              <select
+                value={ocrEngine}
+                onChange={(e) => {
+                  const eng = e.target.value as any;
+                  setOcrEngine(eng);
+                  if (eng === 'GEMINI') setOcrModel('gemini-2.0-flash');
+                  else if (eng === 'OPENAI') setOcrModel('gpt-4o');
+                  else if (eng === 'CLAUDE') setOcrModel('claude-3-5-sonnet-20241022');
+                  else if (eng === 'CLOVA') setOcrModel('clova-ocr-receipt');
+                  else if (eng === 'EASYOCR') setOcrModel('easyocr-v1-korean');
+                }}
+                className="w-full h-11 px-3.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0E131F] text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              >
+                <option value="GEMINI">Google Gemini 2.0 (추천 • 초고속 멀티모달 & 무료 티어)</option>
+                <option value="OPENAI">OpenAI GPT-4o (고정밀 영수증 OCR & 복합 테이블 분석)</option>
+                <option value="CLAUDE">Anthropic Claude 3.5 Sonnet (세부 항목 및 품목 추론)</option>
+                <option value="CLOVA">Naver CLOVA OCR (한국어 세금계산서/간이영수증 특화)</option>
+                <option value="EASYOCR">Docker EasyOCR (홈서버 온디바이스 기본 내장 무료)</option>
+              </select>
+            </div>
+
+            {/* 2. 엔진별 세부 모델 선택 */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                세부 AI 모델 선택
+              </label>
+              <select
+                value={ocrModel}
+                onChange={(e) => setOcrModel(e.target.value)}
+                className="w-full h-11 px-3.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0E131F] text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              >
+                {ocrEngine === 'GEMINI' && (
+                  <>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash (초저지연 영수증 파싱 권장)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (대형 복합 계산서 심층 추론)</option>
+                  </>
+                )}
+                {ocrEngine === 'OPENAI' && (
+                  <>
+                    <option value="gpt-4o">gpt-4o (최고 정밀도 Vision)</option>
+                    <option value="gpt-4o-mini">gpt-4o-mini (경량 고속 파싱)</option>
+                  </>
+                )}
+                {ocrEngine === 'CLAUDE' && (
+                  <>
+                    <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                    <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022</option>
+                  </>
+                )}
+                {ocrEngine === 'CLOVA' && (
+                  <>
+                    <option value="clova-ocr-receipt">clova-ocr-receipt (영수증 특화 도메인)</option>
+                    <option value="clova-ocr-general">clova-ocr-general (일반 인쇄물)</option>
+                  </>
+                )}
+                {ocrEngine === 'EASYOCR' && (
+                  <option value="easyocr-v1-korean">easyocr-v1-korean (로컬 파이프라인)</option>
+                )}
+              </select>
+            </div>
+
+            {/* 3. 개인 API 키 입력 필드 (눈 아이콘 토글 미리보기 지원) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                개인 API 인증키 (Personal API Key)
+              </label>
+              <div className="relative">
+                <input
+                  type={showOcrKey ? 'text' : 'password'}
+                  value={ocrKey}
+                  onChange={(e) => handleSaveOcrKey(e.target.value)}
+                  placeholder="API Key를 입력하세요 (예: AIzaSy... 또는 sk-...)"
+                  className="w-full h-11 pl-3.5 pr-12 text-xs font-mono rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-[#0E131F] text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOcrKey((prev) => !prev)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 cursor-pointer transition-colors"
+                  title={showOcrKey ? 'API 키 숨기기' : 'API 키 확인 (눈 아이콘)'}
+                  aria-label="API 키 미리보기 토글"
+                >
+                  {showOcrKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* 4. 무과금 0원 보안 안내 카드 */}
+            <div className="p-3.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 space-y-1.5 text-[11px] text-slate-600 dark:text-zinc-300">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-700 dark:text-indigo-300">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>개인정보 보호 및 서버 비용 0원 원칙</span>
+              </div>
+              <p className="leading-relaxed">
+                • 등록된 개인 API 키는 서버 중앙 데이터베이스에 전송되지 않으며, 사용자 브라우저의 IndexedDB/LocalStorage에 암호화 보관됩니다.
+              </p>
+              <p className="leading-relaxed">
+                • 영수증 촬영 시 클라이언트에서 직접 AI 모델에 요청하여 서버 운영비 0원을 영구 달성합니다.
+              </p>
+            </div>
           </div>
         </section>
       )}

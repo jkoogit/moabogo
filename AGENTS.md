@@ -1,4 +1,4 @@
-# AI 에이전트 거버넌스 및 실행 규제 규칙 (AGENTS.md v2.2 - MoaBogo)
+# AI 에이전트 거버넌스 및 실행 규제 규칙 (AGENTS.md v2.3 - MoaBogo)
 
 > 본 문서는 **모아보고 (MoaBogo)** 프로젝트의 모든 AI 코딩 에이전트에게 시스템 레벨에서 자동 주입되는 최우선 행동 강령입니다.  
 > 에이전트는 본 지침을 절대 우회할 수 없으며, 세션 시작부터 태스크 처리, PR 머지, 승급 및 세션 종료까지 전 생명주기를 엄격히 준수해야 합니다.
@@ -76,48 +76,31 @@ stateDiagram-v2
 - **2단계 하이브리드 등록 및 태스크승급 전수 보완 규약 (Hybrid Persistence & Fail-Safe Reconcile)**:
   - **1단계(실시간)**: 매 대화 응답 시 로컬 하네스 스토어 및 트레이스 상태 기록.
   - **2단계(정합성 보정 & 승급 전수 보완)**: `#태스크승급` 및 `#세션정리` 시점에 세션 내 누적된 모든 미반영 대화 턴을 검증하고 원격 저장소 및 DB 상태와 100% 동기화.
-- **원격 Git 제어 기술 원칙 (Git Commit & Push Mandate)**:
-  - **[필수 원칙 0] 다중 작업환경별 GitHub 토큰 자동 감지 및 Git 환경 보장 의무**:
-    작업 환경별(1. AI Studio, 2. antigravity CLI, 3. antigravity IDE `.env`)로 GitHub 토큰 주입 방식이 상이하므로, Git 및 GitHub API 호출 전 반드시 다음 자동 감지 및 초기화 블록을 선행 실행하여 권한 오류를 원천 차단한다:
+- **원격 Git 제어 및 agentwork 도구화 기술 원칙 (Git Commit & Push & agentwork Mandate)**:
+  - **[필수 원칙 0] agentwork 통합 CLI 기반 4단계 GitHub 토큰 자동 감지 및 명령 일원화 의무**:
+    작업 환경별(1. AI Studio, 2. antigravity CLI, 3. Windows IDE `.env`, 4. git origin URL) 토큰 주입 방식 차이를 극복하기 위해 `agentwork/gh-cli.cjs`를 단일 진실 공급원(SSOT) CLI 도구로 선행 호출하여 권한 오류 및 스크립트 분산을 원천 차단한다:
     ```bash
-    # [환경별 토큰 감지 계층] 1. 환경변수 -> 2. AI Studio Secrets (/proc/*/environ) -> 3. .env 파일 -> 4. git remote origin URL 역추출
-    GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN}}"
-    if [ -z "$GITHUB_TOKEN" ]; then
-      for pid in /proc/[0-9]*; do
-        p=${pid#/proc/}
-        if [ -r "/proc/$p/environ" ]; then
-          tok=$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -E '^GITHUB_TOKEN=' | head -n 1 | cut -d '=' -f2-)
-          if [ -n "$tok" ]; then
-            GITHUB_TOKEN="$tok"
-            break
-          fi
-        fi
-      done
-    fi
-    if [ -z "$GITHUB_TOKEN" ] && [ -f .env ]; then
-      GITHUB_TOKEN=$(grep -E '^(GITHUB_TOKEN|GH_TOKEN)=' .env | cut -d '=' -f2- | tr -d '"'\'' ')
-    fi
-    if [ -z "$GITHUB_TOKEN" ]; then
-      GITHUB_TOKEN=$(git config --get remote.origin.url 2>/dev/null | sed -n 's/.*x-access-token:\([^@]*\)@.*/\1/p')
-    fi
-    export GITHUB_TOKEN
+    # [1] 상태 점검 (오픈 이슈/PR 및 dev, stg, main 브랜치 SHA 100% 일치성 점검)
+    node agentwork/gh-cli.cjs status
 
-    git config --global --add safe.directory /app/applet 2>/dev/null || true
-    [ ! -d .git ] && git init -b dev
-    git config user.name "MoaBogo AI Agent"
-    git config user.email "agent@moabogo.internal"
-    if git remote get-url origin >/dev/null 2>&1; then
-      [ -n "$GITHUB_TOKEN" ] && git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
-    else
-      git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/jkoogit/moabogo.git"
-    fi
+    # [2] 이슈 생성 / 종결
+    node agentwork/gh-cli.cjs create-issue --title "[세션번호] 작업명" --body "목표 및 상세내용"
+    node agentwork/gh-cli.cjs close-issue --issue <이슈번호>
+
+    # [3] Pull Request 생성 및 dev 브랜치 머지
+    node agentwork/gh-cli.cjs create-pr --title "docs(review): [세션-태스크] 작업명" --head "task/세션_태스크_작업명" --base "dev"
+    node agentwork/gh-cli.cjs merge-pr --pr <PR번호>
+
+    # [4] 원격 배포 승급 (dev -> stg, main 패스트포워드 푸시 및 SHA 동기화 검증)
+    node agentwork/gh-cli.cjs sync-branches
     ```
+    - **임시 스크립트 관리 및 Clean Tree 보장**: 일회성 스크립트 분산을 금지하며, 로컬 테스트용 스크립트는 `scratch/` 디렉터리에 격리하고 `.gitignore`에 등록하여 작업 트리(Working Tree) 변경사항 0건을 엄격히 유지해야 함.
   - **[필수 원칙 1] 세션시작 시 원격 `dev` 브랜치 자동 Pull 선행 의무**:
     새 세션 또는 환경 전환 시 과거 로컬 스냅샷 불일치를 방지하기 위해 `#세션시작` 시 원격 `dev` 최신 트리를 로컬 작업공간에 100% 동기화(`git fetch origin dev && git checkout -B dev origin/dev`).
   - **[필수 원칙 2] 태스크정리 시 원격 커밋 푸시 및 PR 머지 의무**:
-    파일 변경 사항이 원격에 누락되는 것을 원천 방지하기 위해 기능 브랜치 생성 ➔ 커밋 ➔ 원격 Push ➔ GitHub REST API로 Pull Request 생성 및 `dev` 머지를 완결해야 함.
+    파일 변경 사항이 원격에 누락되는 것을 원천 방지하기 위해 기능 브랜치 생성 ➔ 커밋 ➔ 원격 Push ➔ `node agentwork/gh-cli.cjs create-pr` ➔ `node agentwork/gh-cli.cjs merge-pr`로 `dev` 머지를 완결해야 함.
   - **[필수 원칙 3] 태스크승급 시 `stg`, `main` 패스트포워드 푸시 의무**:
-    `dev`에 머지된 최신 커밋을 `git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main`을 통해 `stg`와 `main`에 즉시 반영하고 `git ls-remote`로 3개 브랜치 일치 여부를 검증해야 함.
+    `dev`에 머지된 최신 커밋을 `node agentwork/gh-cli.cjs sync-branches`를 통해 `stg`와 `main`에 즉시 반영하고 3개 브랜치 SHA 일치 여부를 검증해야 함.
 
 ---
 
@@ -152,10 +135,10 @@ stateDiagram-v2
 - **수행 사항**:
   1. **세션명 현행화**: 진행 중인 채팅 이름에 반영 ➔ `[0000]세션작업요약명`
   2. **원격 dev 자동 풀 (Auto-Pull)**: `git fetch origin dev && git checkout -B dev origin/dev`를 실행하여 원격 최신 상태를 로컬에 동기화.
-  3. **원격 저장소 이슈 및 PR 점검**: GitHub API(`GET /repos/:owner/:repo/issues`, `pulls`)를 호출하여 모두 종료 상태인지 확인. 미종료 시 피드백 대기 ➔ `#세션보정_이슈PR` 처리.
-  4. **원격 브랜치 일치 점검**: `dev`, `stg`, `main` 브랜치의 최신 커밋 일치 여부 점검. 불일치 시 피드백 대기 ➔ `#세션보정_브랜치` 처리.
+  3. **원격 저장소 이슈 및 PR 점검**: `node agentwork/gh-cli.cjs status`를 실행하여 오픈 이슈, PR 및 `dev`, `stg`, `main` 브랜치 SHA 100% 일치 여부를 통합 점검. 미종료 이슈/PR 존재 시 피드백 대기 ➔ `#세션보정_이슈PR` 처리.
+  4. **원격 브랜치 일치 점검**: `node agentwork/gh-cli.cjs status` 결과 3개 브랜치 불일치 시 피드백 대기 ➔ `#세션보정_브랜치` 처리.
   5. **샌드박스 작업 브랜치 점검**: 로컬 작업브랜치에 미푸시 코드가 있는 경우 점검 및 피드백.
-  6. **원격 이슈 등록**: 세션 작업 대상 이슈 등록 (`POST /repos/:owner/:repo/issues`).
+  6. **원격 이슈 등록**: `node agentwork/gh-cli.cjs create-issue --title "[세션번호] 작업명" --body "..."` 실행하여 세션 작업 대상 이슈 자동 발행.
   7. **작업 브랜치 생성**: 원격 `dev` 브랜치를 기준으로 기능 브랜치 생성 (`task/세션번호_01_작업명`).
   8. **하네스 스토어 동기화**: 세션 정보를 로컬 하네스 스토어에 반영 및 현행화.
   9. **대화 턴 영속화**: 응답 최상단 `[0000_01]` 표기 및 전체 응답 보존.
@@ -205,32 +188,34 @@ stateDiagram-v2
 
 ### [규칙 2.3] `#태스크정리` 인입 시: 소스코드 수정 금지 (리뷰문서 발행 및 Git PR/dev머지 필수 실행)
 - 소스 코드(`src/`)의 임의 기능 수정은 금지되며, 오직 리뷰 문서(`docs/08.리뷰/`) 발행과 Git 커밋, 원격 푸시, PR 생성 및 `dev` 머지 API/CLI 작업을 완결해야 합니다.
-- **절대 주의**: 'READ-ONLY'라는 명칭으로 인해 Git 커밋·푸시·머지 CLI 명령 실행을 생략하고 말로만 완료 보고를 해서는 안 되며, 실제 쉘 명령어와 API 호출을 반드시 실행해야 합니다.
+- **절대 주의**: 'READ-ONLY'라는 명칭으로 인해 Git 커밋·푸시·머지 CLI 명령 실행을 생략하고 말로만 완료 보고를 해서는 안 되며, 실제 쉘 명령어와 `agentwork/gh-cli.cjs`를 반드시 실행해야 합니다.
   - **수행 사항**:
-    1. 테스트 및 정적 검증(`lint_applet`, `compile_applet`) 최종 확인.
+    1. 테스트 및 정적 검증(`pnpm.cmd run lint`, `pnpm.cmd run build`) 최종 확인.
     2. `docs/08.리뷰/`에 완료 코드리뷰 문서를 발행하고 인덱스 현행화.
     3. 작업한 태스크 정보를 하네스 스토어에 반영.
     4. **원격 커밋 생성 및 푸시 (Git Push Mandate)**:
        ```bash
        git checkout -B task/세션번호_태스크순번_작업명
-       git add docs/08.리뷰/ src/ ...
+       git add docs/08.리뷰/ src/ agentwork/ ...
        git commit -m "docs(review): [세션-태스크] 코드리뷰 문서 발행 및 동기화"
        git push -u origin task/세션번호_태스크순번_작업명
        ```
-    5. **Pull Request 생성 및 dev 머지**: GitHub REST API(`POST /repos/:owner/:repo/pulls` 및 `POST /repos/:owner/:repo/merges`)를 호출하여 `dev` 브랜치에 머지 완료.
+    5. **Pull Request 생성 및 dev 머지 (agentwork SSOT)**:
+       ```bash
+       node agentwork/gh-cli.cjs create-pr --title "docs(review): [세션-태스크] 작업명" --head "task/세션번호_태스크순번_작업명" --base "dev"
+       node agentwork/gh-cli.cjs merge-pr --pr <발행된PR번호>
+       ```
     6. `#태스크정리` 이후 입력되는 프롬프트는 `#태스크승급`으로 제한.
-    7. 완료 후 원격 `dev` 브랜치에 반영이 되었는지 `git ls-remote origin dev`로 확인.
+    7. 완료 후 원격 `dev` 브랜치에 반영이 되었는지 `git ls-remote origin dev` 또는 `node agentwork/gh-cli.cjs status`로 확인.
 
 ### [규칙 2.4] `#태스크승급` 명시 시: 소스/문서 수정 금지 (원격 stg/main 패스트포워드 배포 승급 및 상태 마감)
 - 소스 및 문서 수정을 엄격히 제한하고 상태 승급 및 원격 브랜치 배포를 처리합니다.
 - **절대 주의**: 원격 브랜치 배포 승급은 실제 Git 명령을 실행하여 완결해야 합니다. `dev` 브랜치에 머지된 내용을 `stg` 및 `main` 브랜치에 패스트포워드 푸시하여 3개 브랜치를 100% 동기화합니다.
   - **수행 사항**:
     1. **미반영 대화턴 전수 보정 및 영속화**: 세션 내 누적된 모든 대화턴을 최종 검증하고 영속화 완료.
-    2. **원격 브랜치 배포 승급 (Fast-Forward Push Mandate)**:
+    2. **원격 브랜치 배포 승급 (agentwork sync-branches Mandate)**:
        ```bash
-       git fetch origin dev
-       git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main
-       git ls-remote origin dev stg main  # 3개 브랜치의 SHA가 동일한지 반드시 확인
+       node agentwork/gh-cli.cjs sync-branches  # dev 커밋을 stg, main에 패스트포워드 배포하고 3개 브랜치 SHA 일치 검증
        ```
     3. **하네스 스토어 동기화**: 작업 태스크 상태를 `완료`로 최종 마감.
     4. **태스크 작업 결과 리뷰**:
@@ -250,8 +235,8 @@ stateDiagram-v2
 ### [규칙 3.1] `#세션정리` 인입 시
 - **수행 사항**:
   1. **세션명 현행화**: `[0000]세션작업요약명` 형식으로 채팅 이름 최종 반영.
-  2. **원격 레포 이슈 및 PR 종결 확인**: GitHub API로 모든 이슈/PR이 Closed 되었는지 확인.
-  3. **원격 브랜치 동기화 확인**: `dev`, `stg`, `main` 커밋 상태 점검 (`git ls-remote origin dev stg main`).
+  2. **원격 레포 이슈 종결 및 PR 종결 확인**: `node agentwork/gh-cli.cjs close-issue --issue <세션이슈번호>`를 실행하여 오픈 이슈를 완료(Closed) 처리하고 오픈 PR 0건 확인.
+  3. **원격 브랜치 동기화 확인**: `node agentwork/gh-cli.cjs status`로 `dev`, `stg`, `main` 3개 브랜치 SHA 100% 일치 확인.
   4. **세션 상태 완료 승급**: 하네스 스토어에 세션 상태를 `완료`로 수정 및 현행화.
   5. **미해결 백로그 정리**: 세션 내 누적된 백로그 항목 검토 및 분류.
   6. **회고 문서 작성**: `docs/07.회고/`에 이번 세션 회고 문서 작성 (회고 템플릿 준수).
@@ -260,8 +245,7 @@ stateDiagram-v2
      git add docs/07.회고/ docs/06.백로그/ AGENTS.md
      git commit -m "docs(retrospective): [세션번호] 세션 회고 및 세션 정리"
      git push origin dev
-     git push origin origin/dev:refs/heads/stg origin/dev:refs/heads/main
-     git ls-remote origin dev stg main
+     node agentwork/gh-cli.cjs sync-branches
      ```
   8. 대화 턴 영속화.
 

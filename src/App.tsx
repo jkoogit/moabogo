@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
+import { GlobalDrawerNav } from './components/GlobalDrawerNav';
 import { ElmNav01, ElmOff01, ElmQck01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
 import { CommandPalette } from './components/CommandPalette';
@@ -22,6 +23,7 @@ import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른
 import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른수행등록';
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
+import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
 
 import {
   Layers,
@@ -43,11 +45,18 @@ import {
   Eye,
   ArrowUp,
   ArrowDown,
+  Menu,
 } from 'lucide-react';
 
 export default function App() {
   const { resolvedTheme } = useTheme();
-  const [currentScreen, setCurrentScreen] = useState<string>('SCR-GNT-01');
+  const [currentScreen, setCurrentScreen] = useState<string>(() => {
+    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/system') || window.location.search.includes('route=system'))) {
+      return 'SCR-SYS-01';
+    }
+    return 'SCR-GNT-01';
+  });
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -83,6 +92,25 @@ export default function App() {
     { ledger_id: 'led-3', owner_id: 'user-2', ledger_name: '2026 동창회 모임 (인스턴스)', ledger_type: 'GROUP', is_instance: true, role: 'MEMBER', created_at: '2026-03-01' },
   ];
   const [activeLedger, setActiveLedger] = useState<Ledger>(initialLedgers[0]);
+
+  // 로그인 / 로그아웃 통합 핸들러 (요청 3번: 로그아웃 시 비회원 메인 게스트홈으로 강제 이동)
+  const handleToggleAuth = () => {
+    const nextState = !isLoggedIn;
+    setIsLoggedIn(nextState);
+    if (nextState) {
+      setCurrentScreen('SCR-DSH-01');
+    } else {
+      setCurrentScreen('SCR-GNT-01');
+      setIsDrawerOpen(false);
+    }
+  };
+
+  // 비회원 게스트 상태 또는 게스트 홈에서는 전체 메뉴 드로어 자동 닫힘
+  useEffect(() => {
+    if (!isLoggedIn || currentScreen === 'SCR-GNT-01') {
+      setIsDrawerOpen(false);
+    }
+  }, [isLoggedIn, currentScreen]);
 
   // Global ⌘K / Ctrl+K keyboard shortcut listener
   useEffect(() => {
@@ -284,6 +312,12 @@ export default function App() {
       comp: <SCR_OFF_01_오프라인동기화 />,
     },
     {
+      id: 'SCR-SYS-01',
+      name: '시스템 운영관리 관제 (BKL-SYS-01)',
+      category: '시스템 관리',
+      comp: <SCR_SYS_01_시스템운영관리 onBack={() => setCurrentScreen('SCR-DSH-01')} />,
+    },
+    {
       id: 'SCR-SMP-01',
       name: '14종 공통 토큰 규격 쇼케이스',
       category: '디자인 표준 (docs/03)',
@@ -307,7 +341,7 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 overflow-x-hidden ${
         isDawn
           ? 'bg-[#070d1e] text-[#f0f6fc]'
           : isDark
@@ -329,12 +363,35 @@ export default function App() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
-          {/* Left: Brand Identity with Click Navigation (Logged In: SCR-DSH-01, Guest: SCR-GNT-01) */}
-          <MoaLogo
-            onClick={() => {
-              setCurrentScreen(isLoggedIn ? 'SCR-DSH-01' : 'SCR-GNT-01');
-            }}
-          />
+          {/* Left: Hamburger Drawer Trigger (Logged-in only) & Brand Identity */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {isLoggedIn && currentScreen !== 'SCR-GNT-01' && (
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl border transition-all cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="전체 서비스 메뉴 열기"
+                aria-label="전체 메뉴 열기"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <MoaLogo
+              onClick={() => {
+                // 요청 2번: 로그인 화면 또는 로그인 상태일 때 로고 클릭 시 대시보드로 직결
+                if (currentScreen === 'SCR-AUT-02' || currentScreen === 'SCR-AUT-01' || isLoggedIn) {
+                  setIsLoggedIn(true);
+                  setCurrentScreen('SCR-DSH-01');
+                } else {
+                  setCurrentScreen('SCR-GNT-01');
+                }
+              }}
+            />
+          </div>
 
           {/* Center: Global Screen Selector (13 Screens) & ⌘K Quick Search Trigger */}
           <div className="flex-1 max-w-sm sm:max-w-md mx-2 flex items-center gap-2">
@@ -374,15 +431,7 @@ export default function App() {
             {/* Auth Session Simulator Pill */}
             <button
               type="button"
-              onClick={() => {
-                const nextState = !isLoggedIn;
-                setIsLoggedIn(nextState);
-                if (nextState && currentScreen === 'SCR-GNT-01') {
-                  setCurrentScreen('SCR-DSH-01');
-                } else if (!nextState && currentScreen === 'SCR-DSH-01') {
-                  setCurrentScreen('SCR-GNT-01');
-                }
-              }}
+              onClick={handleToggleAuth}
               className={`hidden md:flex items-center gap-1 px-2 h-7 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap shrink-0 ${
                 isLoggedIn
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
@@ -695,6 +744,16 @@ export default function App() {
           </div>
         </aside>
       )}
+      {/* Global Slide-out Navigation Drawer */}
+      <GlobalDrawerNav
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        currentScreen={currentScreen}
+        onSelectScreen={(screenId) => setCurrentScreen(screenId)}
+        isLoggedIn={isLoggedIn}
+        onToggleLogin={handleToggleAuth}
+        activeLedgerName={activeLedger?.ledger_name}
+      />
     </div>
   );
 }

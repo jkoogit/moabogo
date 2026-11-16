@@ -2383,12 +2383,12 @@ export const ElmQck01: React.FC<{
     <aside
       aria-label="빠른등록 플로팅 메뉴"
       style={{ top: `${topPos}px` }}
-      className={`fixed right-1 sm:right-2 z-[9999] flex flex-col items-end select-none transition-shadow ${className}`}
+      className={`fixed right-0 z-[9999] flex flex-col items-end select-none transition-shadow ${className}`}
     >
-      {/* 1.2 위치이동 핸들: 슬림 규격(20px)에 맞춘 컴팩트 핸들 (touch-none으로 브라우저 스크롤 간섭 원천 차단) */}
+      {/* 1.2 위치이동 핸들: 우측 벽에 완전 밀착(rounded-l-md)하여 모바일 삐져나옴 원천 차단 */}
       <div
         onPointerDown={handlePointerDown}
-        className="w-5 h-3.5 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/85 hover:bg-slate-900 text-slate-300 hover:text-white rounded-md shadow-md backdrop-blur-md transition-all active:scale-95 touch-none"
+        className="w-5 h-3.5 mb-1 flex items-center justify-center cursor-ns-resize bg-slate-800/85 hover:bg-slate-900 text-slate-300 hover:text-white rounded-l-md shadow-md backdrop-blur-md transition-all active:scale-95 touch-none"
         title="상하 위치 이동 핸들 (상단 헤더 경계선 상한 유지)"
       >
         <GripHorizontal className="w-3 h-3" />
@@ -2396,7 +2396,7 @@ export const ElmQck01: React.FC<{
 
       {/* 접힘 / 펼침 영역 */}
       {!isExpanded ? (
-        /* 1.1 접었을 때: 가로 너비 50% 슬림화 (w-5, 20px 컴팩트 규격 적용) */
+        /* 1.1 접었을 때: 우측 벽에 일체화 밀착(right-0, rounded-l-lg) */
         <button
           type="button"
           onClick={() => setIsExpanded(true)}
@@ -2406,8 +2406,8 @@ export const ElmQck01: React.FC<{
           <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
         </button>
       ) : (
-        /* 펼쳤을 때: 빠른 머니/수행 등록 및 접기 버튼 */
-        <div className="flex flex-col gap-2 p-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-2xl animate-in fade-in zoom-in-95">
+        /* 펼쳤을 때: 우측 안전 여백(mr-1 sm:mr-2) 및 뷰포트 초과 방지 max-w 적용 */
+        <div className="mr-1 sm:mr-2 max-w-[calc(100vw-16px)] flex flex-col gap-2 p-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-2xl animate-in fade-in zoom-in-95">
           <div className="flex items-center justify-between pb-1.5 px-1 border-b border-slate-100 dark:border-slate-800">
             <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
               <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
