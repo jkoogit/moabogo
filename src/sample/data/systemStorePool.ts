@@ -631,3 +631,20 @@ export function saveUserStorePreference(pref: UserStorePreference): void {
   }
 }
 
+// 시스템 백오피스(/system)와 사용자 환경설정(SCR-SET-01) 간 동적 매장 풀 공급 헬퍼
+export function getSystemStorePool(): StorePreset[] {
+  try {
+    const raw = localStorage.getItem('moabogo_system_stores_pool');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load system store pool:', err);
+  }
+  return SYSTEM_STORE_POOL;
+}
+
+

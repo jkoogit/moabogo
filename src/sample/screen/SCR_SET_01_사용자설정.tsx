@@ -67,6 +67,7 @@ import {
 } from '../data/dashboardConfigPool';
 import {
   SYSTEM_STORE_POOL,
+  getSystemStorePool,
   loadUserStorePreference,
   saveUserStorePreference,
   StorePreset,
@@ -710,7 +711,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
 
           {/* System Store Pool Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {SYSTEM_STORE_POOL.filter((s) => {
+            {getSystemStorePool().filter((s) => {
               if (storeFilterCategory === '전체') return true;
               return s.category === storeFilterCategory;
             }).map((store) => {
