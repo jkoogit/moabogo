@@ -34,6 +34,12 @@ import {
   PanelLeftOpen,
   Route,
   Settings2,
+  Eye,
+  Columns,
+  FileText,
+  Table,
+  Network,
+  Code,
 } from 'lucide-react';
 
 /* =========================================================================
@@ -675,32 +681,49 @@ export const ElmFlt01: React.FC<{
 export const ElmChk01: React.FC<{
   checked: boolean;
   onChange: (checked: boolean) => void;
-  label: string;
+  label?: string;
   description?: string;
   disabled?: boolean;
   className?: string;
 }> = ({ checked, onChange, label, description, disabled = false, className = '' }) => (
   <label
-    onClick={() => !disabled && onChange(!checked)}
-    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'
-      } ${className}`}
+    onClick={(e) => {
+      if (disabled) return;
+      e.preventDefault();
+      onChange(!checked);
+    }}
+    className={`inline-flex items-center gap-2.5 cursor-pointer select-none min-h-[36px] py-1 ${
+      disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600 dark:hover:text-indigo-400'
+    } ${className}`}
   >
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={() => {}}
+      className="sr-only"
+    />
     <div
-      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${checked
+      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+        checked
           ? 'bg-indigo-600 border-indigo-600 text-white'
-          : 'bg-white border-slate-300 hover:border-indigo-400'
-        }`}
+          : 'bg-white dark:bg-zinc-800 border-slate-300 dark:border-zinc-700 hover:border-indigo-400'
+      }`}
     >
       {checked && <Check className="w-3 h-3 stroke-[3]" />}
     </div>
-    <div className="flex flex-col justify-center">
-      <span className="text-xs font-medium text-slate-800 leading-none break-keep">
-        {label}
-      </span>
-      {description && (
-        <span className="text-[10px] text-slate-400 mt-1 break-keep">{description}</span>
-      )}
-    </div>
+    {(label || description) && (
+      <div className="flex flex-col justify-center">
+        {label && (
+          <span className="text-xs font-medium text-slate-800 dark:text-zinc-200 leading-none break-keep">
+            {label}
+          </span>
+        )}
+        {description && (
+          <span className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 break-keep">{description}</span>
+        )}
+      </div>
+    )}
   </label>
 );
 
@@ -3409,4 +3432,579 @@ export const ElmTre02: React.FC<ElmTre02Props> = (props) => {
     return <ElmTre02CategoryView {...(props as ElmTre02CategoryProps)} />;
   }
   return <ElmTre02AccountView {...(props as ElmTre02AccountProps)} />;
+};
+
+/* =========================================================================
+   ELM-MKD-01 : 마크다운 에디터 & 실시간 미리보기 토큰 (디자인정책 토큰)
+   - 모드: 'edit'(편집) | 'preview'(미리보기) | 'split'(반응형 분할)
+   - 뷰어: 테이블(|), Mermaid 다이어그램(```mermaid), 코드블럭(```), 제목(#), 리스트(-, 1.),
+          체크박스(- [x]), 인용문(>), 인라인코드(`), 볼드(**), 구분선(---) 지원
+   - 코드 프리셋: 테이블, Mermaid, 코드블록, 체크리스트 원클릭 템플릿 삽입
+   - 다크모드 및 모아보고 디자인 토큰 타이포그래피 100% 준수
+   ========================================================================= */
+export const ElmMkdViewer: React.FC<{
+  content: string;
+  className?: string;
+}> = ({ content, className = '' }) => {
+  const [showMermaidCode, setShowMermaidCode] = useState<Record<number, boolean>>({});
+
+  const renderInline = (text: string): React.ReactNode => {
+    // 인라인 코드 `code`, 볼드 **, 이탤릭 *, 링크 []()
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return (
+          <code
+            key={idx}
+            className="px-1.5 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-semibold"
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={idx} className="font-bold text-slate-900 dark:text-zinc-100">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return <em key={idx} className="italic text-slate-700 dark:text-zinc-300">{part.slice(1, -1)}</em>;
+      }
+      const linkMatch = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      if (linkMatch) {
+        return (
+          <a
+            key={idx}
+            href={linkMatch[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+          >
+            {linkMatch[1]}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
+  // Mermaid 다이어그램 렌더러
+  const renderMermaid = (code: string, blockIndex: number) => {
+    const isCodeOpen = !!showMermaidCode[blockIndex];
+    const lines = code.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+    const diagramType = lines[0] || 'flowchart';
+
+    // 간단한 노드 및 엣지 파싱 (flowchart / graph / sequenceDiagram / stateDiagram)
+    const transitions: Array<{ from: string; to: string; label?: string }> = [];
+    const nodes: string[] = [];
+
+    lines.forEach((l) => {
+      const match = l.match(/(.+?)\s*(-->|-->\|.*?\||==>|->)\s*(.+)/);
+      if (match) {
+        const fromRaw = match[1].replace(/\[.*?\]|\(.*?\)/g, '').trim();
+        const toRaw = match[3].replace(/\[.*?\]|\(.*?\)/g, '').trim();
+        const fromLabel = (match[1].match(/\[(.*?)\]|\((.*?)\)/)?.[1] || fromRaw).trim();
+        const toLabel = (match[3].match(/\[(.*?)\]|\((.*?)\)/)?.[1] || toRaw).trim();
+        if (fromLabel && !nodes.includes(fromLabel)) nodes.push(fromLabel);
+        if (toLabel && !nodes.includes(toLabel)) nodes.push(toLabel);
+        transitions.push({ from: fromLabel, to: toLabel });
+      }
+    });
+
+    return (
+      <div
+        key={`mermaid-${blockIndex}`}
+        className="my-3 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-b from-indigo-50/40 to-slate-50/50 dark:from-indigo-950/20 dark:to-[#0E131F] p-3.5 space-y-2.5 overflow-hidden shadow-xs"
+      >
+        <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-950 pb-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-400">
+            <Network className="w-3.5 h-3.5" />
+            <span>Mermaid 다이어그램</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900/80 font-mono">
+              {diagramType}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMermaidCode((prev) => ({ ...prev, [blockIndex]: !prev[blockIndex] }))}
+            className="text-[11px] font-semibold text-slate-500 hover:text-indigo-600 dark:text-zinc-400 flex items-center gap-1 cursor-pointer"
+          >
+            <Code className="w-3 h-3" />
+            <span>{isCodeOpen ? '코드 숨기기' : '코드 보기'}</span>
+          </button>
+        </div>
+
+        {/* 시각화된 다이어그램 흐름 뷰 */}
+        <div className="p-3 bg-white dark:bg-[#131B2E] rounded-xl border border-slate-200 dark:border-zinc-800 overflow-x-auto">
+          {transitions.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 py-2">
+              {transitions.map((t, tIdx) => (
+                <div key={tIdx} className="flex items-center gap-2">
+                  <div className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-indigo-700 dark:text-indigo-300 shadow-2xs">
+                    {t.from}
+                  </div>
+                  <div className="flex items-center text-indigo-400 font-bold text-xs">
+                    <span className="text-[11px] font-mono">──▶</span>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs">
+                    {t.to}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-2 text-xs text-slate-500 dark:text-zinc-400 font-mono whitespace-pre-wrap">
+              {code}
+            </div>
+          )}
+        </div>
+
+        {/* 원문 코드 블럭 (토글) */}
+        {isCodeOpen && (
+          <div className="p-2.5 rounded-lg bg-slate-900 text-slate-100 dark:bg-black/80 font-mono text-xs overflow-x-auto border border-slate-800">
+            <pre className="m-0 leading-relaxed">{code}</pre>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const rawLines = (content || '').split('\n');
+  const renderedElements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeBlockLang = '';
+  let codeBlockLines: string[] = [];
+  let blockKey = 0;
+
+  let inTable = false;
+  let tableLines: string[] = [];
+
+  const flushTable = () => {
+    if (tableLines.length === 0) return;
+    const headerLine = tableLines[0];
+    const dataLines = tableLines.slice(1).filter((l) => !l.replace(/\s/g, '').includes('---'));
+
+    const parseRow = (line: string) =>
+      line
+        .split('|')
+        .slice(1, -1)
+        .map((c) => c.trim());
+
+    const headers = parseRow(headerLine);
+    const rows = dataLines.map(parseRow);
+
+    renderedElements.push(
+      <div
+        key={`table-${blockKey++}`}
+        className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-800 shadow-xs"
+      >
+        <table className="w-full text-xs text-left border-collapse">
+          <thead className="bg-slate-100/90 dark:bg-zinc-800/80 border-b border-slate-200 dark:border-zinc-700">
+            <tr>
+              {headers.map((h, hIdx) => (
+                <th
+                  key={hIdx}
+                  className="py-2 px-3 font-bold text-slate-900 dark:text-zinc-100 whitespace-nowrap"
+                >
+                  {renderInline(h)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80 bg-white dark:bg-[#131B2E]">
+            {rows.map((row, rIdx) => (
+              <tr
+                key={rIdx}
+                className="hover:bg-slate-50/70 dark:hover:bg-zinc-800/40 transition-colors"
+              >
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} className="py-2 px-3 text-slate-700 dark:text-zinc-300">
+                    {renderInline(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    tableLines = [];
+    inTable = false;
+  };
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
+
+    // 1. 코드 블럭 처리 (```)
+    if (trimmed.startsWith('```')) {
+      if (inTable) flushTable();
+
+      if (inCodeBlock) {
+        // 코드 블럭 종료
+        const fullCode = codeBlockLines.join('\n');
+        if (codeBlockLang === 'mermaid') {
+          renderedElements.push(renderMermaid(fullCode, blockKey++));
+        } else {
+          renderedElements.push(
+            <div
+              key={`code-${blockKey++}`}
+              className="my-2.5 p-3 rounded-xl bg-slate-900 text-slate-100 dark:bg-black/90 font-mono text-xs overflow-x-auto border border-slate-800 shadow-xs"
+            >
+              {codeBlockLang && (
+                <div className="text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">
+                  {codeBlockLang}
+                </div>
+              )}
+              <pre className="m-0 leading-relaxed">{fullCode}</pre>
+            </div>
+          );
+        }
+        codeBlockLines = [];
+        codeBlockLang = '';
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+        codeBlockLang = trimmed.slice(3).trim().toLowerCase();
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    // 2. 마크다운 테이블 처리 (| ... |)
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      inTable = true;
+      tableLines.push(trimmed);
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
+
+    // 3. 빈 줄
+    if (!trimmed) {
+      renderedElements.push(<div key={`blank-${i}`} className="h-2" />);
+      continue;
+    }
+
+    // 4. 구분선 (---)
+    if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+      renderedElements.push(
+        <hr key={`hr-${i}`} className="my-3 border-slate-200 dark:border-zinc-800" />
+      );
+      continue;
+    }
+
+    // 5. 제목 H1 ~ H4
+    if (trimmed.startsWith('# ')) {
+      renderedElements.push(
+        <h1
+          key={`h1-${i}`}
+          className="text-base sm:text-lg font-bold text-slate-900 dark:text-zinc-100 mt-3 mb-1 pb-1 border-b border-slate-200 dark:border-zinc-800"
+        >
+          {renderInline(trimmed.slice(2))}
+        </h1>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      renderedElements.push(
+        <h2
+          key={`h2-${i}`}
+          className="text-sm sm:text-base font-bold text-slate-900 dark:text-zinc-100 mt-2.5 mb-1"
+        >
+          {renderInline(trimmed.slice(3))}
+        </h2>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('### ')) {
+      renderedElements.push(
+        <h3
+          key={`h3-${i}`}
+          className="text-xs sm:text-sm font-bold text-slate-800 dark:text-zinc-200 mt-2 mb-0.5"
+        >
+          {renderInline(trimmed.slice(4))}
+        </h3>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('#### ')) {
+      renderedElements.push(
+        <h4
+          key={`h4-${i}`}
+          className="text-xs font-bold text-slate-700 dark:text-zinc-300 mt-1.5 mb-0.5"
+        >
+          {renderInline(trimmed.slice(5))}
+        </h4>
+      );
+      continue;
+    }
+
+    // 6. 인용문 >
+    if (trimmed.startsWith('> ')) {
+      renderedElements.push(
+        <blockquote
+          key={`quote-${i}`}
+          className="my-1.5 pl-3 py-1 border-l-2 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20 text-xs text-slate-700 dark:text-zinc-300 rounded-r"
+        >
+          {renderInline(trimmed.slice(2))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // 7. 체크박스 리스트
+    if (trimmed.startsWith('- [ ] ') || trimmed.startsWith('- [x] ') || trimmed.startsWith('- [X] ')) {
+      const isChecked = !trimmed.startsWith('- [ ] ');
+      const labelText = trimmed.slice(6);
+      renderedElements.push(
+        <div key={`chk-${i}`} className="flex items-center gap-2 text-xs py-0.5 text-slate-700 dark:text-zinc-300">
+          <div
+            className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border ${
+              isChecked
+                ? 'bg-indigo-600 border-indigo-600 text-white'
+                : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800'
+            }`}
+          >
+            {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+          </div>
+          <span className={isChecked ? 'line-through text-slate-400 dark:text-zinc-500' : ''}>
+            {renderInline(labelText)}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // 8. 불릿 리스트
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      renderedElements.push(
+        <div key={`li-${i}`} className="flex items-start gap-2 text-xs py-0.5 text-slate-700 dark:text-zinc-300 pl-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+          <span className="flex-1 leading-relaxed">{renderInline(trimmed.slice(2))}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // 9. 번호 리스트
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    if (numMatch) {
+      renderedElements.push(
+        <div key={`num-${i}`} className="flex items-start gap-2 text-xs py-0.5 text-slate-700 dark:text-zinc-300 pl-2">
+          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0 text-[11px] mt-0.5">
+            {numMatch[1]}.
+          </span>
+          <span className="flex-1 leading-relaxed">{renderInline(numMatch[2])}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // 10. 일반 단락
+    renderedElements.push(
+      <p key={`p-${i}`} className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed my-0.5 break-keep">
+        {renderInline(line)}
+      </p>
+    );
+  }
+
+  if (inTable) flushTable();
+
+  return (
+    <div className={`prose-sm max-w-none space-y-0.5 text-xs ${className}`}>
+      {renderedElements}
+    </div>
+  );
+};
+
+export interface ElmMkd01Props {
+  value: string;
+  onChange?: (val: string) => void;
+  placeholder?: string;
+  rows?: number;
+  readOnly?: boolean;
+  label?: string;
+  className?: string;
+  heightClass?: string;
+  defaultMode?: 'edit' | 'preview' | 'split';
+}
+
+export const ElmMkd01: React.FC<ElmMkd01Props> = ({
+  value,
+  onChange,
+  placeholder = 'Markdown 포맷으로 입력하세요...',
+  rows = 10,
+  readOnly = false,
+  label,
+  className = '',
+  heightClass = 'min-h-[200px]',
+  defaultMode = 'edit',
+}) => {
+  const [mode, setMode] = useState<'edit' | 'preview' | 'split'>(defaultMode);
+
+  // 코드 프리셋 삽입 헬퍼
+  const handleInsertPreset = (template: string) => {
+    if (!onChange) return;
+    const prefix = value ? `${value.trimEnd()}\n\n` : '';
+    onChange(`${prefix}${template}`);
+  };
+
+  if (readOnly) {
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        {label && <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">{label}</label>}
+        <div className={`p-4 rounded-xl bg-slate-50 dark:bg-[#0E131F] border border-slate-200 dark:border-zinc-800 overflow-y-auto ${heightClass}`}>
+          <ElmMkdViewer content={value} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      {/* 상단 툴바: 라벨, 프리셋 버튼 그룹, 아이콘 전용 모드 전환 탭 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {label && (
+            <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{label}</span>
+            </label>
+          )}
+
+          {/* 코드 프리셋 단축 버튼들 (표, Mermaid, 코드블럭, 체크리스트) */}
+          <div className="hidden sm:flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-zinc-700 text-[10px]">
+            <button
+              type="button"
+              onClick={() =>
+                handleInsertPreset('| 항목명 | 설명 | 비고 |\n| --- | --- | --- |\n| 기능1 | 상세내용 기술 | 정상 |')
+              }
+              className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:border-indigo-400 text-slate-600 dark:text-zinc-400 font-medium flex items-center gap-1 cursor-pointer"
+              title="마크다운 표(Table) 템플릿 삽입"
+            >
+              <Table className="w-3 h-3 text-indigo-500" />
+              <span>표</span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleInsertPreset('```mermaid\nflowchart LR\n  A[요청 접수] --> B[검증 및 처리]\n  B --> C[완료 승급]\n```')
+              }
+              className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:border-indigo-400 text-slate-600 dark:text-zinc-400 font-medium flex items-center gap-1 cursor-pointer"
+              title="Mermaid 다이어그램 템플릿 삽입"
+            >
+              <Network className="w-3 h-3 text-emerald-500" />
+              <span>Mermaid</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleInsertPreset('```typescript\n// 코드 예시\nconst status = "SUCCESS";\n```')}
+              className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:border-indigo-400 text-slate-600 dark:text-zinc-400 font-medium flex items-center gap-1 cursor-pointer"
+              title="코드 블록 템플릿 삽입"
+            >
+              <Code className="w-3 h-3 text-purple-500" />
+              <span>코드</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleInsertPreset('- [ ] 첫 번째 실천 항목\n- [ ] 두 번째 실천 항목')}
+              className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 hover:border-indigo-400 text-slate-600 dark:text-zinc-400 font-medium flex items-center gap-1 cursor-pointer"
+              title="체크리스트 템플릿 삽입"
+            >
+              <Check className="w-3 h-3 text-amber-500" />
+              <span>체크</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 요청 2: 버튼명 글자 대신 아이콘만 표시하는 모드 전환 탭 */}
+        <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={() => setMode('edit')}
+            title="편집 모드"
+            aria-label="편집 모드"
+            className={`p-1.5 rounded transition-all cursor-pointer ${
+              mode === 'edit'
+                ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('preview')}
+            title="미리보기 모드"
+            aria-label="미리보기 모드"
+            className={`p-1.5 rounded transition-all cursor-pointer ${
+              mode === 'preview'
+                ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('split')}
+            title="분할 보기 모드"
+            aria-label="분할 보기 모드"
+            className={`hidden sm:flex p-1.5 rounded transition-all cursor-pointer ${
+              mode === 'split'
+                ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Columns className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 메인 편집/미리보기 컨테이너 */}
+      <div className={`rounded-xl border border-slate-200 dark:border-zinc-700 overflow-hidden bg-white dark:bg-[#0E131F] ${heightClass}`}>
+        {mode === 'edit' && (
+          <textarea
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder={placeholder}
+            rows={rows}
+            className="w-full h-full p-3 text-xs font-mono bg-transparent text-slate-900 dark:text-zinc-100 focus:outline-none resize-y leading-relaxed"
+          />
+        )}
+
+        {mode === 'preview' && (
+          <div className="p-4 overflow-y-auto max-h-[380px] bg-slate-50/50 dark:bg-[#0E131F]">
+            {value.trim() ? (
+              <ElmMkdViewer content={value} />
+            ) : (
+              <p className="text-xs text-slate-400 dark:text-zinc-500 italic">미리보기할 내용이 없습니다.</p>
+            )}
+          </div>
+        )}
+
+        {mode === 'split' && (
+          <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-zinc-700 h-full min-h-[220px]">
+            <textarea
+              value={value}
+              onChange={(e) => onChange?.(e.target.value)}
+              placeholder={placeholder}
+              rows={rows}
+              className="w-full p-3 text-xs font-mono bg-transparent text-slate-900 dark:text-zinc-100 focus:outline-none resize-none leading-relaxed"
+            />
+            <div className="p-3 overflow-y-auto max-h-[360px] bg-slate-50/50 dark:bg-[#0E131F]">
+              {value.trim() ? (
+                <ElmMkdViewer content={value} />
+              ) : (
+                <p className="text-xs text-slate-400 dark:text-zinc-500 italic">미리보기할 내용이 없습니다.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
