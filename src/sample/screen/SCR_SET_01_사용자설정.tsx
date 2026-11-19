@@ -98,10 +98,21 @@ import {
   searchExternalAccounts,
   maskExternalAccountNo,
 } from '../data/externalAccountStorePool';
+import {
+  loadFinancialCompliance,
+  loadNotificationMatrix,
+  loadSystemNotices,
+} from '../data/systemGovernancePool';
 export const SCR_SET_01_사용자설정: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('THEME');
   const [saveToast, setSaveToast] = useState(false);
+
+  // 6.0 시스템 전역 거버넌스 정책 연동 (SSOT: systemGovernancePool)
+  const [financialCompliance] = useState(() => loadFinancialCompliance());
+  const [sysNotifyMatrix] = useState(() => loadNotificationMatrix());
+  const [activeSystemNotices] = useState(() => loadSystemNotices().filter((n) => n.isEnabled));
+  const [showNoticeBanner, setShowNoticeBanner] = useState<boolean>(true);
 
   // 6.1 대시보드 위젯 중앙 제어 풀 (SSOT: dashboardConfigPool)
   const [dashboardModules, setDashboardModules] = useState<ModuleConfig[]>(() => loadDashboardModules());
@@ -488,6 +499,42 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             type="button"
             onClick={() => setSaveToast(false)}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center text-emerald-600 dark:text-emerald-400"
+          >
+            ✕
+          </button>
+        </aside>
+      )}
+
+      {/* 플랫폼 전역 공지 배너 연동 (systemGovernancePool 동기화) */}
+      {activeSystemNotices.length > 0 && showNoticeBanner && (
+        <aside className="p-3.5 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 text-slate-900 dark:text-zinc-100 text-xs flex items-start justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="font-bold flex items-center gap-1.5 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-indigo-600 text-white">
+                  플랫폼 긴급 공지
+                </span>
+                <span>{activeSystemNotices[0].title}</span>
+              </div>
+              <p className="text-slate-600 dark:text-zinc-300 text-[11px] leading-relaxed">
+                {activeSystemNotices[0].content}
+              </p>
+              {activeSystemNotices[0].hasButton && (
+                <div className="pt-1">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold">
+                    {activeSystemNotices[0].buttonText}
+                    <ArrowUpRight className="w-3 h-3" />
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowNoticeBanner(false)}
+            className="min-h-[36px] min-w-[36px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-lg"
+            title="공지 닫기"
           >
             ✕
           </button>
@@ -1895,9 +1942,24 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
       {/* Tab 3: 알림 설정 */}
       {activeTab === 'NOTIFY' && (
         <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
-            알림톡 및 푸시 알림 시간/주기
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                <Bell className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>알림톡 및 푸시 알림 시간/주기 설정</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                플랫폼 12종 알림 매트릭스 거버넌스 정책과 연동된 개인화 수신 옵션을 설정합니다.
+              </p>
+            </div>
+            {sysNotifyMatrix.requireVerifiedEmailOnly && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>인증된 이메일 한정 발송 중</span>
+              </span>
+            )}
+          </div>
+
           <div className="space-y-3">
             <ElmInp01
               label="기본 일일 브리핑 알림 시간"
@@ -1906,19 +1968,37 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               onChange={setNotifyTime}
             />
             <ElmChk01
-              checked={notifyGoals}
+              checked={sysNotifyMatrix.goalScheduleReminder ? notifyGoals : false}
               onChange={setNotifyGoals}
+              disabled={!sysNotifyMatrix.goalScheduleReminder}
               label="모아목표 일일 실천 리마인더 발송"
+              description={
+                !sysNotifyMatrix.goalScheduleReminder
+                  ? '※ 시스템 관리자 정책에 의해 전체 발송이 일시 중단되었습니다.'
+                  : '매일 설정한 브리핑 시간에 목표 실천 현황을 전달합니다.'
+              }
             />
             <ElmChk01
-              checked={notifyDuties}
+              checked={sysNotifyMatrix.dutyActionRequest ? notifyDuties : false}
               onChange={setNotifyDuties}
+              disabled={!sysNotifyMatrix.dutyActionRequest}
               label="모아당번 순번 도래 및 대신수행 요청 시 알림"
+              description={
+                !sysNotifyMatrix.dutyActionRequest
+                  ? '※ 시스템 관리자 정책에 의해 전체 발송이 일시 중단되었습니다.'
+                  : '당번 순번 도래 및 대신수행 요청 발생 시 즉시 푸시를 수신합니다.'
+              }
             />
             <ElmChk01
-              checked={notifyLoans}
+              checked={sysNotifyMatrix.moneySettleProcessed ? notifyLoans : false}
               onChange={setNotifyLoans}
+              disabled={!sysNotifyMatrix.moneySettleProcessed}
               label="모아머니 상환 만기 3일 전 D-Day 알림"
+              description={
+                !sysNotifyMatrix.moneySettleProcessed
+                  ? '※ 시스템 관리자 정책에 의해 전체 발송이 일시 중단되었습니다.'
+                  : '모아머니 정산 및 상환 만기 도래 시 사전에 알림을 수신합니다.'
+              }
             />
           </div>
         </section>
@@ -1960,6 +2040,39 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               </p>
             </div>
           </aside>
+
+          {/* 금융 컴플라이언스 가드레일 정책 배너 (systemGovernancePool 동기화) */}
+          {financialCompliance &&
+            (!financialCompliance.enableRemitUrlGeneration ||
+              !financialCompliance.allowGoalCheerRemit ||
+              !financialCompliance.allowMoaMoneyRemit ||
+              financialCompliance.blockForeignIpRemit) && (
+              <aside className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 flex-wrap">
+                    <span>금융 컴플라이언스 송금 가드레일 정책 적용 중</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                      일일 송금 추천 상한: ₩{financialCompliance.maxDailyRemitLimit.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                    {!financialCompliance.enableRemitUrlGeneration
+                      ? '플랫폼 보안 정책에 따라 간편송금 URL 생성이 전역 차단되어 있습니다. 계좌번호 복사 및 일반 이체를 이용해 주세요.'
+                      : `플랫폼 보안 정책에 따라 일부 송금(목표응원: ${
+                          financialCompliance.allowGoalCheerRemit ? '허용' : '제한'
+                        }, 모아머니: ${
+                          financialCompliance.allowMoaMoneyRemit ? '허용' : '제한'
+                        }) 및 해외 IP 접속이 통제 중입니다.`}
+                  </p>
+                  {financialCompliance.complianceNotice && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+                      ※ 안내: {financialCompliance.complianceNotice}
+                    </p>
+                  )}
+                </div>
+              </aside>
+            )}
 
           {/* 인앱 토스트 알림 */}
           {copyToast && (

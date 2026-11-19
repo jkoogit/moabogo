@@ -38,6 +38,10 @@ export interface LadderGoalPreset {
   category: 'COFFEE' | 'LUNCH' | 'DUTY';
   title: string;
   description: string;
+  playerCount: number; // 참가자수
+  winnerCount: number; // 당첨자수
+  storeId?: string; // 연계 매장 ID
+  storeName?: string; // 연계 매장명
   roles: Array<{
     label: string;
     type: 'PAY' | 'PICKUP' | 'CLEAN' | 'PASS';
@@ -53,6 +57,10 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
     category: 'COFFEE',
     title: '☕ 커피 쏘기 & 픽업 내기 (대표 5인)',
     description: '1명 결제 당첨, 2명 픽업 심부름, 2명 생존',
+    playerCount: 5,
+    winnerCount: 1,
+    storeId: 'sys_store_pluscafe_45f',
+    storeName: 'PLUS CAFE (45층 사내카페)',
     roles: [
       { label: '💳 오늘 커피 결제', type: 'PAY', color: 'rose', badgeText: '당첨' },
       { label: '🏃 커피 픽업 심부름', type: 'PICKUP', color: 'amber', badgeText: '심부름' },
@@ -64,8 +72,12 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
   {
     id: 'preset_lunch_duty',
     category: 'LUNCH',
-    title: '🍱 점심식사 뒷정리 & 수저 세팅 내기',
+    title: '🍱 점심식사 뒷정리 & 수저 세팅 내기 (5인)',
     description: '수저 세팅, 테이블 정리, 영수증 챙기기 역할 분담',
+    playerCount: 5,
+    winnerCount: 3,
+    storeId: 'sys_store_ssada_yeouido',
+    storeName: '싸다김밥 여의도점',
     roles: [
       { label: '🥄 수저 & 물 세팅', type: 'CLEAN', color: 'sky', badgeText: '세팅' },
       { label: '🧻 식사 후 테이블 닦기', type: 'CLEAN', color: 'sky', badgeText: '정리' },
@@ -77,8 +89,12 @@ export const LADDER_ROLE_PRESETS: LadderGoalPreset[] = [
   {
     id: 'preset_one_buyer',
     category: 'COFFEE',
-    title: '🎯 단 1명만 결제하기 (1인 결제 모드)',
+    title: '🎯 단 1명만 결제하기 (1인 결제 모드 - 5인)',
     description: '1명만 결제하고 나머지는 모두 통과하는 긴장감 넘치는 모드',
+    playerCount: 5,
+    winnerCount: 1,
+    storeId: 'sys_store_starbucks_ifc',
+    storeName: '스타벅스 여의도IFC몰점',
     roles: [
       { label: '💳 전체 전액 결제', type: 'PAY', color: 'rose', badgeText: '당첨' },
       { label: '🎉 생존', type: 'PASS', color: 'emerald', badgeText: '통과' },
