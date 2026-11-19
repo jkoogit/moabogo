@@ -118,6 +118,13 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
       badge: 'LIFE',
       screens: [
         {
+          id: 'SCR-GAM-01',
+          code: 'SCR-GAM-01',
+          title: '모아게임 허브',
+          desc: '1/N 정산, 사다리타기, 룰렛돌리기 3대 게임',
+          icon: <Gamepad2 className="w-4 h-4 text-emerald-500" />,
+        },
+        {
           id: 'SCR-DUT-01',
           code: 'SCR-DUT-01',
           title: '모아당번 관리',

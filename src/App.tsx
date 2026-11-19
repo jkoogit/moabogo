@@ -19,6 +19,7 @@ import { SCR_GOL_02_모아목표상세 } from './sample/screen/SCR_GOL_02_모아
 import { SCR_DUT_01_모아당번관리 } from './sample/screen/SCR_DUT_01_모아당번관리';
 import { SCR_DUT_02_모아당번상세 } from './sample/screen/SCR_DUT_02_모아당번상세';
 import { SCR_MON_01_모아머니이동관리 } from './sample/screen/SCR_MON_01_모아머니이동관리';
+import { SCR_GAM_01_모아게임허브 } from './sample/screen/SCR_GAM_01_모아게임허브';
 import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른수행등록';
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
@@ -51,8 +52,13 @@ import {
 export default function App() {
   const { resolvedTheme } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<string>(() => {
-    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/system') || window.location.search.includes('route=system'))) {
-      return 'SCR-SYS-01';
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/system') || window.location.search.includes('route=system')) {
+        return 'SCR-SYS-01';
+      }
+      if (window.location.pathname.startsWith('/game') || window.location.search.includes('route=game')) {
+        return 'SCR-GAM-01';
+      }
     }
     return 'SCR-GNT-01';
   });
@@ -286,6 +292,19 @@ export default function App() {
       name: '모아머니 이동관리 (요구/요청머니)',
       category: '라이프 서비스',
       comp: <SCR_MON_01_모아머니이동관리 onBack={() => setCurrentScreen('SCR-DSH-01')} />,
+    },
+    {
+      id: 'SCR-GAM-01',
+      name: '모아게임 허브 (정산/사다리/룰렛)',
+      category: '라이프 서비스',
+      comp: (
+        <SCR_GAM_01_모아게임허브
+          onBack={() => setCurrentScreen('SCR-DSH-01')}
+          onNavigateToSettings={() => setCurrentScreen('SCR-SET-01')}
+          onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
+          onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')}
+        />
+      ),
     },
     {
       id: 'SCR-QCK-01',

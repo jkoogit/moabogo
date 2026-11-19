@@ -369,6 +369,7 @@ export interface RouletteResultModalProps {
   resolvedTheme: string;
   isDark: boolean;
   isGuest?: boolean;
+  onAssignToDuty?: () => void;
 }
 
 export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
@@ -385,6 +386,7 @@ export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
   resolvedTheme,
   isDark,
   isGuest = false,
+  onAssignToDuty,
 }) => {
   if (!isOpen || !winner) return null;
 
@@ -552,6 +554,17 @@ export const RouletteResultModal: React.FC<RouletteResultModalProps> = ({
                   <span>즉시결과</span>
                 </button>
               </>
+            )}
+
+            {onAssignToDuty && (
+              <button
+                type="button"
+                onClick={onAssignToDuty}
+                className="py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="모아당번에 당번 과업으로 즉시 배정"
+              >
+                <span>🧹 당번 배정</span>
+              </button>
             )}
 
             <button
