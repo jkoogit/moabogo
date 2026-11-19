@@ -79,6 +79,8 @@ export interface RouletteGameZoneProps {
   onRoomModeChange?: (inRoom: boolean, isHost: boolean) => void;
   onNavigateGameTab?: (targetTab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void;
   onRegisterBroadcastTab?: (broadcaster: (tab: 'SPLIT' | 'LADDER' | 'ROULETTE') => void) => void;
+  isItemCountDisabled?: boolean;
+  onAssignToDuty?: () => void;
 }
 
 export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
@@ -104,12 +106,24 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
   onRoomModeChange,
   onNavigateGameTab,
   onRegisterBroadcastTab,
+  isItemCountDisabled = false,
+  onAssignToDuty,
 }) => {
   const [rouletteRotation, setRouletteRotation] = useState<number>(0);
   const [rouletteTransitionDuration, setRouletteTransitionDuration] = useState<number>(3500);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState<boolean>(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState<boolean>(false);
+  const [maxItemLimit, setMaxItemLimit] = useState<number>(20);
+
+  const handleAddItemThreshold = () => {
+    if (isGuest || isItemCountDisabled) return;
+    setMaxItemLimit((prev) => {
+      const next = prev + 5;
+      showToast(`최대 항목 수가 5개 추가되었습니다. (최대 ${next}개)`, 'info');
+      return next;
+    });
+  };
 
   // 실시간 공유 방 상태
   const [roomId, setRoomId] = useState<string | null>(() => {
@@ -1397,46 +1411,52 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
           </ElmSld03>
         </div>
 
-        {/* 3. 룰렛 항목 인디케이터 & 가중치 모드 토글 */}
-        <div className="w-full space-y-2 pt-2 border-t border-slate-200/60 dark:border-zinc-800/80">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5 shrink-0">
-              <span>설정 항목 수</span>
-              {isGuest && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-normal flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> 방장 제어
-                </span>
-              )}
-            </span>
-            <button
-              type="button"
-              disabled={isGuest}
-              onClick={handleToggleRouletteWeight}
-              className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 shrink-0 ${
-                isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-              } ${
-                useRouletteWeight
-                  ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
-                  : resolvedTheme === 'dawn'
-                  ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
-                  : isDark
-                  ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <span>{useRouletteWeight ? '가중치 ON' : '가중치 OFF'}</span>
-            </button>
-          </div>
+        {/* 3. 룰렛 항목 인디케이터 & 가중치 모드 토글 (사다리와 동일하게 가중치 OFF 다음에 우측 인원수 입력요소 연동) */}
+        <div className="w-full pt-2 border-t border-slate-200/60 dark:border-zinc-800/80">
           <ElmRng01
-            label=""
+            label={isGuest ? '설정 항목 수 (방장 제어 · 읽기 전용)' : '설정 항목 수'}
+            labelExtra={
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {isGuest && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-normal flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> 방장 제어
+                  </span>
+                )}
+                {isItemCountDisabled && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> 참여모임 인원 유지
+                  </span>
+                )}
+                <button
+                  type="button"
+                  disabled={isGuest}
+                  onClick={handleToggleRouletteWeight}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 shrink-0 ${
+                    isGuest ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  } ${
+                    useRouletteWeight
+                      ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
+                      : resolvedTheme === 'dawn'
+                      ? 'bg-white/80 border-[#bfdbfe] text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                      : isDark
+                      ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{useRouletteWeight ? '가중치 ON' : '가중치 OFF'}</span>
+                </button>
+              </div>
+            }
             value={rouletteItems.length}
             min={2}
-            max={20}
+            max={maxItemLimit}
             step={1}
             unit="개"
-            disabled={isGuest || isSpinning}
+            onAddThreshold={isGuest || isItemCountDisabled ? undefined : handleAddItemThreshold}
+            disabled={isGuest || isSpinning || isItemCountDisabled}
+            title={isItemCountDisabled ? '참여모임 인원으로 고정되어 있습니다 (수동설정 시 변경 가능)' : undefined}
             onChange={(val: number) => {
-              if (isGuest) return;
+              if (isGuest || isItemCountDisabled) return;
               handleUpdateRouletteItemCount(val);
             }}
             colorScheme="indigo"
@@ -1803,6 +1823,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         resolvedTheme={resolvedTheme}
         isDark={isDark}
         isGuest={isGuest}
+        onAssignToDuty={onAssignToDuty}
       />
 
       {/* 실시간 룰렛 다자간 방 공유 및 크로스 디바이스 QR 코드 모달 */}

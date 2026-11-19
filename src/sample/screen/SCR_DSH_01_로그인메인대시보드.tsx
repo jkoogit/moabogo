@@ -2471,6 +2471,21 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-auto self-end sm:self-auto shrink-0">
+                  {/* 모아게임 허브 딥링크 (세션 0042 연동) */}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('SCR-GAM-01')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs flex items-center gap-1 ${
+                      resolvedTheme === 'dawn'
+                        ? 'border-emerald-600 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50'
+                        : isDark
+                        ? 'border-emerald-600 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50'
+                        : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                    title="모아게임 통합 허브(SCR-GAM-01)로 이동"
+                  >
+                    <span>🎮 게임 허브 →</span>
+                  </button>
                   {/* 프리셋 관리 모달 트리거 (요청 7번) */}
                   <button
                     type="button"

@@ -652,6 +652,7 @@ export interface LadderResultModalProps {
   onDownloadImageCard: () => void;
   resolvedTheme: string;
   isDark: boolean;
+  onRegisterToLedger?: () => void;
 }
 
 export const LadderResultModal: React.FC<LadderResultModalProps> = ({
@@ -665,6 +666,7 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
   onDownloadImageCard,
   resolvedTheme,
   isDark,
+  onRegisterToLedger,
 }) => {
   if (!isOpen || !results) return null;
 
@@ -856,13 +858,25 @@ export const LadderResultModal: React.FC<LadderResultModalProps> = ({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="py-2.5 px-4 rounded-xl bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-800 dark:text-slate-100 font-bold text-xs shadow-2xs transition-all cursor-pointer whitespace-nowrap"
-          >
-            닫기
-          </button>
+          <div className="flex items-center gap-2">
+            {onRegisterToLedger && (
+              <button
+                type="button"
+                onClick={onRegisterToLedger}
+                className="py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                title="모임 가계부에 당첨 지출 원터치 등록 기안"
+              >
+                <span>💳 가계부 지출 등록</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-2.5 px-4 rounded-xl bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-slate-800 dark:text-slate-100 font-bold text-xs shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       </div>
     </div>
