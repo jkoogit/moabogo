@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { Ledger } from '../../types';
 import {
@@ -60,6 +60,16 @@ import {
 import { SCR_QCK_01_빠른머니등록 } from './SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './SCR_QCK_02_빠른수행등록';
 import { NewLedgerModal } from '../../components/NewLedgerModal';
+import {
+  loadUserPersonalLadderPresets,
+  loadUserPersonalRoulettePresets,
+  UserLadderPreset,
+  UserRoulettePreset,
+} from '../data/systemStorePool';
+import {
+  loadSystemLadderPresets,
+  loadSystemRoulettePresets,
+} from '../data/systemGovernancePool';
 
 // ============================================================================
 // Types & Module Identifiers (AGENTS.md & PRD UC-04 사양 준수)
@@ -520,36 +530,70 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   const [familyGoalSteps, setFamilyGoalSteps] = useState<number>(8420);
   const [savingsAmount, setSavingsAmount] = useState<number>(3100000);
 
-  // 6. 게임·정산 로그인 맞춤 프리셋 상태 & 관리 모달
-  const [gamePresets, setGamePresets] = useState<GamePreset[]>([
-    {
-      id: 'pre-01',
-      type: 'LADDER',
-      title: '우리 4인 가족 사다리',
-      participants: ['구본영 (나)', '김은지 (배우자)', '구민우 (자녀)', '박준혁 (동창)'],
-      options: ['커피 쏘기 ☕', '밥 사기 🍚', '설거지 당번 🧹', '통과! 🎉'],
-      description: '주말 가족 벌칙 내기 전용 프리셋',
-    },
-    {
-      id: 'pre-02',
-      type: 'ROULETTE',
-      title: '개발팀 점심 메뉴 룰렛',
-      participants: ['팀 전체'],
-      options: ['김치찌개', '수제돈까스', '신선샐러드', '따뜻한국밥', '수제버거', '알리오올리오'],
-      description: '선택 장애 방지 점심 룰렛',
-    },
-    {
+  // 6. 게임·정산 로그인 맞춤 프리셋 상태 & 관리 모달 (개인화 스토리지 실시간 연동)
+  const [personalLadderList, setPersonalLadderList] = useState<UserLadderPreset[]>(() => loadUserPersonalLadderPresets());
+  const [personalRouletteList, setPersonalRouletteList] = useState<UserRoulettePreset[]>(() => loadUserPersonalRoulettePresets());
+  const [sysLadderRef, setSysLadderRef] = useState(() => loadSystemLadderPresets());
+  const [sysRouletteRef, setSysRouletteRef] = useState(() => loadSystemRoulettePresets());
+
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      setPersonalLadderList(loadUserPersonalLadderPresets());
+      setPersonalRouletteList(loadUserPersonalRoulettePresets());
+      setSysLadderRef(loadSystemLadderPresets());
+      setSysRouletteRef(loadSystemRoulettePresets());
+    };
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => window.removeEventListener('storage', handleStorageUpdate);
+  }, []);
+
+  const hasPersonalGamePresets = personalLadderList.length > 0 || personalRouletteList.length > 0;
+
+  // 동적 게임 프리셋 목록 빌드 (개인 프리셋 우선 바인딩)
+  const gamePresets = useMemo<GamePreset[]>(() => {
+    const list: GamePreset[] = [];
+
+    // 1. 개인 사다리 프리셋이 있으면 우선 반영
+    if (personalLadderList.length > 0) {
+      const topLad = personalLadderList[0];
+      list.push({
+        id: topLad.id,
+        type: 'LADDER',
+        title: topLad.title,
+        participants: Array.from({ length: topLad.playerCount }, (_, i) => `참가자 ${i + 1}`),
+        options: topLad.roles.map((r) => r.label),
+        description: topLad.description,
+      });
+    }
+
+    // 2. 개인 룰렛 프리셋이 있으면 우선 반영
+    if (personalRouletteList.length > 0) {
+      const topRou = personalRouletteList[0];
+      list.push({
+        id: topRou.id,
+        type: 'ROULETTE',
+        title: topRou.title,
+        participants: ['팀 전체'],
+        options: topRou.items.map((it) => it.name),
+        description: topRou.description,
+      });
+    }
+
+    // 3. 1/N 정산 템플릿
+    list.push({
       id: 'pre-03',
       type: 'SPLIT',
       title: '동창회 1/N 간편 정산',
       participants: ['본영', '준혁', '영식', '민호', '수진'],
       options: ['균등 분할', '절사 단위: 100원'],
       description: '5인 모임 정산 템플릿',
-    },
-  ]);
+    });
+
+    return list;
+  }, [personalLadderList, personalRouletteList]);
 
   const [isGamePresetModalOpen, setIsGamePresetModalOpen] = useState<boolean>(false);
-  const [selectedQuickPreset, setSelectedQuickPreset] = useState<GamePreset>(gamePresets[0]);
+  const [selectedQuickPreset, setSelectedQuickPreset] = useState<GamePreset>(() => gamePresets[0]);
 
   // 퀵 실행 결과 모달
   const [quickLadderResult, setQuickLadderResult] = useState<{
@@ -2461,102 +2505,148 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
               {isGameExpanded && (
                 <>
-                  {/* 프리셋 카드 그리드 */}
-              <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* 프리셋 1: 사다리타기 */}
-                <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
-                  resolvedTheme === 'dawn'
-                    ? 'border-[#1e3a6d] bg-[#101e42]/50'
-                    : isDark
-                    ? 'border-zinc-800 bg-zinc-900/50'
-                    : 'border-slate-200 bg-slate-50/60'
-                }`}>
-                  <div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
-                        🪜 {gamePresets[0]?.title || '우리 4인 가족 사다리'}
-                      </span>
-                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-bold shrink-0">
-                        {gamePresets[0]?.participants.length || 4}인 프리셋
-                      </span>
+                  {!hasPersonalGamePresets ? (
+                    /* 등록된 맞춤 프리셋이 없는 경우 스마트 가이드 및 시스템설정 참고 안내 */
+                    <div className="mt-3.5 p-4 rounded-xl border border-dashed border-purple-200 dark:border-purple-900/60 bg-purple-50/30 dark:bg-purple-950/20 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-zinc-200">
+                            <span>🎮</span>
+                            <span>등록된 사용자 맞춤 게임 프리셋이 없습니다</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                            사용자설정 &gt; 게임 프리셋에서 시스템 기초 프리셋을 가져오거나 나만의 프리셋을 등록하면 퀵런처에서 즉시 실행할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleModule('quick_game')}
+                          className="text-[10px] text-slate-400 hover:text-rose-500 shrink-0 font-medium cursor-pointer"
+                          title="대시보드에서 퀵런처 숨기기"
+                        >
+                          위젯 숨기기 ✕
+                        </button>
+                      </div>
+
+                      {/* 시스템설정 참고 박스 */}
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-purple-100 dark:border-purple-900/40 text-[11px] space-y-1">
+                        <span className="font-bold text-purple-700 dark:text-purple-300 block">
+                          💡 시스템 추천 기초 프리셋 미리보기:
+                        </span>
+                        <div className="flex flex-wrap gap-2 text-slate-600 dark:text-zinc-400">
+                          <span>• 🪜 {sysLadderRef[0]?.title || '커피 쏘기 사다리'}</span>
+                          <span>• 🎯 {sysRouletteRef[0]?.title || '점심 메뉴 룰렛'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsGamePresetModalOpen(true)}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <span>⚙️ 사용자설정 맞춤 프리셋 등록하기 →</span>
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 truncate">
-                      {gamePresets[0]?.description || '주말 가족 벌칙 내기 전용'}
-                    </p>
-                  </div>
+                  ) : (
+                    /* 개인 맞춤 프리셋 카드 그리드 */
+                    <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* 프리셋 1: 사다리타기 */}
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                          : isDark
+                          ? 'border-zinc-800 bg-zinc-900/50'
+                          : 'border-slate-200 bg-slate-50/60'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
+                              🪜 {gamePresets[0]?.title || '우리 사다리'}
+                            </span>
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-bold shrink-0">
+                              {gamePresets[0]?.participants.length || 4}인 프리셋
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 truncate">
+                            {gamePresets[0]?.description || '맞춤 사다리 내기'}
+                          </p>
+                        </div>
 
-                  <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
-                    resolvedTheme === 'dawn'
-                      ? 'border-[#1e3a6d]'
-                      : isDark
-                      ? 'border-zinc-800'
-                      : 'border-slate-200/80'
-                  }`}>
-                    <button
-                      type="button"
-                      onClick={() => setIsGamePresetModalOpen(true)}
-                      className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium cursor-pointer"
-                    >
-                      옵션 수정
-                    </button>
-                    <button
-                      type="button"
-                      onClick={runQuickLadder}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>바로 플레이</span>
-                    </button>
-                  </div>
-                </div>
+                        <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
+                          resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d]'
+                            : isDark
+                            ? 'border-zinc-800'
+                            : 'border-slate-200/80'
+                        }`}>
+                          <button
+                            type="button"
+                            onClick={() => setIsGamePresetModalOpen(true)}
+                            className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium cursor-pointer"
+                          >
+                            옵션 관리
+                          </button>
+                          <button
+                            type="button"
+                            onClick={runQuickLadder}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>바로 플레이</span>
+                          </button>
+                        </div>
+                      </div>
 
-                {/* 프리셋 2: 점심 메뉴 룰렛 */}
-                <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
-                  resolvedTheme === 'dawn'
-                    ? 'border-[#1e3a6d] bg-[#101e42]/50'
-                    : isDark
-                    ? 'border-zinc-800 bg-zinc-900/50'
-                    : 'border-slate-200 bg-slate-50/60'
-                }`}>
-                  <div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
-                        🎯 {gamePresets[1]?.title || '점심 메뉴 룰렛'}
-                      </span>
-                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold shrink-0">
-                        {gamePresets[1]?.options.length || 6}개 메뉴
-                      </span>
+                      {/* 프리셋 2: 룰렛 돌리기 */}
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
+                        resolvedTheme === 'dawn'
+                          ? 'border-[#1e3a6d] bg-[#101e42]/50'
+                          : isDark
+                          ? 'border-zinc-800 bg-zinc-900/50'
+                          : 'border-slate-200 bg-slate-50/60'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
+                              🎯 {gamePresets[1]?.title || '추천 룰렛'}
+                            </span>
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold shrink-0">
+                              {gamePresets[1]?.options.length || 6}개 항목
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 truncate">
+                            {gamePresets[1]?.description || '맞춤 룰렛 돌리기'}
+                          </p>
+                        </div>
+
+                        <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
+                          resolvedTheme === 'dawn'
+                            ? 'border-[#1e3a6d]'
+                            : isDark
+                            ? 'border-zinc-800'
+                            : 'border-slate-200/80'
+                        }`}>
+                          <button
+                            type="button"
+                            onClick={() => setIsGamePresetModalOpen(true)}
+                            className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium cursor-pointer"
+                          >
+                            항목 관리
+                          </button>
+                          <button
+                            type="button"
+                            onClick={runQuickRoulette}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>룰렛 돌리기</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 truncate">
-                      {gamePresets[1]?.description || '선택 장애 방지 점심 룰렛'}
-                    </p>
-                  </div>
-
-                  <div className={`pt-2 border-t flex items-center justify-between gap-1 ${
-                    resolvedTheme === 'dawn'
-                      ? 'border-[#1e3a6d]'
-                      : isDark
-                      ? 'border-zinc-800'
-                      : 'border-slate-200/80'
-                  }`}>
-                    <button
-                      type="button"
-                      onClick={() => setIsGamePresetModalOpen(true)}
-                      className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium cursor-pointer"
-                    >
-                      메뉴 변경
-                    </button>
-                    <button
-                      type="button"
-                      onClick={runQuickRoulette}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <Shuffle className="w-3 h-3" />
-                      <span>룰렛 돌리기</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+                  )}
 
             <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-xs ${
               resolvedTheme === 'dawn'

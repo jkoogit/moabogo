@@ -12,26 +12,48 @@ export const getStoreMenuEmoji = (item: StoreMenuItem): string => {
   const cat = item.categoryName || '';
   const name = item.name || '';
 
+  // 1. RTD (병음료) & 생수/탄산수
+  if (name.includes('분다버그') && (name.includes('자몽') || name.includes('핑크'))) return '🍹';
+  if (name.includes('분다버그')) return '🍺';
+  if (name.includes('페리에') && name.includes('라임')) return '🍋';
+  if (name.includes('페리에')) return '🫧';
+  if (name.includes('골든메달') || name.includes('애플주스')) return '🍎';
+  if (name.includes('노아') || name.includes('착즙')) return '🍊';
+  if (name.includes('에비앙') || name.includes('생수') || name.includes('광천수')) return '💧';
+  if (cat.includes('RTD') || cat.includes('병음료')) return '🍾';
+
+  // 2. 베이커리 & 디저트
+  if (name.includes('크로플') || name.includes('와플')) return '🧇';
+  if (name.includes('치아바타') || name.includes('샌드위치') || name.includes('토스트') || name.includes('파니니')) return '🥪';
+  if (name.includes('베이글') || name.includes('크루아상') || name.includes('소금빵')) return '🥯';
+  if (name.includes('쿠키') || name.includes('스콘')) return '🍪';
+  if (name.includes('케이크') || name.includes('타르트') || name.includes('카스텔라')) return '🍰';
+  if (name.includes('마카롱') || name.includes('까눌레')) return '🧁';
+  if (cat.includes('베이커리') || cat.includes('디저트')) return '🥐';
+
+  // 3. 과일 & 음료 & 티
   if (name.includes('딸기') || name.includes('스트로베리')) return '🍓';
   if (name.includes('망고')) return '🥭';
   if (name.includes('바나나')) return '🍌';
   if (name.includes('레몬') || name.includes('유자')) return '🍋';
   if (name.includes('자몽') || name.includes('오렌지')) return '🍊';
+  if (name.includes('청포도') || name.includes('포도')) return '🍇';
+  if (name.includes('복숭아') || name.includes('피치')) return '🍑';
   if (name.includes('사과') || name.includes('애플')) return '🍎';
   if (name.includes('초코') || name.includes('모카')) return '🍫';
   if (name.includes('카라멜') || name.includes('바닐라')) return '🍯';
+  if (name.includes('헤이즐넛')) return '🌰';
   if (name.includes('녹차') || name.includes('말차')) return '🍵';
-  if (name.includes('얼그레이') || name.includes('캐모마일') || name.includes('페퍼민트') || name.includes('블랙티') || cat.includes('티')) return '🫖';
+  if (name.includes('캐모마일')) return '🌼';
+  if (name.includes('페퍼민트') || name.includes('민트')) return '🌿';
+  if (name.includes('얼그레이') || name.includes('블랙티') || cat.includes('티')) return '🫖';
   if (name.includes('콜드브루') || (name.includes('아메리카노') && name.includes('ICE'))) return '🧊';
   if (name.includes('스무디') || name.includes('프라푸치노') || name.includes('블렌디드') || name.includes('쉐이크') || name.includes('프라페')) return '🥤';
   if (name.includes('에이드') || name.includes('주스') || name.includes('피지오')) return '🍹';
   if (name.includes('라떼') || name.includes('카푸치노') || name.includes('마키아또') || name.includes('밀크')) return '🥛';
   if (name.includes('아메리카노') || name.includes('에스프레소') || cat.includes('커피')) return '☕';
-  if (name.includes('케이크') || name.includes('타르트') || name.includes('카스텔라')) return '🍰';
-  if (name.includes('베이글') || name.includes('크루아상') || name.includes('소금빵')) return '🥯';
-  if (name.includes('마카롱') || name.includes('까눌레')) return '🧁';
-  if (name.includes('쿠키') || name.includes('스콘')) return '🍪';
-  if (name.includes('샌드위치') || name.includes('토스트') || name.includes('파니니')) return '🥪';
+
+  // 4. 식사류
   if (name.includes('버거')) return '🍔';
   if (name.includes('피자')) return '🍕';
   if (name.includes('파스타') || name.includes('스파게티')) return '🍝';
@@ -39,8 +61,10 @@ export const getStoreMenuEmoji = (item: StoreMenuItem): string => {
   if (name.includes('빙수') || name.includes('아이스크림')) return '🍧';
   if (name.includes('떡볶이') || name.includes('순대') || name.includes('튀김')) return '🍢';
   if (name.includes('김치찌개') || name.includes('된장찌개') || name.includes('국밥')) return '🍲';
+  if (name.includes('만두')) return '🥟';
   if (name.includes('돈까스') || name.includes('카레')) return '🍛';
   if (name.includes('짜장') || name.includes('짬뽕')) return '🍜';
+  if (name.includes('김밥')) return '🍙';
   if (name.includes('치킨')) return '🍗';
   return '☕';
 };

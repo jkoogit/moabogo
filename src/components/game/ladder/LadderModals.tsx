@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, Sparkles, Store, ChevronRight, Copy, Camera, Download, Trophy } from 'lucide-react';
 import { TARGET_ICONS, GoalPresetItem, Participant } from '../types';
 import { ArrivalPopupData, LadderGoal, LadderResultMap } from './types';
-import { StorePreset, StoreMenuItem, SYSTEM_STORE_POOL } from '../../../sample/data/systemStorePool';
+import { StorePreset, StoreMenuItem, SYSTEM_STORE_POOL, getSystemStorePool } from '../../../sample/data/systemStorePool';
 import { getStoreMenuEmoji } from './ladderEngine';
 
 export interface LadderGoalModalProps {
@@ -290,6 +290,7 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
   const [activeTab, setActiveTab] = useState<'store' | 'menu'>(
     isStoreOnly ? 'store' : selectedStore ? 'menu' : 'store'
   );
+  const [selectedCategory, setSelectedCategory] = useState<string>('전체');
 
   const prevIsOpenRef = React.useRef(false);
   React.useEffect(() => {
@@ -356,7 +357,7 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
                 : 'text-slate-500'
             }`}
           >
-            {isStoreOnly ? '메뉴 둘러보기' : '내 메뉴 고르기'}
+            {isStoreOnly ? '메뉴보기' : '내 메뉴 고르기'}
           </button>
         </div>
 
@@ -381,7 +382,7 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
               {!selectedStore && <Check className="w-4 h-4 text-indigo-600" />}
             </button>
 
-            {SYSTEM_STORE_POOL.map((store: StorePreset) => {
+            {getSystemStorePool().map((store: StorePreset) => {
               const isSelected = selectedStore?.id === store.id;
               return (
                 <button
@@ -415,113 +416,177 @@ export const StoreMenuSelectModal: React.FC<StoreMenuSelectModalProps> = ({
             })}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
-            {selectedStore?.menus.map((item: StoreMenuItem) => {
-              const fallbackIcon = getStoreMenuEmoji(item);
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar flex flex-col min-h-0">
+            {/* 카테고리 필터 칩 바 (RTD, 커피, 티 등 원터치 필터) */}
+            {selectedStore && selectedStore.menuCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('전체')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    selectedCategory === '전체'
+                      ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200'
+                  }`}
+                >
+                  전체 ({selectedStore.menus.length})
+                </button>
+                {selectedStore.menuCategories.map((cat) => {
+                  const count = selectedStore.menus.filter((m) => m.categoryName === cat).length;
+                  const isRTD = cat.includes('RTD');
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        selectedCategory === cat
+                          ? isRTD
+                            ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                            : 'bg-indigo-600 text-white shadow-2xs font-bold'
+                          : isRTD
+                          ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100'
+                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-              if (isStoreOnly) {
-                return (
-                  <div
-                    key={item.id}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 text-left flex items-center justify-between gap-3 bg-white dark:bg-zinc-800/40"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700">
-                        {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                const span = document.createElement('span');
-                                span.className = 'text-xl select-none';
-                                span.innerText = fallbackIcon;
-                                parent.appendChild(span);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xl select-none">{fallbackIcon}</span>
-                        )}
+            <div className="space-y-2 flex-1">
+              {selectedStore?.menus
+                .filter((item) => selectedCategory === '전체' || item.categoryName === selectedCategory)
+                .map((item: StoreMenuItem) => {
+                  const fallbackIcon = getStoreMenuEmoji(item);
+                  const isRTD = item.categoryName?.includes('RTD');
+
+                  if (isStoreOnly) {
+                    return (
+                      <div
+                        key={item.id}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 text-left flex items-center justify-between gap-3 bg-white dark:bg-zinc-800/40"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                  const parent = e.currentTarget.parentElement;
+                                  if (parent && !parent.querySelector('.fallback-icon')) {
+                                    const span = document.createElement('span');
+                                    span.className = 'text-xl select-none fallback-icon';
+                                    span.innerText = fallbackIcon;
+                                    parent.appendChild(span);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xl select-none">{fallbackIcon}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 truncate">
+                            <p className="text-xs font-bold truncate">{item.name}</p>
+                            {item.description && (
+                              <p className="text-[10px] text-slate-400 dark:text-zinc-500 truncate mt-0.5">{item.description}</p>
+                            )}
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                isRTD
+                                  ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                              }`}>
+                                {item.categoryName}
+                              </span>
+                              <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                                ₩{item.price.toLocaleString()}원
+                              </span>
+                              {item.badge && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 shrink-0 select-none">
+                          메뉴 참고
+                        </span>
                       </div>
-                      <div className="min-w-0 truncate">
-                        <p className="text-xs font-bold truncate">{item.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                            ₩{item.price.toLocaleString()}원
-                          </span>
-                          {item.badge && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                              {item.badge}
-                            </span>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectMenuForMember(currentMemberId, item);
+                        onClose();
+                      }}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700">
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                                const parent = e.currentTarget.parentElement;
+                                if (parent && !parent.querySelector('.fallback-icon')) {
+                                  const span = document.createElement('span');
+                                  span.className = 'text-xl select-none fallback-icon';
+                                  span.innerText = fallbackIcon;
+                                  parent.appendChild(span);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xl select-none">{fallbackIcon}</span>
                           )}
                         </div>
+                        <div className="min-w-0 truncate">
+                          <p className="text-xs font-bold truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {item.name}
+                          </p>
+                          {item.description && (
+                            <p className="text-[10px] text-slate-400 dark:text-zinc-500 truncate mt-0.5">{item.description}</p>
+                          )}
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                              isRTD
+                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                            }`}>
+                              {item.categoryName}
+                            </span>
+                            <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                              ₩{item.price.toLocaleString()}원
+                            </span>
+                            {item.badge && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400 font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 shrink-0 select-none">
-                      메뉴 참고
-                    </span>
-                  </div>
-                );
-              }
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectMenuForMember(currentMemberId, item);
-                    onClose();
-                  }}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700">
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLElement).style.display = 'none';
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              const span = document.createElement('span');
-                              span.className = 'text-xl select-none';
-                              span.innerText = fallbackIcon;
-                              parent.appendChild(span);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span className="text-xl select-none">{fallbackIcon}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0 truncate">
-                      <p className="text-xs font-bold truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                        {item.name}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                          ₩{item.price.toLocaleString()}원
-                        </span>
-                        {item.badge && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shrink-0">
-                    선택
-                  </span>
-                </button>
-              );
-            })}
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shrink-0">
+                        선택
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
           </div>
         )}
 
