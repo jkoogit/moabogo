@@ -5,9 +5,11 @@
 import {
   SYSTEM_STORE_POOL,
   ROULETTE_PRESETS,
+  LADDER_ROLE_PRESETS,
   StorePreset,
   StoreMenuItem,
   RoulettePreset,
+  LadderGoalPreset,
 } from './systemStorePool';
 
 /* =========================================================================
@@ -616,6 +618,10 @@ export interface MasterDetailCode {
   isEnabled: boolean;
   metaBadge?: string;
   metaColor?: string;
+  priority?: number; // 우선순위 (1~99)
+  userField1?: string; // 사용자항목 1
+  userField2?: string; // 사용자항목 2
+  userField3?: string; // 사용자항목 3
 }
 
 // 플랫폼 20대 핵심 그룹코드 정의서
@@ -797,6 +803,7 @@ const STORAGE_KEYS = {
   TERMS: 'moabogo_system_terms',
   DETAIL_CODES: 'moabogo_system_master_detail_codes',
   SYSTEM_STORES: 'moabogo_system_stores_pool',
+  LADDER_PRESETS: 'moabogo_system_ladder_presets_pool',
   ROULETTE_PRESETS: 'moabogo_system_roulette_presets_pool',
   NOTICES: 'moabogo_system_notices_pool',
 };
@@ -944,6 +951,19 @@ export const saveSystemStorePool = (stores: StorePreset[]): void => {
   localStorage.setItem(STORAGE_KEYS.SYSTEM_STORES, JSON.stringify(stores));
 };
 
+export const loadSystemLadderPresets = (): LadderGoalPreset[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.LADDER_PRESETS);
+    return raw ? JSON.parse(raw) : LADDER_ROLE_PRESETS;
+  } catch {
+    return LADDER_ROLE_PRESETS;
+  }
+};
+
+export const saveSystemLadderPresets = (presets: LadderGoalPreset[]): void => {
+  localStorage.setItem(STORAGE_KEYS.LADDER_PRESETS, JSON.stringify(presets));
+};
+
 export const loadSystemRoulettePresets = (): RoulettePreset[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.ROULETTE_PRESETS);
@@ -983,6 +1003,7 @@ export const resetAllSystemGovernance = (): void => {
   saveManagedTerms(DEFAULT_TERMS);
   saveMasterDetailCodes(DEFAULT_DETAIL_CODES);
   saveSystemStorePool(SYSTEM_STORE_POOL);
+  saveSystemLadderPresets(LADDER_ROLE_PRESETS);
   saveSystemRoulettePresets(ROULETTE_PRESETS);
   saveSystemNotices(DEFAULT_NOTICES);
 };
