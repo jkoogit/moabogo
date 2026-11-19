@@ -1887,36 +1887,40 @@ export const ElmRng01: React.FC<{
       <div className={`space-y-1.5 ${className}`}>
         {label && (
           <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="font-bold text-slate-700 dark:text-zinc-300 whitespace-nowrap shrink-0">{label}</span>
-              {labelExtra}
+              {showInput && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="number"
+                    min={min}
+                    max={max}
+                    value={value}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!isNaN(val)) onChange(Math.max(min, Math.min(max, val)));
+                    }}
+                    className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 ${colorStyles.text} ${colorStyles.activeBorder} outline-none`}
+                  />
+                  <span className={`text-xs font-bold ${colorStyles.text}`}>{unit}</span>
+                  {onAddThreshold && (
+                    <button
+                      type="button"
+                      onClick={onAddThreshold}
+                      className="p-1 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center shrink-0"
+                      title="최대 인원수 5명 추가 (+5명)"
+                      aria-label="최대 인원수 5명 추가"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-            {showInput && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <input
-                  type="number"
-                  min={min}
-                  max={max}
-                  value={value}
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (!isNaN(val)) onChange(Math.max(min, Math.min(max, val)));
-                  }}
-                  className={`w-14 text-center py-0.5 px-1 text-xs font-bold rounded-md border bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 ${colorStyles.text} ${colorStyles.activeBorder} outline-none`}
-                />
-                <span className={`text-xs font-bold ${colorStyles.text}`}>{unit}</span>
-                {onAddThreshold && (
-                  <button
-                    type="button"
-                    onClick={onAddThreshold}
-                    className="p-1 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center shrink-0"
-                    title="최대 인원수 5명 추가 (+5명)"
-                    aria-label="최대 인원수 5명 추가"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                )}
+            {labelExtra && (
+              <div className="flex items-center gap-2">
+                {labelExtra}
               </div>
             )}
           </div>

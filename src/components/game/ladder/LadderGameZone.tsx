@@ -58,7 +58,8 @@ import {
   LadderResultModal,
   LadderShareModal,
 } from './LadderModals';
-import { StorePreset, StoreMenuItem } from '../../../sample/data/systemStorePool';
+import { StorePreset, StoreMenuItem, LadderGoalPreset, getSystemStorePool } from '../../../sample/data/systemStorePool';
+import { loadSystemLadderPresets } from '../../../sample/data/systemGovernancePool';
 import {
   generateLadderResultCardBlob,
   copyBlobToClipboard,
@@ -192,6 +193,8 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 }) => {
   const [ladderSeed, setLadderSeed] = useState<number>(() => Math.floor(Math.random() * 9999) + 1);
   const [ladderSpeed, setLadderSpeed] = useState<number>(1.0);
+  const [isSpeedExpanded, setIsSpeedExpanded] = useState<boolean>(false);
+  const [isPresetExpanded, setIsPresetExpanded] = useState<boolean>(true);
   const [isLadderTracing, setIsLadderTracing] = useState<boolean>(false);
   const [activeTracingMemberIndex, setActiveTracingMemberIndex] = useState<number | null>(null);
   const [currentTracerPosition, setCurrentTracerPosition] = useState<{ x: number; y: number } | null>(null);
@@ -247,6 +250,106 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
   const [isGuestCloseNoticeOpen, setIsGuestCloseNoticeOpen] = useState<boolean>(false);
   const [showStoreHelp, setShowStoreHelp] = useState<boolean>(false);
+
+  // 🎯 [실시간 거버넌스 바인딩] 시스템설정에서 등록/수정된 사다리 역할 프리셋 실시간 동기화
+  const [systemLadderPresets, setSystemLadderPresets] = useState<LadderGoalPreset[]>(() => loadSystemLadderPresets());
+  const [selectedLadderPresetTitle, setSelectedLadderPresetTitle] = useState<string>('');
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setSystemLadderPresets(loadSystemLadderPresets());
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const handleSelectSystemLadderPreset = (preset: LadderGoalPreset) => {
+    if (isGuest || isRoomClosed) return;
+
+    setSelectedLadderPresetTitle(preset.title);
+
+    // 1. 참가자 인원수 조정
+    const targetCount = Math.max(2, Math.min(10, preset.playerCount));
+    let nextMembers = [...members];
+    if (nextMembers.length < targetCount) {
+      for (let i = nextMembers.length; i < targetCount; i++) {
+        const char = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
+        nextMembers.push({
+          id: `m_${Date.now()}_${i}`,
+          name: `참가자 ${i + 1}`,
+          avatar: char.avatar,
+          color: char.color,
+          bgLight: char.bgLight,
+          weight: 10,
+        });
+      }
+    } else if (nextMembers.length > targetCount) {
+      nextMembers = nextMembers.slice(0, targetCount);
+    }
+    setMembers(nextMembers);
+    membersRef.current = nextMembers;
+
+    // 2. 당첨자수 및 목표 설정
+    setWinnerCount(preset.winnerCount);
+    winnerCountRef.current = preset.winnerCount;
+    prevWinnerCountRef.current = preset.winnerCount;
+
+    const mappedGoals: LadderGoal[] = preset.roles.slice(0, targetCount).map((r) => ({
+      text: r.label,
+      icon: r.badgeText || (r.type === 'PAY' ? '💳' : r.type === 'PICKUP' ? '🏃' : r.type === 'CLEAN' ? '🧹' : '🎉'),
+    }));
+    // 인원수에 맞게 부족하면 기본 채움
+    while (mappedGoals.length < targetCount) {
+      mappedGoals.push({ text: '통과 (면제)', icon: '🎉' });
+    }
+    setLadderGoals(mappedGoals);
+    ladderGoalsRef.current = mappedGoals;
+
+    // 3. 연계 매장 자동 매핑
+    if (preset.storeId) {
+      const storePool = getSystemStorePool();
+      const matchedStore = storePool.find((s) => s.id === preset.storeId);
+      if (matchedStore) {
+        setSelectedStore(matchedStore);
+        selectedStoreRef.current = matchedStore;
+      }
+    }
+
+    // 4. 사다리 가로선 재생성
+    const nextSeed = Math.floor(Math.random() * 900000) + 100000;
+    const freshRungs = generateLadderRungs(targetCount, nextSeed);
+    setLadderSeed(nextSeed);
+    ladderSeedRef.current = nextSeed;
+    setCustomLadderRungs(freshRungs);
+
+    if (channelRef.current && isRoomHost) {
+      channelRef.current.send(
+        {
+          type: 'SYNC_MEMBERS',
+          members: nextMembers,
+        },
+        getHostToken()
+      );
+      channelRef.current.send(
+        {
+          type: 'UPDATE_WINNER_COUNT',
+          winnerCount: preset.winnerCount,
+          goals: mappedGoals,
+        },
+        getHostToken()
+      );
+      channelRef.current.send(
+        {
+          type: 'SHUFFLE_RUNGS',
+          seed: nextSeed,
+          rungs: freshRungs,
+        },
+        getHostToken()
+      );
+    }
+
+    showToast(`'${preset.title}' 추천 프리셋이 적용되었습니다. (${targetCount}인 / ${preset.winnerCount}당첨)`, 'success');
+  };
   const channelRef = useRef<LadderChannelHandle | null>(null);
   const isRoomJoined = !!roomId;
   const isGuest = isRoomJoined && !isRoomHost;
@@ -2476,79 +2579,168 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 상단 카페/매장 연동 바 */}
+      {/* 🎯 매장 연계 및 사다리 게임설정 프리셋 통합 존 (ElmSld03 드래그 휠 지원) */}
       <div
-        className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${resolvedTheme === 'dawn'
-          ? 'bg-[#f0f7ff] border-[#bfdbfe]'
-          : isDark
+        className={`p-4 rounded-2xl border space-y-3.5 transition-all ${
+          resolvedTheme === 'dawn'
+            ? 'bg-[#f0f7ff] border-[#bfdbfe]'
+            : isDark
             ? 'bg-[#1a1a1e] border-[#27272a]'
             : 'bg-slate-50 border-slate-200/80'
-          }`}
+        }`}
       >
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="text-xl shrink-0">☕</span>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-xs font-bold flex items-center gap-1.5 shrink-0">
-              <span className="whitespace-nowrap">{selectedStore ? selectedStore.name : '매장 연동 사다리타기'}</span>
-              {selectedStore && (
-                <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold shrink-0">
-                  주문서 자동 생성
-                </span>
-              )}
-            </h4>
-            {/* ? 아이콘 레이어드 팝업 */}
-            <div className="relative inline-flex items-center">
+        {/* Row 1: 매장 선택 및 연동 상태 바 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xl shrink-0">☕</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-xs font-bold flex items-center gap-1.5 shrink-0">
+                <span className="whitespace-nowrap">{selectedStore ? selectedStore.name : '매장 미선택'}</span>
+                {selectedStore && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold shrink-0">
+                    주문서 자동 생성
+                  </span>
+                )}
+              </h4>
+              {/* ? 아이콘 레이어드 팝업 */}
+              <div className="relative inline-flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowStoreHelp((prev) => !prev)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                  title="매장 연동 안내"
+                  aria-label="매장 연동 안내"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+                {showStoreHelp && (
+                  <div className="absolute left-0 top-full mt-1.5 z-40 w-72 max-w-[85vw] p-3 rounded-xl border shadow-xl bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-100 dark:border-zinc-800 font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                      <span>🏪 매장 연계 사다리 설정 안내</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowStoreHelp(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p>
+                      • <b>매장 종속 프리셋</b>: 사내카페/단골식당 등 특정 매장의 메뉴 주문서와 결제 당첨자 산출이 함께 연동됩니다.<br />
+                      • <b>매장 없는 프리셋</b>: 참가 인원과 벌칙/청소 등 순수 역할 분담에 최적화된 사다리입니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedStore && !isGuest && (
               <button
                 type="button"
-                onClick={() => setShowStoreHelp((prev) => !prev)}
-                className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
-                title="매장 연동 안내"
-                aria-label="매장 연동 안내"
+                onClick={() => setSelectedStore(null)}
+                className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 font-medium cursor-pointer"
               >
-                <HelpCircle className="w-3.5 h-3.5" />
+                매장 해제
               </button>
-              {showStoreHelp && (
-                <div className="absolute left-0 top-full mt-1.5 z-40 w-72 max-w-[85vw] p-3 rounded-xl border shadow-xl bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300 animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-100 dark:border-zinc-800 font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                    <span>🏪 매장 연동 사다리타기 안내</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowStoreHelp(false)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 px-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <p>
-                    {selectedStore
-                      ? `${selectedStore.category} 메뉴가 연동되어 사다리 결과에 따라 결제 당첨자 주문서가 산출됩니다.`
-                      : '카페/음료 매장을 선택하면 각자 메뉴를 고르고 결제자를 사다리로 정할 수 있습니다.'}
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
+            <button
+              type="button"
+              disabled={isGuest}
+              onClick={() => {
+                if (isGuest) return;
+                setStoreModalMemberId(members[0]?.id || '');
+                setStoreModalMode('STORE_ONLY');
+                setIsStoreModalOpen(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all ${
+                isGuest
+                  ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-zinc-800'
+                  : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer'
+              }`}
+              title={isGuest ? '방장만 매장 메뉴를 변경할 수 있습니다 (읽기 전용)' : undefined}
+            >
+              {isGuest ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : <Store className="w-3.5 h-3.5" />}
+              <span>{selectedStore ? '매장 변경' : '매장메뉴 연동'}</span>
+              {isGuest && <span className="text-[10px] text-slate-400 font-normal">(방장 전용)</span>}
+            </button>
+            {systemLadderPresets.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsPresetExpanded((prev) => !prev)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+                title="설정 프리셋 목록 펴기/접기"
+              >
+                <span>{isPresetExpanded ? '프리셋 접기' : '프리셋 펴기'}</span>
+              </button>
+            )}
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={isGuest}
-          onClick={() => {
-            if (isGuest) return;
-            setStoreModalMemberId(members[0]?.id || '');
-            setStoreModalMode('STORE_ONLY');
-            setIsStoreModalOpen(true);
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all ${isGuest
-            ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-zinc-800'
-            : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer'
-            }`}
-          title={isGuest ? '방장만 매장 메뉴를 변경할 수 있습니다 (읽기 전용)' : undefined}
-        >
-          {isGuest ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : <Store className="w-3.5 h-3.5" />}
-          <span>{selectedStore ? '매장 변경 / 해제' : '매장 메뉴 연동하기'}</span>
-          {isGuest && <span className="text-[10px] text-slate-400 font-normal">(방장 전용)</span>}
-        </button>
+        {/* Row 2: 사다리 게임설정 프리셋 슬라이더 바 (ElmSld03 드래그 휠) */}
+        {systemLadderPresets.length > 0 && isPresetExpanded && (
+          <div className="pt-2.5 border-t border-slate-200/60 dark:border-zinc-800/60 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400 px-0.5">
+              <span className="font-bold flex items-center gap-1 text-slate-700 dark:text-zinc-300">
+                <span>🪜</span>
+                <span>설정 프리셋</span>
+              </span>
+            </div>
+
+            <ElmSld03
+              showNavButtons={false}
+              stepWidth={170}
+              className="w-full"
+              innerClassName="flex items-center gap-2 py-1 px-0.5"
+            >
+              {systemLadderPresets.map((preset) => {
+                const isSelected = selectedLadderPresetTitle === preset.title;
+                const hasStore = !!preset.storeId;
+                const isCurrentStoreMatched = selectedStore && preset.storeId === selectedStore.id;
+
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    disabled={isGuest}
+                    onClick={() => handleSelectSystemLadderPreset(preset)}
+                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center gap-2 text-left cursor-pointer ${
+                      isGuest ? 'opacity-50 cursor-not-allowed' : ''
+                    } ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : isCurrentStoreMatched
+                        ? 'bg-indigo-50/80 border-indigo-300 text-indigo-900 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-200'
+                        : resolvedTheme === 'dawn'
+                        ? 'bg-white border-[#bfdbfe] text-[#0d2746] hover:bg-blue-50'
+                        : isDark
+                        ? 'bg-[#18181b] border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                    title={`${preset.description} (${preset.playerCount}인 / ${preset.winnerCount}당첨 / ${preset.storeName || '매장 없음'})`}
+                  >
+                    <span className="text-base">{preset.category === 'COFFEE' ? '☕' : preset.category === 'LUNCH' ? '🍱' : '🧹'}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className="truncate max-w-[120px] block font-bold leading-tight">
+                          {preset.title.replace(/^[^\s]+\s*/, '')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] opacity-75 font-normal mt-0.5">
+                        <span>{preset.playerCount}인({preset.winnerCount}당첨)</span>
+                        <span>•</span>
+                        <span className="truncate max-w-[70px]">
+                          {hasStore ? (preset.storeName ? preset.storeName.split(' ')[0] : '매장연동') : '매장없음'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </ElmSld03>
+          </div>
+        )}
       </div>
 
       {/* 사다리 컨트롤러 및 설정 패널 */}
@@ -2598,38 +2790,48 @@ export const LadderGameZone: React.FC<LadderGameZoneProps> = ({
           />
         </div>
 
-        {/* 퀵 액션 버튼 바: 속도 조절(모바일 줄바꿈 방지 슬라이드), 주사위 재배치, 셔플 */}
+        {/* 퀵 액션 버튼 바: 속도 조절(속도설정/속도접기 토글 지원), 주사위 재배치, 셔플 */}
         <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-1.5 shrink min-w-0 max-w-full overflow-hidden">
             <span className="text-xs font-bold text-slate-600 dark:text-zinc-300 shrink-0 flex items-center gap-1">
               <span className="whitespace-nowrap">속도:</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{ladderSpeed}x</span>
               {isGuest && <Lock className="w-3 h-3 text-slate-400" />}
             </span>
-            <ElmSld03
-              showNavButtons={false}
-              stepWidth={120}
-              className="min-w-0 flex-1"
-              innerClassName="flex items-center gap-1.5 py-0.5 whitespace-nowrap"
+            <button
+              type="button"
+              onClick={() => setIsSpeedExpanded((prev) => !prev)}
+              className="px-2 py-0.5 rounded-lg border text-xs font-medium bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-all cursor-pointer shrink-0"
             >
-              {LADDER_SPEED_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  disabled={isGuest || isRoomClosed}
-                  onClick={() => {
-                    if (isGuest || isRoomClosed) return;
-                    handleChangeLadderSpeed(opt.value);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest || isRoomClosed ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-                    } ${ladderSpeed === opt.value
-                      ? 'bg-indigo-600 text-white border-indigo-700'
-                      : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
-                    }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </ElmSld03>
+              {isSpeedExpanded ? '속도접기' : '속도설정'}
+            </button>
+            {isSpeedExpanded && (
+              <ElmSld03
+                showNavButtons={false}
+                stepWidth={120}
+                className="min-w-0 flex-1"
+                innerClassName="flex items-center gap-1.5 py-0.5 whitespace-nowrap"
+              >
+                {LADDER_SPEED_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={isGuest || isRoomClosed}
+                    onClick={() => {
+                      if (isGuest || isRoomClosed) return;
+                      handleChangeLadderSpeed(opt.value);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 ${isGuest || isRoomClosed ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                      } ${ladderSpeed === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-700'
+                        : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-300'
+                      }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </ElmSld03>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">

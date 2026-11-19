@@ -47,6 +47,7 @@ import {
   RoulettePreset,
   RoulettePresetItem,
 } from '../../../sample/data/systemStorePool';
+import { loadSystemRoulettePresets } from '../../../sample/data/systemGovernancePool';
 import {
   generateRouletteResultCardBlob,
   copyBlobToClipboard,
@@ -140,6 +141,17 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     }
     return false;
   });
+
+  // 🎯 [실시간 거버넌스 바인딩] 시스템설정에서 등록/수정된 룰렛 프리셋 실시간 동기화
+  const [systemPresets, setSystemPresets] = useState<RoulettePreset[]>(() => loadSystemRoulettePresets());
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setSystemPresets(loadSystemRoulettePresets());
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   const [connectedClients, setConnectedClients] = useState<number>(1);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isRoomClosed, setIsRoomClosed] = useState<boolean>(false);
@@ -1302,7 +1314,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2.5 pb-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
-              현재 룰렛 주제:
+              설정 룰렛 :
             </span>
             <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
               {roulettePresetTitle}
@@ -1357,7 +1369,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             className="w-full"
             innerClassName="flex items-center gap-1.5 py-1 px-0.5"
           >
-            {[DEFAULT_FIVE_ITEMS_PRESET, ...ROULETTE_PRESETS].map((preset) => (
+            {[DEFAULT_FIVE_ITEMS_PRESET, ...systemPresets].map((preset) => (
               <button
                 key={preset.id}
                 type="button"
@@ -1389,7 +1401,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
         <div className="w-full space-y-2 pt-2 border-t border-slate-200/60 dark:border-zinc-800/80">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5 shrink-0">
-              <span>설정 항목</span>
+              <span>설정 항목 수</span>
               {isGuest && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 font-normal flex items-center gap-1">
                   <Lock className="w-3 h-3" /> 방장 제어
@@ -1467,7 +1479,7 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
               }`}
             >
               {isGuest ? <Lock className="w-3.5 h-3.5" /> : <SlidersHorizontal className="w-3.5 h-3.5" />}
-              <span>{isGuest ? '항목 설정 (방장 전용)' : '항목상세설정'}</span>
+              <span>{isGuest ? '항목 설정 (방장 전용)' : '항목 상세설정'}</span>
             </button>
           </div>
         </div>

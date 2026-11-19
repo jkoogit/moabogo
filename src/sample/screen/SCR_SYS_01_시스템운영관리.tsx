@@ -74,6 +74,7 @@ import {
   PanelLeftOpen,
   LayoutGrid,
   List,
+  GripVertical,
 } from 'lucide-react';
 import {
   SystemAuthSecurityConfig,
@@ -247,6 +248,8 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
   const [codeFormUserField3, setCodeFormUserField3] = useState<string>('');
   const [groupScrollCount, setGroupScrollCount] = useState<3 | 5 | 10 | 20>(10);
   const [isGroupPanelOpen, setIsGroupPanelOpen] = useState<boolean>(true);
+  const [draggedDetailIndex, setDraggedDetailIndex] = useState<number | null>(null);
+  const [dragOverDetailIndex, setDragOverDetailIndex] = useState<number | null>(null);
 
   // 8. 게임 풀 관리 상태 (매장 등록/수정/삭제 & 메뉴 등록/수정/삭제 & 사다리/룰렛 프리셋)
   const csvFileInputRef = useRef<HTMLInputElement>(null);
@@ -277,6 +280,8 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
   const [itemIconMode, setItemIconMode] = useState<'EMOJI' | 'UPLOAD' | 'URL'>('EMOJI');
   const [itemFormImageUrl, setItemFormImageUrl] = useState<string>('');
   const [itemFormUrlInput, setItemFormUrlInput] = useState<string>('');
+  const [itemFormDesc, setItemFormDesc] = useState<string>('');
+  const [storeMenuFilterCat, setStoreMenuFilterCat] = useState<string>('전체');
 
   // 8.1 사다리 프리셋 관리
   const [ladderPresets, setLadderPresets] = useState<LadderGoalPreset[]>(() =>
@@ -961,6 +966,54 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
     showToast(`코드 [${code}]의 우선순위가 ${Math.max(1, newPriority)}(으)로 변경되었습니다.`);
   };
 
+  // 7.e 마스터 상세코드 행 드래그 앤 드롭 정렬 순서 변경
+  const handleDetailDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedDetailIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDetailDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverDetailIndex !== index) {
+      setDragOverDetailIndex(index);
+    }
+  };
+
+  const handleDetailDragEnd = () => {
+    setDraggedDetailIndex(null);
+    setDragOverDetailIndex(null);
+  };
+
+  const handleDetailDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    setDragOverDetailIndex(null);
+    if (draggedDetailIndex === null || draggedDetailIndex === targetIndex) {
+      setDraggedDetailIndex(null);
+      return;
+    }
+
+    const currentGroupItems = [...curDetailCodes];
+    const [movedItem] = currentGroupItems.splice(draggedDetailIndex, 1);
+    currentGroupItems.splice(targetIndex, 0, movedItem);
+
+    // 순서(sortOrder) 1부터 재할당
+    const reorderedGroupItems = currentGroupItems.map((item, idx) => ({
+      ...item,
+      sortOrder: idx + 1,
+    }));
+
+    // 전체 detailCodes 중 현재 그룹 외의 아이템과 합치기
+    const otherGroupItems = detailCodes.filter((c) => c.groupCode !== selectedGroupCode);
+    const updated = [...otherGroupItems, ...reorderedGroupItems];
+
+    setDetailCodes(updated);
+    saveMasterDetailCodes(updated);
+    setDraggedDetailIndex(null);
+    showToast(`코드 [${movedItem.codeName}]의 정렬 순서가 변경되었습니다.`);
+  };
+
   // 6. CSV 샘플 다운로드 & 업로드 헬퍼
   const downloadCSV = (filename: string, content: string) => {
     const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
@@ -1108,6 +1161,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
       setItemFormName(item.name);
       setItemFormPrice(item.price);
       setItemFormCategory(item.categoryName || '대표메뉴');
+      setItemFormDesc(item.description || '');
       setItemFormIcon(item.iconName || '☕');
       setItemFormImageUrl(item.imageUrl || '');
       setItemFormUrlInput(item.imageUrl || '');
@@ -1117,6 +1171,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
       setItemFormName('');
       setItemFormPrice(4500);
       setItemFormCategory('대표메뉴');
+      setItemFormDesc('');
       setItemFormIcon('☕');
       setItemFormImageUrl('');
       setItemFormUrlInput('');
@@ -1167,6 +1222,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                   name: itemFormName.trim(),
                   price: itemFormPrice,
                   categoryName: itemFormCategory.trim(),
+                  description: itemFormDesc.trim() || undefined,
                   iconName: resolvedIcon,
                   imageUrl: resolvedImg,
                 }
@@ -1178,6 +1234,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
             name: itemFormName.trim(),
             price: itemFormPrice,
             categoryName: itemFormCategory.trim(),
+            description: itemFormDesc.trim() || undefined,
             iconName: resolvedIcon,
             imageUrl: resolvedImg,
             isSignature: false,
@@ -1595,7 +1652,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
               { id: 'INFRA', label: '인프라 관제', icon: <Server className="w-3.5 h-3.5" /> },
               { id: 'AUTH_SEC', label: '로그인/보안', icon: <Lock className="w-3.5 h-3.5" /> },
               { id: 'NOTIFY', label: '알림 매트릭스', icon: <Bell className="w-3.5 h-3.5" /> },
-              { id: 'RBAC_LEGAL', label: 'RBAC/약관', icon: <Users className="w-3.5 h-3.5" /> },
+              { id: 'RBAC_LEGAL', label: '시스템관리', icon: <Users className="w-3.5 h-3.5" /> },
               { id: 'FINANCE', label: '금융 통제', icon: <Coins className="w-3.5 h-3.5" /> },
               { id: 'MASTER_CODE', label: '마스터 코드', icon: <Code2 className="w-3.5 h-3.5" /> },
               { id: 'GAME_POOL', label: '게임 콘텐츠 풀', icon: <Gamepad2 className="w-3.5 h-3.5" /> },
@@ -2147,7 +2204,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-600" />
-                <span>RBAC 시스템 관리 & 약관 3대 구분 관리</span>
+                <span>약관 및 시스템 설정 관리</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
                 약관 3대 구분(라디오 사용설정), 메뉴, 화면, 권한그룹, 권한매핑, 사용자 회원정보 및 마스킹 상세를 관리합니다.
@@ -3808,6 +3865,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500">
+                      <th className="py-2 px-1 w-8 text-center" title="드래그 앤 드롭 정렬"></th>
                       <th className="py-2 px-2.5">순서</th>
                       <th className="py-2 px-2.5">코드</th>
                       <th className="py-2 px-2.5">코드명</th>
@@ -3822,11 +3880,39 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                    {curDetailCodes.map((item) => (
-                      <tr key={item.code} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
-                        <td className="py-2 px-2.5 font-mono">{item.sortOrder}</td>
-                        <td className="py-2 px-2.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{item.code}</td>
-                        <td className="py-2 px-2.5 font-bold">{item.codeName}</td>
+                    {curDetailCodes.map((item, index) => {
+                      const isDragging = draggedDetailIndex === index;
+                      const isDragOver = dragOverDetailIndex === index && draggedDetailIndex !== null && draggedDetailIndex !== index;
+                      const isDropAbove = isDragOver && draggedDetailIndex > index;
+                      const isDropBelow = isDragOver && draggedDetailIndex < index;
+
+                      return (
+                        <tr
+                          key={item.code}
+                          draggable
+                          onDragStart={(e) => handleDetailDragStart(e, index)}
+                          onDragOver={(e) => handleDetailDragOver(e, index)}
+                          onDragEnd={handleDetailDragEnd}
+                          onDrop={(e) => handleDetailDrop(e, index)}
+                          className={`hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-all ${
+                            isDragging
+                              ? 'opacity-30 bg-slate-100 dark:bg-zinc-800'
+                              : isDropAbove
+                              ? 'border-t-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              : isDropBelow
+                              ? 'border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
+                              : ''
+                          }`}
+                        >
+                          <td
+                            className="py-2 px-1 text-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                            title="드래그하여 순서 변경"
+                          >
+                            <GripVertical className="w-3.5 h-3.5 mx-auto" />
+                          </td>
+                          <td className="py-2 px-2.5 font-mono">{item.sortOrder}</td>
+                          <td className="py-2 px-2.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{item.code}</td>
+                          <td className="py-2 px-2.5 font-bold">{item.codeName}</td>
                         {/* 7.d 우선순위 수정기능 (인라인 증감) */}
                         {hasPriority && (
                           <td className="py-2 px-2.5 text-center">
@@ -3884,7 +3970,8 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                           <button onClick={() => handleDeleteCode(item.code)} className="p-1 text-rose-500 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -4267,6 +4354,45 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                       </button>
                     </div>
 
+                    {/* 카테고리 필터 칩 바 */}
+                    {curStore.menuCategories && curStore.menuCategories.length > 0 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 border-b border-slate-100 dark:border-zinc-800/80">
+                        <button
+                          type="button"
+                          onClick={() => setStoreMenuFilterCat('전체')}
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                            storeMenuFilterCat === '전체'
+                              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold'
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200'
+                          }`}
+                        >
+                          전체 ({curStore.menus.length})
+                        </button>
+                        {curStore.menuCategories.map((cat) => {
+                          const count = curStore.menus.filter((m) => m.categoryName === cat).length;
+                          const isRTD = cat.includes('RTD');
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setStoreMenuFilterCat(cat)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                                storeMenuFilterCat === cat
+                                  ? isRTD
+                                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                                    : 'bg-emerald-600 text-white font-bold'
+                                  : isRTD
+                                  ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100'
+                                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200'
+                              }`}
+                            >
+                              {cat} ({count})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead>
@@ -4286,40 +4412,74 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                               </td>
                             </tr>
                           ) : (
-                            curStore.menus.map((m) => (
-                              <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
-                                <td className="py-2 px-2.5">
-                                  {m.imageUrl ? (
-                                    <img src={m.imageUrl} alt={m.name} className="w-6 h-6 rounded-md object-cover border border-slate-200" />
-                                  ) : (
-                                    <span className="text-base">{m.iconName || '☕'}</span>
-                                  )}
-                                </td>
-                                <td className="py-2 px-2.5 font-bold text-slate-900 dark:text-zinc-100">{m.name}</td>
-                                <td className="py-2 px-2.5 text-[11px] text-slate-400">{m.categoryName}</td>
-                                <td className="py-2 px-2.5 text-right font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                                  ₩{m.price.toLocaleString()}
-                                </td>
-                                <td className="py-2 px-2.5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenMenuEditModal(m)}
-                                    className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                                    title="수정"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteStoreMenuItem(m.id)}
-                                    className="p-1 hover:bg-rose-50 rounded text-rose-500 cursor-pointer"
-                                    title="삭제"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
+                            curStore.menus
+                              .filter((m) => storeMenuFilterCat === '전체' || m.categoryName === storeMenuFilterCat)
+                              .map((m) => {
+                                const isRTD = m.categoryName?.includes('RTD');
+                                return (
+                                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                                    <td className="py-2 px-2.5">
+                                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700 overflow-hidden">
+                                        {m.imageUrl ? (
+                                          <img
+                                            src={m.imageUrl}
+                                            alt={m.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              (e.currentTarget as HTMLElement).style.display = 'none';
+                                              const parent = e.currentTarget.parentElement;
+                                              if (parent && !parent.querySelector('.fallback-icon')) {
+                                                const span = document.createElement('span');
+                                                span.className = 'text-sm select-none fallback-icon';
+                                                span.innerText = m.iconName || '☕';
+                                                parent.appendChild(span);
+                                              }
+                                            }}
+                                          />
+                                        ) : (
+                                          <span className="text-sm select-none">{m.iconName || '☕'}</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-2.5">
+                                      <div className="font-bold text-slate-900 dark:text-zinc-100">{m.name}</div>
+                                      {m.description && (
+                                        <div className="text-[10px] text-slate-400 dark:text-zinc-500 truncate max-w-xs">{m.description}</div>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-2.5">
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                        isRTD
+                                          ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                                      }`}>
+                                        {m.categoryName}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                      ₩{m.price.toLocaleString()}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenMenuEditModal(m)}
+                                        className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                                        title="수정"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteStoreMenuItem(m.id)}
+                                        className="p-1 hover:bg-rose-50 rounded text-rose-500 cursor-pointer"
+                                        title="삭제"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
                           )}
                         </tbody>
                       </table>
@@ -4708,6 +4868,34 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                       value={itemFormCategory}
                       onChange={(e) => setItemFormCategory(e.target.value)}
                       placeholder="예: 커피 / 음료 / 디저트"
+                      className="w-full h-9 px-3 rounded-lg border bg-slate-50 dark:bg-[#0E131F]"
+                    />
+                    {curStore && curStore.menuCategories && curStore.menuCategories.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {curStore.menuCategories.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setItemFormCategory(cat)}
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
+                              itemFormCategory === cat
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1">메뉴설명</label>
+                    <input
+                      type="text"
+                      value={itemFormDesc}
+                      onChange={(e) => setItemFormDesc(e.target.value)}
+                      placeholder="예: 깊고 진한 에스프레소 원두의 풍미"
                       className="w-full h-9 px-3 rounded-lg border bg-slate-50 dark:bg-[#0E131F]"
                     />
                   </div>
