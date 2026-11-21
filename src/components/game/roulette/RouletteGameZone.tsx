@@ -46,6 +46,8 @@ import {
   ROULETTE_PRESETS,
   RoulettePreset,
   RoulettePresetItem,
+  UserRoulettePreset,
+  loadUserPersonalRoulettePresets,
 } from '../../../sample/data/systemStorePool';
 import { loadSystemRoulettePresets } from '../../../sample/data/systemGovernancePool';
 import {
@@ -156,12 +158,14 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
     return false;
   });
 
-  // 🎯 [실시간 거버넌스 바인딩] 시스템설정에서 등록/수정된 룰렛 프리셋 실시간 동기화
+  // 🎯 [실시간 거버넌스 바인딩] 시스템 및 개인 맞춤(목표/당번 포함) 룰렛 프리셋 실시간 동기화
   const [systemPresets, setSystemPresets] = useState<RoulettePreset[]>(() => loadSystemRoulettePresets());
+  const [personalPresets, setPersonalPresets] = useState<UserRoulettePreset[]>(() => loadUserPersonalRoulettePresets());
 
   useEffect(() => {
     const handleStorageChange = () => {
       setSystemPresets(loadSystemRoulettePresets());
+      setPersonalPresets(loadUserPersonalRoulettePresets());
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -1383,31 +1387,47 @@ export const RouletteGameZone: React.FC<RouletteGameZoneProps> = ({
             className="w-full"
             innerClassName="flex items-center gap-1.5 py-1 px-0.5"
           >
-            {[DEFAULT_FIVE_ITEMS_PRESET, ...systemPresets].map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                disabled={isSpinning}
-                onClick={() => {
-                  if (isSpinning) return;
-                  handleSelectPreset(preset);
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                  isSpinning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                } ${
-                  roulettePresetTitle === preset.title
-                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                    : resolvedTheme === 'dawn'
-                    ? 'bg-white border-[#bfdbfe] text-[#0d2746] hover:bg-blue-50'
-                    : isDark
-                    ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <span>{preset.icon || '🎯'}</span>
-                <span>{preset.title.replace(/^[^\s]+\s*/, '')}</span>
-              </button>
-            ))}
+            {[DEFAULT_FIVE_ITEMS_PRESET, ...personalPresets, ...systemPresets].map((preset) => {
+              const isSelected = roulettePresetTitle === preset.title;
+              const userPreset = 'sourceType' in preset ? (preset as UserRoulettePreset) : undefined;
+              const hasSource = Boolean(userPreset?.sourceType && userPreset.sourceType !== 'DIRECT');
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  disabled={isSpinning}
+                  onClick={() => {
+                    if (isSpinning) return;
+                    handleSelectPreset(preset);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
+                    isSpinning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  } ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                      : resolvedTheme === 'dawn'
+                      ? 'bg-white border-[#bfdbfe] text-[#0d2746] hover:bg-blue-50'
+                      : isDark
+                      ? 'bg-[#222226] border-[#333338] text-slate-300 hover:bg-[#2c2c32]'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{preset.icon || '🎯'}</span>
+                  <span className="whitespace-nowrap">{preset.title.replace(/^[^\s]+\s*/, '')}</span>
+                  {hasSource && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.2 rounded font-semibold whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-white/20 text-white'
+                          : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                      }`}
+                    >
+                      {(preset as UserRoulettePreset).sourceType === 'GOAL' ? '🎯 목표' : '🧹 당번'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </ElmSld03>
         </div>
 
