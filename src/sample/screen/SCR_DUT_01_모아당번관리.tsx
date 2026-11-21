@@ -647,30 +647,53 @@ export const SCR_DUT_01_모아당번관리: React.FC<SCR_DUT_01_Props> = ({
                       {/* Card Top: Category, Days, Rotation, Settlement cycle */}
                       <div className="flex items-center justify-between gap-1.5 flex-wrap">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 whitespace-nowrap">
                             {duty.category_name}
                           </span>
                           {/* Korean Rotation Policy */}
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700 whitespace-nowrap">
                             {getRotationPolicyLabel(duty.rotation_policy)}
                           </span>
                         </div>
 
-                        {/* Orthogonal 3-State Badges */}
-                        <div className="flex items-center gap-1">
-                          {isApproved ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-1">
+                        {/* Orthogonal 3-State Badges (진행/검증/정산) */}
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {/* 1. 진행 상태 배지 */}
+                          {duty.progress_status === 'COMPLETED' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-1 whitespace-nowrap">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>승인완료</span>
+                              <span>완수</span>
                             </span>
-                          ) : isSubmitted ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800 flex items-center gap-1">
+                          ) : duty.progress_status === 'SUBMITTED' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800 flex items-center gap-1 whitespace-nowrap">
                               <Clock className="w-3 h-3" />
-                              <span>인증 제출됨</span>
+                              <span>제출됨</span>
+                            </span>
+                          ) : duty.progress_status === 'IN_PROGRESS' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800 whitespace-nowrap">
+                              수행중
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
-                              수행 대기
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 whitespace-nowrap">
+                              대기
+                            </span>
+                          )}
+
+                          {/* 2. 검증 평가 상태 배지 */}
+                          {duty.evaluation_status === 'AUTO_APPROVED' ? (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 whitespace-nowrap" title="시스템/피어 자동 승인">
+                              자동승인
+                            </span>
+                          ) : duty.evaluation_status === 'MANUAL_CONFIRMED' ? (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap" title="피어 상호 검증 승인">
+                              상호승인
+                            </span>
+                          ) : null}
+
+                          {/* 3. 정산 상태 배지 (정산완료 시 표기) */}
+                          {duty.settlement_status === 'SETTLED' && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 whitespace-nowrap">
+                              정산완료
                             </span>
                           )}
                         </div>
