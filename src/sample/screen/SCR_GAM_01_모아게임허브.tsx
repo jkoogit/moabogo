@@ -546,49 +546,49 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         </p>
       </div>
 
-      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭, 슬라이드드래그휠 ElmSld03 적용) */}
+      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭, 슬라이드드래그휠 ElmSld03 적용, 줄바꿈 완전 방지) */}
       <ElmSld03
         showNavButtons={false}
         className="rounded-2xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs p-1"
-        innerClassName="gap-2 items-center min-w-full"
+        innerClassName="gap-2 items-center min-w-full flex-nowrap"
       >
         <button
           type="button"
           onClick={() => setGameType('SPLIT')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'SPLIT'
               ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Coins className="w-4 h-4" />
-          <span>🧾 모아정산</span>
+          <Coins className="w-4 h-4 shrink-0" />
+          <span className="whitespace-nowrap shrink-0">🧾 모아정산</span>
         </button>
 
         <button
           type="button"
           onClick={() => setGameType('LADDER')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'LADDER'
               ? 'bg-white dark:bg-zinc-800 text-amber-600 dark:text-amber-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <span className="text-base leading-none">🪜</span>
-          <span>사다리타기</span>
+          <span className="text-base leading-none shrink-0">🪜</span>
+          <span className="whitespace-nowrap shrink-0">사다리타기</span>
         </button>
 
         <button
           type="button"
           onClick={() => setGameType('ROULETTE')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'ROULETTE'
               ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-purple-500" />
-          <span>🎯 룰렛돌리기</span>
+          <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
+          <span className="whitespace-nowrap shrink-0">🎯 룰렛돌리기</span>
         </button>
       </ElmSld03>
 
@@ -651,51 +651,53 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
             )}
           </div>
 
-          {/* 우측: [요청 3] 슬라이드드래그휠(ElmSld03) 적용된 단골 매장 퀵칩 바 */}
-          <div className="flex items-center gap-2 min-w-0 flex-1 lg:max-w-xl">
-            <span className="text-xs font-bold text-slate-500 dark:text-zinc-400 flex items-center gap-1 shrink-0">
-              <Store className="w-3.5 h-3.5 text-amber-500" />
-              <span>단골 매장:</span>
-            </span>
+          {/* 우측: [요청 3] 사다리(LADDER) 탭 전용 슬라이드드래그휠(ElmSld03) 적용된 단골 매장 퀵칩 바 */}
+          {gameType === 'LADDER' && (
+            <div className="flex items-center gap-2 min-w-0 flex-1 lg:max-w-xl">
+              <span className="text-xs font-bold text-slate-500 dark:text-zinc-400 flex items-center gap-1 shrink-0">
+                <Store className="w-3.5 h-3.5 text-amber-500" />
+                <span>단골 매장:</span>
+              </span>
 
-            {/* [요청 3-a] ElmSld03 마우스 드래그 및 휠 수평 스크롤 연동 */}
-            <ElmSld03
-              showNavButtons={false}
-              className="flex-1 min-w-0"
-              innerClassName="gap-1.5 py-0.5 items-center"
-            >
-              {stores.map((st) => {
-                const isSelected = selectedStore?.id === st.id;
-                return (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedStore(st);
-                      showToast(`단골 매장 '${st.name}'(총 ${st.menus?.length || 0}종 메뉴)이 선택되었습니다.`, 'info');
-                    }}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 text-left ${
-                      isSelected
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                        : isDark
-                        ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className="text-base shrink-0">☕</span>
-                    <div className="flex flex-col items-start leading-tight">
-                      <span className="font-bold">{st.name}</span>
-                      {st.categoryLabel && (
-                        <span className="text-[10px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-normal mt-0.5">
-                          {st.categoryLabel} ({st.menus?.length || 0}종)
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </ElmSld03>
-          </div>
+              {/* [요청 3-a] ElmSld03 마우스 드래그 및 휠 수평 스크롤 연동 */}
+              <ElmSld03
+                showNavButtons={false}
+                className="flex-1 min-w-0"
+                innerClassName="gap-1.5 py-0.5 items-center"
+              >
+                {stores.map((st) => {
+                  const isSelected = selectedStore?.id === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedStore(st);
+                        showToast(`단골 매장 '${st.name}'(총 ${st.menus?.length || 0}종 메뉴)이 선택되었습니다.`, 'info');
+                      }}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 text-left ${
+                        isSelected
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                          : isDark
+                          ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="text-base shrink-0">☕</span>
+                      <div className="flex flex-col items-start leading-tight">
+                        <span className="font-bold">{st.name}</span>
+                        {st.categoryLabel && (
+                          <span className="text-[10px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-normal mt-0.5">
+                            {st.categoryLabel} ({st.menus?.length || 0}종)
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </ElmSld03>
+            </div>
+          )}
         </div>
 
         {/* [요청 7] 로그인 사다리/정산 화면 참가자 인원 설정 속성: 참여모임 '수동설정' 선택 시 표시하여 설정 가능하도록 처리 */}
