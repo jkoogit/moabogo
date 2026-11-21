@@ -1104,7 +1104,11 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
             <div className="space-y-6 animate-in fade-in">
               {/* Actions Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
-                <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <ElmSld03
+                  showNavButtons={false}
+                  className="max-w-full sm:max-w-md md:max-w-xl"
+                  innerClassName="gap-1.5 items-center py-0.5"
+                >
                   {[
                     { id: '전체', label: '전체 매장' },
                     { id: 'CAFE', label: '☕ 카페/음료' },
@@ -1118,7 +1122,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                         key={cat.id}
                         type="button"
                         onClick={() => setStoreFilterCategory(cat.id)}
-                        className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                        className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                           isActive
                             ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-bold shadow-xs border border-slate-200 dark:border-zinc-700'
                             : 'text-slate-600 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-800/50'
@@ -1128,7 +1132,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                       </button>
                     );
                   })}
-                </div>
+                </ElmSld03>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -1449,7 +1453,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     className="min-h-[36px] px-3.5 py-1.5 rounded-xl border border-violet-300 dark:border-violet-700 bg-white dark:bg-zinc-900 text-violet-700 dark:text-violet-300 text-xs font-bold flex items-center gap-1.5 hover:bg-violet-50 cursor-pointer shadow-xs transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>기초 프리셋 가져오기</span>
+                    <span>기초 프리셋 등록</span>
                   </button>
                   <button
                     type="button"
@@ -1460,7 +1464,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ 사다리 프리셋 직접 등록</span>
+                    <span>직접 등록</span>
                   </button>
                 </div>
               </div>
@@ -1481,7 +1485,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                       onClick={() => setIsLadderImportModalOpen(true)}
                       className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold cursor-pointer"
                     >
-                      기초 프리셋 둘러보기
+                      기초 프리셋 등록
                     </button>
                   </div>
                 </div>
@@ -1495,25 +1499,25 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                       className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0B0F17] hover:border-violet-300 dark:hover:border-violet-800 transition-all flex flex-col justify-between"
                     >
                       <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <h5 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <h5 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5 min-w-0">
                             <span>{preset.category === 'COFFEE' ? '☕' : preset.category === 'LUNCH' ? '🍱' : '🧹'}</span>
-                            <span>{preset.title}</span>
+                            <span className="truncate">{preset.title}</span>
                           </h5>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300 font-bold">
+                          <div className="flex items-center gap-1 flex-wrap shrink-0">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300 font-bold whitespace-nowrap">
                               {preset.playerCount}인 ({preset.winnerCount}명 당첨)
                             </span>
                             {preset.sourceType && preset.sourceType !== 'DIRECT' ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold">
-                                {preset.sourceType === 'GOAL' ? '🎯 목표연동' : '🧹 당번연동'}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold whitespace-nowrap">
+                                {preset.sourceType === 'GOAL' ? '🎯 목표(룰렛 동시 적용)' : '🧹 당번(룰렛 동시 적용)'}
                               </span>
                             ) : preset.isCustomCreated ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold whitespace-nowrap">
                                 수동등록
                               </span>
                             ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 whitespace-nowrap">
                                 기초복사
                               </span>
                             )}
@@ -1632,7 +1636,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     className="min-h-[36px] px-3.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-900 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-50 cursor-pointer shadow-xs transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>기초 프리셋 가져오기</span>
+                    <span>기초 프리셋 등록</span>
                   </button>
                   <button
                     type="button"
@@ -1643,7 +1647,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                     className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ 룰렛 프리셋 직접 등록</span>
+                    <span>직접 등록</span>
                   </button>
                 </div>
               </div>
@@ -1664,7 +1668,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                       onClick={() => setIsRouletteImportModalOpen(true)}
                       className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer"
                     >
-                      기초 프리셋 둘러보기
+                      기초 프리셋 등록
                     </button>
                   </div>
                 </div>
@@ -1678,25 +1682,25 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                       className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0B0F17] hover:border-amber-300 dark:hover:border-amber-800 transition-all flex flex-col justify-between"
                     >
                       <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <h5 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <h5 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5 min-w-0">
                             <span>{preset.icon || '🎯'}</span>
-                            <span>{preset.title}</span>
+                            <span className="truncate">{preset.title}</span>
                           </h5>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold">
+                          <div className="flex items-center gap-1 flex-wrap shrink-0">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold whitespace-nowrap">
                               항목 {preset.items.length}개
                             </span>
                             {preset.sourceType && preset.sourceType !== 'DIRECT' ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold">
-                                {preset.sourceType === 'GOAL' ? '🎯 목표연동' : '🧹 당번연동'}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold whitespace-nowrap">
+                                {preset.sourceType === 'GOAL' ? '🎯 목표(룰렛 동시 적용)' : '🧹 당번(룰렛 동시 적용)'}
                               </span>
                             ) : preset.isCustomCreated ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold whitespace-nowrap">
                                 수동등록
                               </span>
                             ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 whitespace-nowrap">
                                 기초복사
                               </span>
                             )}
@@ -4036,13 +4040,55 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
     });
 
     if (winnerCount >= safeNum) {
-      setWinnerCount(Math.max(1, safeNum - 1));
+      syncRolesWithWinnerCount(Math.max(1, safeNum - 1), safeNum);
     }
   };
 
-  const handleSetWinnerCount = (target: number) => {
-    const safeNum = Math.max(1, Math.min(playerCount - 1, target));
+  // 당첨인원수에 맞춰 roles 내부의 당첨(PAY) 역할 건수 현행화
+  const syncRolesWithWinnerCount = (targetWinner: number, currentPlayers: number = playerCount) => {
+    const safeNum = Math.max(1, Math.min(currentPlayers - 1, targetWinner));
     setWinnerCount(safeNum);
+
+    setRoles((prev) => {
+      let currentPayCount = prev.filter((r) => r.type === 'PAY').length;
+      if (currentPayCount === safeNum) return prev;
+
+      const newRoles = [...prev];
+      if (currentPayCount < safeNum) {
+        // 당첨 역할 추가: 앞쪽의 PASS(면제) 또는 비-PAY 역할부터 순차적으로 PAY(당첨)로 변경
+        for (let i = 0; i < newRoles.length && currentPayCount < safeNum; i++) {
+          if (newRoles[i].type !== 'PAY') {
+            newRoles[i] = {
+              label: currentPayCount === 0 ? '오늘 결제 당첨' : `결제 당첨 (${currentPayCount + 1})`,
+              icon: '💳',
+              type: 'PAY',
+              color: 'rose',
+              badgeText: '당첨',
+            };
+            currentPayCount++;
+          }
+        }
+      } else if (currentPayCount > safeNum) {
+        // 당첨 역할 감소: 뒤쪽의 PAY 역할부터 순차적으로 PASS(면제)로 변경
+        for (let i = newRoles.length - 1; i >= 0 && currentPayCount > safeNum; i--) {
+          if (newRoles[i].type === 'PAY') {
+            newRoles[i] = {
+              label: '축 통과 (생존)',
+              icon: '🎉',
+              type: 'PASS',
+              color: 'emerald',
+              badgeText: '면제',
+            };
+            currentPayCount--;
+          }
+        }
+      }
+      return newRoles;
+    });
+  };
+
+  const handleSetWinnerCount = (target: number) => {
+    syncRolesWithWinnerCount(target);
   };
 
   const handleParticipantChange = (idx: number, field: keyof ParticipantConfig, val: any) => {
