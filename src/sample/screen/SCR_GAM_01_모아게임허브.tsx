@@ -5,7 +5,6 @@ import {
   Gamepad2,
   Wallet,
   Sparkles,
-  Coins,
   Users,
   Settings,
   Store,
@@ -546,7 +545,7 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         </p>
       </div>
 
-      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭, 슬라이드드래그휠 ElmSld03 적용, 줄바꿈 완전 방지) */}
+      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭, 슬라이드드래그휠 ElmSld03 적용, 아이콘 표준 통일) */}
       <ElmSld03
         showNavButtons={false}
         className="rounded-2xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs p-1"
@@ -555,20 +554,20 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         <button
           type="button"
           onClick={() => setGameType('SPLIT')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'SPLIT'
               ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Coins className="w-4 h-4 shrink-0" />
-          <span className="whitespace-nowrap shrink-0">🧾 모아정산</span>
+          <span className="text-base leading-none shrink-0">🧾</span>
+          <span className="whitespace-nowrap shrink-0">모아정산</span>
         </button>
 
         <button
           type="button"
           onClick={() => setGameType('LADDER')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'LADDER'
               ? 'bg-white dark:bg-zinc-800 text-amber-600 dark:text-amber-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
@@ -581,14 +580,14 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         <button
           type="button"
           onClick={() => setGameType('ROULETTE')}
-          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap flex-nowrap ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap flex-nowrap ${
             gameType === 'ROULETTE'
               ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
-          <span className="whitespace-nowrap shrink-0">🎯 룰렛돌리기</span>
+          <span className="text-base leading-none shrink-0">🎯</span>
+          <span className="whitespace-nowrap shrink-0">룰렛돌리기</span>
         </button>
       </ElmSld03>
 
