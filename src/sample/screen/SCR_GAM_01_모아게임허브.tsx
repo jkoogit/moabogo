@@ -546,12 +546,16 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         </p>
       </div>
 
-      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭을 컨트롤 바보다 상단에 우선 배치) */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs">
+      {/* 2. [요청 1-a] 3대 서브탭 네비게이션 헤더 (로그인 모아게임 탭, 슬라이드드래그휠 ElmSld03 적용) */}
+      <ElmSld03
+        showNavButtons={false}
+        className="rounded-2xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs p-1"
+        innerClassName="gap-2 items-center min-w-full"
+      >
         <button
           type="button"
           onClick={() => setGameType('SPLIT')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
             gameType === 'SPLIT'
               ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
@@ -559,15 +563,12 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         >
           <Coins className="w-4 h-4" />
           <span>🧾 모아정산</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold hidden sm:inline">
-            1/N & 차등
-          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setGameType('LADDER')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
             gameType === 'LADDER'
               ? 'bg-white dark:bg-zinc-800 text-amber-600 dark:text-amber-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
@@ -575,15 +576,12 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         >
           <span className="text-base leading-none">🪜</span>
           <span>사다리타기</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 font-bold hidden sm:inline">
-            사내카페 35종
-          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setGameType('ROULETTE')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
             gameType === 'ROULETTE'
               ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-xs'
               : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
@@ -591,11 +589,8 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         >
           <Sparkles className="w-4 h-4 text-purple-500" />
           <span>🎯 룰렛돌리기</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 font-bold hidden sm:inline">
-            가중치 추첨
-          </span>
         </button>
-      </div>
+      </ElmSld03>
 
       {/* 3. [요청 1-a] 모아게임 탭 다음에 표시되는 상단 개인화 컨트롤 바 */}
       <div
@@ -679,7 +674,7 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
                       setSelectedStore(st);
                       showToast(`단골 매장 '${st.name}'(총 ${st.menus?.length || 0}종 메뉴)이 선택되었습니다.`, 'info');
                     }}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 text-left ${
                       isSelected
                         ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
                         : isDark
@@ -687,13 +682,15 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    <span>☕</span>
-                    <span>{st.name}</span>
-                    {st.categoryLabel && (
-                      <span className="text-[10px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-normal">
-                        {st.categoryLabel}
-                      </span>
-                    )}
+                    <span className="text-base shrink-0">☕</span>
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="font-bold">{st.name}</span>
+                      {st.categoryLabel && (
+                        <span className="text-[10px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-normal mt-0.5">
+                          {st.categoryLabel} ({st.menus?.length || 0}종)
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -830,71 +827,6 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         {/* 탭 3: 룰렛돌리기 (ROULETTE) */}
         {gameType === 'ROULETTE' && (
           <div className="space-y-4">
-            {/* 온디맨드 게이미피케이션 추천 템플릿 바 (스토어 저장 없이 즉시 룰렛 항목 교체) */}
-            <div className="flex items-center gap-1.5 flex-wrap p-2.5 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 text-xs">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 mr-1 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                추천 템플릿:
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setRoulettePresetTitle('🎯 목표 달성 축하 리워드 추첨');
-                  setRouletteItems(
-                    GOAL_CELEBRATION_PRESET_ITEMS.map((item, idx) => ({
-                      id: `celeb-${idx}`,
-                      name: item,
-                      avatar: '🎁',
-                      weight: 10,
-                    }))
-                  );
-                  showToast('🎯 목표 달성 축하 리워드 템플릿 6종이 룰렛에 적용되었습니다!', 'success');
-                }}
-                className="px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-              >
-                <span>🎁 목표달성 축하 (6종)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRoulettePresetTitle('⚡ 미달성 벌칙 추첨');
-                  setRouletteItems(
-                    GOAL_PENALTY_PRESET_ITEMS.map((item, idx) => ({
-                      id: `penalty-${idx}`,
-                      name: item,
-                      avatar: '⚡',
-                      weight: 10,
-                    }))
-                  );
-                  showToast('⚡ 미달성 벌칙 템플릿 6종이 룰렛에 적용되었습니다!', 'info');
-                }}
-                className="px-2.5 py-1 rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-              >
-                <span>⚡ 미달성 벌칙 (6종)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const currentGroup = DEFAULT_MEMBER_GROUPS.find((g) => g.id === selectedGroupId);
-                  setRoulettePresetTitle(
-                    currentGroup ? `${currentGroup.name} 당번/주자 추첨` : '참여자 추첨'
-                  );
-                  setRouletteItems(
-                    members.map((m) => ({
-                      id: m.id,
-                      name: m.name,
-                      avatar: m.avatar,
-                      weight: 10,
-                    }))
-                  );
-                  showToast(`👥 현재 참여인원 (${members.length}명)으로 룰렛 항목이 복원되었습니다.`, 'info');
-                }}
-                className="px-2.5 py-1 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-              >
-                <span>👥 참여인원 복귀 ({members.length}명)</span>
-              </button>
-            </div>
-
             <RouletteGameZone
               members={members}
               roulettePresetTitle={roulettePresetTitle}
