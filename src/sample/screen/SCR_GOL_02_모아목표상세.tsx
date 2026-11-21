@@ -43,12 +43,18 @@ import {
   Check,
   RotateCcw,
   AlertCircle,
+  Gamepad2,
 } from 'lucide-react';
 
 export const SCR_GOL_02_모아목표상세: React.FC<{
   goalId?: string;
   onBack?: () => void;
-}> = ({ goalId = 'goal-1', onBack }) => {
+  onNavigateToGame?: (params: {
+    groupId: string;
+    gameType: 'ROULETTE' | 'LADDER' | 'SPLIT';
+    presetType?: 'CELEBRATION' | 'PENALTY';
+  }) => void;
+}> = ({ goalId = 'goal-1', onBack, onNavigateToGame }) => {
   // 목표 목록 상태
   const [goals, setGoals] = useState<GoalItem[]>(INITIAL_GOAL_LIST);
   const currentGoal = goals.find((g) => g.id === goalId) || goals[0];

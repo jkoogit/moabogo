@@ -1,6 +1,9 @@
 // 모아보고 시스템 매장 풀 (System Store Pool) 및 사다리 역할 프리셋
 // SSOT: docs/04.데이터 / SCR-SET-01 & SCR-GNT-01 공유 데이터
 
+import { INITIAL_GOAL_LIST } from './goal-mock-data';
+import { INITIAL_DUTIES } from '../dutyStore';
+
 export type StoreCategoryType = 'CAFE' | 'LUNCH' | 'DINNER' | 'DESSERT' | 'SNACK' | 'CUSTOM';
 
 export interface StoreMenuItem {
@@ -734,12 +737,78 @@ export interface UserLadderPreset extends LadderGoalPreset {
   isCustomCreated?: boolean; // 사용자가 직접 수동 등록했는지 여부
   importedFromSystemId?: string; // 시스템 기초 프리셋에서 복제된 경우 원본 ID
   createdAt: string;
+  sourceType?: 'DIRECT' | 'GOAL' | 'DUTY';
+  sourceId?: string;
+  sourceName?: string;
+  originalMemberCount?: number;
+  originalMembers?: string[];
 }
 
 export interface UserRoulettePreset extends RoulettePreset {
   isCustomCreated?: boolean; // 사용자가 직접 수동 등록했는지 여부
   importedFromSystemId?: string; // 시스템 기초 프리셋에서 복제된 경우 원본 ID
   createdAt: string;
+  sourceType?: 'DIRECT' | 'GOAL' | 'DUTY';
+  sourceId?: string;
+  sourceName?: string;
+  originalMemberCount?: number;
+  originalMembers?: string[];
+}
+
+export interface PresetSourceSyncStatus {
+  hasChanged: boolean;
+  currentCount: number;
+  originalCount: number;
+  sourceTitle: string;
+  currentMembers: string[];
+}
+
+export function checkPresetSourceSyncStatus(
+  preset: UserLadderPreset | UserRoulettePreset
+): PresetSourceSyncStatus {
+  if (!preset.sourceType || preset.sourceType === 'DIRECT' || !preset.sourceId) {
+    return { hasChanged: false, currentCount: 0, originalCount: 0, sourceTitle: '', currentMembers: [] };
+  }
+
+  const originalCount = preset.originalMemberCount || 0;
+
+  if (preset.sourceType === 'GOAL') {
+    const goal = INITIAL_GOAL_LIST.find((g) => g.id === preset.sourceId);
+    if (!goal) {
+      return { hasChanged: false, currentCount: originalCount, originalCount, sourceTitle: preset.sourceName || '', currentMembers: [] };
+    }
+    const currentMembers = goal.companions.map((c) => c.name);
+    const hasChanged =
+      currentMembers.length !== originalCount ||
+      (preset.originalMembers ? currentMembers.some((m, idx) => m !== preset.originalMembers?.[idx]) : false);
+    return {
+      hasChanged,
+      currentCount: currentMembers.length,
+      originalCount,
+      sourceTitle: goal.title,
+      currentMembers,
+    };
+  }
+
+  if (preset.sourceType === 'DUTY') {
+    const duty = INITIAL_DUTIES.find((d) => d.duty_id === preset.sourceId);
+    if (!duty) {
+      return { hasChanged: false, currentCount: originalCount, originalCount, sourceTitle: preset.sourceName || '', currentMembers: [] };
+    }
+    const currentMembers = duty.participants.map((p) => p.name);
+    const hasChanged =
+      currentMembers.length !== originalCount ||
+      (preset.originalMembers ? currentMembers.some((m, idx) => m !== preset.originalMembers?.[idx]) : false);
+    return {
+      hasChanged,
+      currentCount: currentMembers.length,
+      originalCount,
+      sourceTitle: duty.duty_title,
+      currentMembers,
+    };
+  }
+
+  return { hasChanged: false, currentCount: originalCount, originalCount, sourceTitle: '', currentMembers: [] };
 }
 
 // 1. 사용자 수동 등록 매장 로드/저장

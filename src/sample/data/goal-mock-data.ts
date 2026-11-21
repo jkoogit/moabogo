@@ -405,3 +405,30 @@ export const INITIAL_GOAL_LIST: GoalItem[] = [
     records: [],
   },
 ];
+
+// ==========================================
+// On-Demand 게이미피케이션 추천 템플릿 라이브러리
+// (스토어 저장 없이 렌더링 시점에만 필요한 항목 가볍게 제안)
+// ==========================================
+export const GOAL_CELEBRATION_PRESET_ITEMS: string[] = [
+  '🎉 특식 외식 쏘기',
+  '☕ 스타벅스 커피 쿠폰',
+  '🍰 디저트 사주기',
+  '👏 전원 기립박수 & 칭찬',
+  '🎁 보너스 용돈 1만원',
+  '🛋️ 주말 당번 1회 면제권',
+];
+
+export const GOAL_PENALTY_PRESET_ITEMS: string[] = [
+  '🧹 이번 주 설거지 1회',
+  '🗑️ 분리수거 버리고 오기',
+  '🥤 시원한 아이스크림 쏘기',
+  '🧼 주말 화장실 청소',
+  '🧎 스트레칭 & 플랭크 3분',
+  '💸 동행원 커피 1잔 쏘기',
+];
+
+export function getGoalById(id: string): GoalItem | undefined {
+  return INITIAL_GOAL_LIST.find((g) => g.id === id);
+}
+
