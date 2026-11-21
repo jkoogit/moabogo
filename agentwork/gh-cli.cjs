@@ -53,6 +53,14 @@ function resolveGitHubToken() {
     }
   } catch (_) {}
 
+  // 계층 3.5: GitHub CLI (gh auth token)
+  try {
+    const ghToken = execSync('gh auth token', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    if (ghToken) {
+      return ghToken;
+    }
+  } catch (_) {}
+
   // 계층 4: Git remote origin URL 역추출
   try {
     const remoteUrl = execSync('git config --get remote.origin.url', { encoding: 'utf-8' }).trim();

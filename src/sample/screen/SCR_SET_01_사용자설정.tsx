@@ -95,7 +95,10 @@ import {
   downloadStoreExcelTemplate,
   parseStoreCsvData,
   exportUserStoresToCsv,
+  checkPresetSourceSyncStatus,
 } from '../data/systemStorePool';
+import { INITIAL_GOAL_LIST } from '../data/goal-mock-data';
+import { INITIAL_DUTIES } from '../dutyStore';
 import {
   loadSystemLadderPresets,
   loadSystemRoulettePresets,
@@ -630,6 +633,43 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
       setPersonalRoulettePresets(updated);
       saveUserPersonalRoulettePresets(updated);
     }
+  };
+
+  // 사다리 프리셋 원본 출처(목표/당번) 구성원 현행화 동기화 핸들러
+  const handleSyncLadderPresetWithSource = (preset: UserLadderPreset) => {
+    const status = checkPresetSourceSyncStatus(preset);
+    if (!status.hasChanged) return;
+
+    const updatedPreset: UserLadderPreset = {
+      ...preset,
+      playerCount: status.currentCount,
+      originalMemberCount: status.currentCount,
+      originalMembers: status.currentMembers,
+    };
+    const updated = personalLadderPresets.map((p) => (p.id === preset.id ? updatedPreset : p));
+    setPersonalLadderPresets(updated);
+    saveUserPersonalLadderPresets(updated);
+  };
+
+  // 룰렛 프리셋 원본 출처(목표/당번) 구성원 현행화 동기화 핸들러
+  const handleSyncRoulettePresetWithSource = (preset: UserRoulettePreset) => {
+    const status = checkPresetSourceSyncStatus(preset);
+    if (!status.hasChanged) return;
+
+    const updatedPreset: UserRoulettePreset = {
+      ...preset,
+      items: status.currentMembers.map((m, idx) => ({
+        id: `it_sync_${idx}`,
+        name: m,
+        icon: preset.icon || '🎯',
+        weight: 10,
+      })),
+      originalMemberCount: status.currentCount,
+      originalMembers: status.currentMembers,
+    };
+    const updated = personalRoulettePresets.map((p) => (p.id === preset.id ? updatedPreset : p));
+    setPersonalRoulettePresets(updated);
+    saveUserPersonalRoulettePresets(updated);
   };
 
   const handleToggleMyStore = (storeId: string) => {
@@ -1447,7 +1487,9 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {personalLadderPresets.map((preset) => (
+                  {personalLadderPresets.map((preset) => {
+                    const sourceStatus = checkPresetSourceSyncStatus(preset);
+                    return (
                     <div
                       key={preset.id}
                       className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0B0F17] hover:border-violet-300 dark:hover:border-violet-800 transition-all flex flex-col justify-between"
@@ -1462,7 +1504,11 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300 font-bold">
                               {preset.playerCount}인 ({preset.winnerCount}명 당첨)
                             </span>
-                            {preset.isCustomCreated ? (
+                            {preset.sourceType && preset.sourceType !== 'DIRECT' ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold">
+                                {preset.sourceType === 'GOAL' ? '🎯 목표연동' : '🧹 당번연동'}
+                              </span>
+                            ) : preset.isCustomCreated ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold">
                                 수동등록
                               </span>
@@ -1477,6 +1523,25 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                         <p className="text-xs text-slate-500 dark:text-zinc-400">
                           {preset.description}
                         </p>
+
+                        {/* 출처 원본 구성원 변경 시 알림 및 동기화 버튼 */}
+                        {sourceStatus.hasChanged && (
+                          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+                            <div className="flex items-center gap-1.5">
+                              <span>⚠️</span>
+                              <span className="font-medium text-[11px]">
+                                원본 구성원 변경됨: 기존 {sourceStatus.originalCount}명 ➔ 현재 {sourceStatus.currentCount}명
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncLadderPresetWithSource(preset)}
+                              className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              동기화
+                            </button>
+                          </div>
+                        )}
 
                         {preset.storeName && (
                           <div className="text-[11px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-semibold">
@@ -1534,7 +1599,8 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1604,7 +1670,9 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {personalRoulettePresets.map((preset) => (
+                  {personalRoulettePresets.map((preset) => {
+                    const sourceStatus = checkPresetSourceSyncStatus(preset);
+                    return (
                     <div
                       key={preset.id}
                       className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0B0F17] hover:border-amber-300 dark:hover:border-amber-800 transition-all flex flex-col justify-between"
@@ -1619,7 +1687,11 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold">
                               항목 {preset.items.length}개
                             </span>
-                            {preset.isCustomCreated ? (
+                            {preset.sourceType && preset.sourceType !== 'DIRECT' ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold">
+                                {preset.sourceType === 'GOAL' ? '🎯 목표연동' : '🧹 당번연동'}
+                              </span>
+                            ) : preset.isCustomCreated ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold">
                                 수동등록
                               </span>
@@ -1634,6 +1706,25 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                         <p className="text-xs text-slate-500 dark:text-zinc-400">
                           {preset.description}
                         </p>
+
+                        {/* 출처 원본 구성원 변경 시 알림 및 동기화 버튼 */}
+                        {sourceStatus.hasChanged && (
+                          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+                            <div className="flex items-center gap-1.5">
+                              <span>⚠️</span>
+                              <span className="font-medium text-[11px]">
+                                원본 구성원 변경됨: 기존 {sourceStatus.originalCount}명 ➔ 현재 {sourceStatus.currentCount}명
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncRoulettePresetWithSource(preset)}
+                              className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              동기화
+                            </button>
+                          </div>
+                        )}
 
                         {/* Items Preview */}
                         <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1677,7 +1768,8 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -3727,6 +3819,13 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
   const [winnerCount, setWinnerCount] = useState<number>(preset?.winnerCount || 1);
   const [storeId, setStoreId] = useState<string>(preset?.storeId || '');
 
+  // 출처 선택 (직접입력 / 모아목표 / 모아당번)
+  const [sourceType, setSourceType] = useState<'DIRECT' | 'GOAL' | 'DUTY'>(preset?.sourceType || 'DIRECT');
+  const [sourceId, setSourceId] = useState<string>(preset?.sourceId || '');
+  const [sourceName, setSourceName] = useState<string>(preset?.sourceName || '');
+  const [originalMemberCount, setOriginalMemberCount] = useState<number | undefined>(preset?.originalMemberCount);
+  const [originalMembers, setOriginalMembers] = useState<string[] | undefined>(preset?.originalMembers);
+
   // 4-b. 참가자별 이름, 매장 메뉴, 가중치
   const [participants, setParticipants] = useState<ParticipantConfig[]>(() =>
     Array.from({ length: 4 }, (_, i) => ({
@@ -3748,6 +3847,104 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
 
   const selectedStoreObj = availableStores.find((s) => s.id === storeId);
 
+  // 출처 변경 핸들러
+  const handleSourceTypeChange = (newType: 'DIRECT' | 'GOAL' | 'DUTY') => {
+    setSourceType(newType);
+    if (newType === 'DIRECT') {
+      setSourceId('');
+      setSourceName('');
+      setOriginalMemberCount(undefined);
+      setOriginalMembers(undefined);
+    } else if (newType === 'GOAL') {
+      if (INITIAL_GOAL_LIST.length > 0) {
+        applyGoalSource(INITIAL_GOAL_LIST[0].id);
+      }
+    } else if (newType === 'DUTY') {
+      if (INITIAL_DUTIES.length > 0) {
+        applyDutySource(INITIAL_DUTIES[0].duty_id);
+      }
+    }
+  };
+
+  const applyGoalSource = (targetGoalId: string) => {
+    const goal = INITIAL_GOAL_LIST.find((g) => g.id === targetGoalId);
+    if (!goal) return;
+    setSourceId(goal.id);
+    setSourceName(goal.title);
+    const companionNames = goal.companions.map((c) => c.name);
+    setOriginalMemberCount(companionNames.length);
+    setOriginalMembers(companionNames);
+
+    if (!preset) {
+      setTitle(`[목표] ${goal.title}`);
+      setDescription(`🎯 '${goal.title}' 동행원 맞춤 사다리 게임`);
+    }
+
+    const count = Math.max(2, Math.min(10, companionNames.length));
+    setPlayerCount(count);
+    setParticipants(
+      companionNames.slice(0, count).map((name) => ({
+        name,
+        weight: 10,
+      }))
+    );
+    setRoles((prev) => {
+      if (prev.length < count) {
+        const added = Array.from({ length: count - prev.length }, () => ({
+          label: '통과 (생존)',
+          icon: '🎉',
+          type: 'PASS' as const,
+          color: 'emerald',
+          badgeText: '면제',
+        }));
+        return [...prev, ...added];
+      } else if (prev.length > count) {
+        return prev.slice(0, count);
+      }
+      return prev;
+    });
+  };
+
+  const applyDutySource = (targetDutyId: string) => {
+    const duty = INITIAL_DUTIES.find((d) => d.duty_id === targetDutyId);
+    if (!duty) return;
+    setSourceId(duty.duty_id);
+    setSourceName(duty.duty_title);
+    const participantNames = duty.participants.map((p) => p.name);
+    setOriginalMemberCount(participantNames.length);
+    setOriginalMembers(participantNames);
+
+    if (!preset) {
+      setTitle(`[당번] ${duty.duty_title}`);
+      setDescription(`🧹 '${duty.duty_title}' 담당자 맞춤 사다리 게임`);
+      setCategory('DUTY');
+    }
+
+    const count = Math.max(2, Math.min(10, participantNames.length));
+    setPlayerCount(count);
+    setParticipants(
+      participantNames.slice(0, count).map((name) => ({
+        name,
+        weight: 10,
+      }))
+    );
+    setRoles((prev) => {
+      if (prev.length < count) {
+        const added = Array.from({ length: count - prev.length }, () => ({
+          label: '통과 (생존)',
+          icon: '🎉',
+          type: 'PASS' as const,
+          color: 'emerald',
+          badgeText: '면제',
+        }));
+        return [...prev, ...added];
+      } else if (prev.length > count) {
+        return prev.slice(0, count);
+      }
+      return prev;
+    });
+  };
+
   useEffect(() => {
     if (preset) {
       setTitle(preset.title);
@@ -3756,6 +3953,11 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
       setPlayerCount(preset.playerCount);
       setWinnerCount(preset.winnerCount);
       setStoreId(preset.storeId || '');
+      setSourceType(preset.sourceType || 'DIRECT');
+      setSourceId(preset.sourceId || '');
+      setSourceName(preset.sourceName || '');
+      setOriginalMemberCount(preset.originalMemberCount);
+      setOriginalMembers(preset.originalMembers);
       setRoles(
         preset.roles.map((r) => ({
           ...r,
@@ -3764,7 +3966,7 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
       );
       setParticipants(
         Array.from({ length: preset.playerCount }, (_, i) => ({
-          name: `참가자 ${i + 1}`,
+          name: preset.originalMembers && preset.originalMembers[i] ? preset.originalMembers[i] : `참가자 ${i + 1}`,
           weight: 10,
         }))
       );
@@ -3775,6 +3977,11 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
       setPlayerCount(4);
       setWinnerCount(1);
       setStoreId('');
+      setSourceType('DIRECT');
+      setSourceId('');
+      setSourceName('');
+      setOriginalMemberCount(undefined);
+      setOriginalMembers(undefined);
       setParticipants(
         Array.from({ length: 4 }, (_, i) => ({
           name: `참가자 ${i + 1}`,
@@ -3876,6 +4083,11 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
       isCustomCreated: true,
       importedFromSystemId: preset?.importedFromSystemId,
       createdAt: preset?.createdAt || new Date().toISOString(),
+      sourceType,
+      sourceId: sourceId || undefined,
+      sourceName: sourceName || undefined,
+      originalMemberCount,
+      originalMembers,
     };
 
     onSave(savedData);
@@ -3901,6 +4113,87 @@ const LadderManualModal: React.FC<LadderManualModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+          {/* 출처 선택 세그먼트 버튼 */}
+          <div className="p-3 rounded-xl bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/50 space-y-2">
+            <label className="block font-bold text-violet-950 dark:text-violet-200">
+              프리셋 출처 선택
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('DIRECT')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'DIRECT'
+                    ? 'bg-violet-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                ✏️ 직접 입력
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('GOAL')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'GOAL'
+                    ? 'bg-violet-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                🎯 모아목표
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('DUTY')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'DUTY'
+                    ? 'bg-violet-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                🧹 모아당번
+              </button>
+            </div>
+
+            {/* 하위 선택 드롭다운 */}
+            {sourceType === 'GOAL' && (
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                  연동할 모아목표 선택 (참석자 자동 주입)
+                </label>
+                <select
+                  value={sourceId}
+                  onChange={(e) => applyGoalSource(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs focus:outline-none"
+                >
+                  {INITIAL_GOAL_LIST.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.title} ({g.companions.length}명 참여 • {g.companions.map((c) => c.name).join(', ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {sourceType === 'DUTY' && (
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                  연동할 모아당번 선택 (담당자 자동 주입)
+                </label>
+                <select
+                  value={sourceId}
+                  onChange={(e) => applyDutySource(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs focus:outline-none"
+                >
+                  {INITIAL_DUTIES.map((d) => (
+                    <option key={d.duty_id} value={d.duty_id}>
+                      {d.duty_title} ({d.participants.length}명 담당 • {d.participants.map((p) => p.name).join(', ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block font-bold text-slate-700 dark:text-zinc-300 mb-1">
               프리셋 제목 *
@@ -4338,6 +4631,13 @@ const RouletteManualModal: React.FC<RouletteManualModalProps> = ({
   const [showMainIconPicker, setShowMainIconPicker] = useState<boolean>(false);
   const [activeItemIconPickerIdx, setActiveItemIconPickerIdx] = useState<number | null>(null);
 
+  // 출처 선택 (직접입력 / 모아목표 / 모아당번)
+  const [sourceType, setSourceType] = useState<'DIRECT' | 'GOAL' | 'DUTY'>(preset?.sourceType || 'DIRECT');
+  const [sourceId, setSourceId] = useState<string>(preset?.sourceId || '');
+  const [sourceName, setSourceName] = useState<string>(preset?.sourceName || '');
+  const [originalMemberCount, setOriginalMemberCount] = useState<number | undefined>(preset?.originalMemberCount);
+  const [originalMembers, setOriginalMembers] = useState<string[] | undefined>(preset?.originalMembers);
+
   const [items, setItems] = useState<Array<{ id: string; name: string; icon?: string; weight: number }>>(
     preset?.items || [
       { id: 'item_1', name: '김치찌개 / 제육', icon: '🍲', weight: 10 },
@@ -4347,6 +4647,76 @@ const RouletteManualModal: React.FC<RouletteManualModalProps> = ({
     ]
   );
 
+  // 출처 변경 핸들러
+  const handleSourceTypeChange = (newType: 'DIRECT' | 'GOAL' | 'DUTY') => {
+    setSourceType(newType);
+    if (newType === 'DIRECT') {
+      setSourceId('');
+      setSourceName('');
+      setOriginalMemberCount(undefined);
+      setOriginalMembers(undefined);
+    } else if (newType === 'GOAL') {
+      if (INITIAL_GOAL_LIST.length > 0) {
+        applyGoalSource(INITIAL_GOAL_LIST[0].id);
+      }
+    } else if (newType === 'DUTY') {
+      if (INITIAL_DUTIES.length > 0) {
+        applyDutySource(INITIAL_DUTIES[0].duty_id);
+      }
+    }
+  };
+
+  const applyGoalSource = (targetGoalId: string) => {
+    const goal = INITIAL_GOAL_LIST.find((g) => g.id === targetGoalId);
+    if (!goal) return;
+    setSourceId(goal.id);
+    setSourceName(goal.title);
+    const companionNames = goal.companions.map((c) => c.name);
+    setOriginalMemberCount(companionNames.length);
+    setOriginalMembers(companionNames);
+
+    if (!preset) {
+      setTitle(`[목표] ${goal.title}`);
+      setDescription(`🎯 '${goal.title}' 동행원 전용 룰렛`);
+      setIcon('🎯');
+    }
+
+    setItems(
+      companionNames.map((name, idx) => ({
+        id: `r_goal_${idx}_${Date.now()}`,
+        name,
+        icon: '🎯',
+        weight: 10,
+      }))
+    );
+  };
+
+  const applyDutySource = (targetDutyId: string) => {
+    const duty = INITIAL_DUTIES.find((d) => d.duty_id === targetDutyId);
+    if (!duty) return;
+    setSourceId(duty.duty_id);
+    setSourceName(duty.duty_title);
+    const participantNames = duty.participants.map((p) => p.name);
+    setOriginalMemberCount(participantNames.length);
+    setOriginalMembers(participantNames);
+
+    if (!preset) {
+      setTitle(`[당번] ${duty.duty_title}`);
+      setDescription(`🧹 '${duty.duty_title}' 담당자 전용 룰렛`);
+      setCategory('DUTY');
+      setIcon('🧹');
+    }
+
+    setItems(
+      participantNames.map((name, idx) => ({
+        id: `r_duty_${idx}_${Date.now()}`,
+        name,
+        icon: '🧹',
+        weight: 10,
+      }))
+    );
+  };
+
   useEffect(() => {
     if (preset) {
       setTitle(preset.title);
@@ -4354,11 +4724,21 @@ const RouletteManualModal: React.FC<RouletteManualModalProps> = ({
       setCategory(preset.category);
       setIcon(preset.icon || '🍱');
       setItems(preset.items);
+      setSourceType(preset.sourceType || 'DIRECT');
+      setSourceId(preset.sourceId || '');
+      setSourceName(preset.sourceName || '');
+      setOriginalMemberCount(preset.originalMemberCount);
+      setOriginalMembers(preset.originalMembers);
     } else {
       setTitle('');
       setDescription('');
       setCategory('LUNCH');
       setIcon('🍱');
+      setSourceType('DIRECT');
+      setSourceId('');
+      setSourceName('');
+      setOriginalMemberCount(undefined);
+      setOriginalMembers(undefined);
       setItems([
         { id: 'item_1', name: '김치찌개 / 제육', icon: '🍲', weight: 10 },
         { id: 'item_2', name: '돈까스 / 라멘', icon: '🍛', weight: 10 },
@@ -4424,6 +4804,11 @@ const RouletteManualModal: React.FC<RouletteManualModalProps> = ({
       isCustomCreated: true,
       importedFromSystemId: preset?.importedFromSystemId,
       createdAt: preset?.createdAt || new Date().toISOString(),
+      sourceType,
+      sourceId: sourceId || undefined,
+      sourceName: sourceName || undefined,
+      originalMemberCount,
+      originalMembers,
     };
 
     onSave(savedData);
@@ -4449,6 +4834,87 @@ const RouletteManualModal: React.FC<RouletteManualModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+          {/* 출처 선택 세그먼트 버튼 */}
+          <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 space-y-2">
+            <label className="block font-bold text-amber-950 dark:text-amber-200">
+              프리셋 출처 선택
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('DIRECT')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'DIRECT'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                ✏️ 직접 입력
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('GOAL')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'GOAL'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                🎯 모아목표
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSourceTypeChange('DUTY')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                  sourceType === 'DUTY'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                }`}
+              >
+                🧹 모아당번
+              </button>
+            </div>
+
+            {/* 하위 선택 드롭다운 */}
+            {sourceType === 'GOAL' && (
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                  연동할 모아목표 선택 (참석자 자동 주입)
+                </label>
+                <select
+                  value={sourceId}
+                  onChange={(e) => applyGoalSource(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs focus:outline-none"
+                >
+                  {INITIAL_GOAL_LIST.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.title} ({g.companions.length}명 참여 • {g.companions.map((c) => c.name).join(', ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {sourceType === 'DUTY' && (
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                  연동할 모아당번 선택 (담당자 자동 주입)
+                </label>
+                <select
+                  value={sourceId}
+                  onChange={(e) => applyDutySource(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs focus:outline-none"
+                >
+                  {INITIAL_DUTIES.map((d) => (
+                    <option key={d.duty_id} value={d.duty_id}>
+                      {d.duty_title} ({d.participants.length}명 담당 • {d.participants.map((p) => p.name).join(', ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             {/* 5-a. 대표 아이콘 선택 팝업 */}
             <div className="relative">

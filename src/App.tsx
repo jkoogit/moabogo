@@ -25,6 +25,7 @@ import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
+import { getPendingCount } from './sample/data/offlineQueueStore';
 
 import {
   Layers,
@@ -69,6 +70,37 @@ export default function App() {
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
   const [selectedDutyId, setSelectedDutyId] = useState<string>('duty-01');
   const [selectedGoalId, setSelectedGoalId] = useState<string>('goal-01');
+
+  // 모아목표 - 모아게임 게이미피케이션 연동 파라미터 상태
+  const [gameParams, setGameParams] = useState<{
+    gameType?: 'SPLIT' | 'LADDER' | 'ROULETTE';
+    groupId?: string;
+    presetType?: 'CELEBRATION' | 'PENALTY';
+  } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const gt = sp.get('gameType') as 'SPLIT' | 'LADDER' | 'ROULETTE' | null;
+      const gid = sp.get('groupId') || sp.get('goalId') || undefined;
+      const pt = sp.get('presetType') as 'CELEBRATION' | 'PENALTY' | null;
+      if (gt || gid || pt) {
+        return {
+          gameType: gt || undefined,
+          groupId: gid?.startsWith('goal-') ? gid : gid ? `goal-${gid}` : undefined,
+          presetType: pt || undefined,
+        };
+      }
+    }
+    return null;
+  });
+
+  // 오프라인 동기화 큐 대기 건수 실시간 감지
+  const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getPendingCount());
+
+  useEffect(() => {
+    const handleQueueChange = () => setPendingQueueCount(getPendingCount());
+    window.addEventListener('moabogo:offline-queue-changed', handleQueueChange);
+    return () => window.removeEventListener('moabogo:offline-queue-changed', handleQueueChange);
+  }, []);
 
   // Scroll to Top state & ref
   const mainRef = React.useRef<HTMLElement>(null);
@@ -284,6 +316,10 @@ export default function App() {
         <SCR_GOL_02_모아목표상세
           goalId={selectedGoalId}
           onBack={() => setCurrentScreen('SCR-GOL-01')}
+          onNavigateToGame={(params) => {
+            setGameParams(params);
+            setCurrentScreen('SCR-GAM-01');
+          }}
         />
       ),
     },
@@ -303,6 +339,14 @@ export default function App() {
           onNavigateToSettings={() => setCurrentScreen('SCR-SET-01')}
           onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
           onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')}
+          onNavigateToGoal={(goalId) => {
+            if (goalId) setSelectedGoalId(goalId);
+            setCurrentScreen('SCR-GOL-02');
+          }}
+          initialGameType={gameParams?.gameType}
+          initialGroupId={gameParams?.groupId}
+          initialPresetType={gameParams?.presetType}
+          isOffline={isOffline}
         />
       ),
     },
@@ -328,7 +372,12 @@ export default function App() {
       id: 'SCR-OFF-01',
       name: '오프라인 PWA 동기화 & Stale 검증',
       category: '시스템 관리',
-      comp: <SCR_OFF_01_오프라인동기화 />,
+      comp: (
+        <SCR_OFF_01_오프라인동기화
+          isOffline={isOffline}
+          onToggleOffline={() => setIsOffline((prev) => !prev)}
+        />
+      ),
     },
     {
       id: 'SCR-SYS-01',
@@ -369,7 +418,7 @@ export default function App() {
       }`}
     >
       {/* 1. Offline Indicator Banner */}
-      <ElmOff01 isOffline={isOffline} pendingCount={isOffline ? 2 : 0} />
+      <ElmOff01 isOffline={isOffline} pendingCount={pendingQueueCount} />
 
       {/* 2. Unified Header Navigation */}
       <header

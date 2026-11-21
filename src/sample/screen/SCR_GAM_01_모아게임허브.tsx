@@ -35,6 +35,11 @@ import {
   StorePreset,
   getSystemStorePool,
 } from '../data/systemStorePool';
+import {
+  GOAL_CELEBRATION_PRESET_ITEMS,
+  GOAL_PENALTY_PRESET_ITEMS,
+} from '../data/goal-mock-data';
+import { addOfflineQueueItem } from '../data/offlineQueueStore';
 
 // ============================================================================
 // Types & Group Mock Data (가계부 / 당번 모임 연동)
@@ -42,7 +47,7 @@ import {
 export interface MemberGroup {
   id: string;
   name: string;
-  type: 'LEDGER' | 'DUTY' | 'MANUAL';
+  type: 'LEDGER' | 'DUTY' | 'MANUAL' | 'GOAL';
   badge: string;
   members: {
     id: string;
@@ -98,18 +103,32 @@ export interface SCR_GAM_01Props {
   onNavigateToSettings?: () => void;
   onNavigateToLedger?: () => void;
   onNavigateToDuty?: () => void;
+  onNavigateToGoal?: (goalId?: string) => void;
+  initialGameType?: 'SPLIT' | 'LADDER' | 'ROULETTE';
+  initialGroupId?: string;
+  initialPresetType?: 'CELEBRATION' | 'PENALTY';
+  isOffline?: boolean;
 }
 
 export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
   onNavigateToSettings,
+  onNavigateToGoal,
+  initialGameType,
+  initialGroupId,
+  initialPresetType,
+  isOffline = false,
 }) => {
   const { resolvedTheme, isDark } = useTheme();
 
   // 1. 서브탭 상태 ('SPLIT' | 'LADDER' | 'ROULETTE') - 탭 전환 시에도 모임/참가자 데이터 보존
-  const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>('SPLIT');
+  const [gameType, setGameType] = useState<'SPLIT' | 'LADDER' | 'ROULETTE'>(
+    initialGameType || 'SPLIT'
+  );
 
-  // 2. 모임 그룹 상태 (기본값: 'manual' 수동설정)
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('manual');
+  // 2. 모임 그룹 상태 (기본값: initialGroupId || 'manual')
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    initialGroupId || 'manual'
+  );
 
   // 3. 수동설정 인원수 상태 관리 (2 ~ 12명 기본, 5명씩 확장)
   const [memberCount, setMemberCount] = useState<number>(4);
@@ -145,9 +164,34 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
   );
 
   // 7. 룰렛(ROULETTE) 전용 상태 (모든 항목 기본 weight 10으로 완전 통일)
-  const [roulettePresetTitle, setRoulettePresetTitle] = useState<string>('오늘의 모아당번 추첨');
-  const [rouletteItems, setRouletteItems] = useState<RouletteSliceItem[]>(() =>
-    Array.from({ length: 4 }).map((_, i) => {
+  const [roulettePresetTitle, setRoulettePresetTitle] = useState<string>(() => {
+    if (initialPresetType === 'CELEBRATION') {
+      return '🎯 목표 달성 축하 리워드 추첨';
+    }
+    if (initialPresetType === 'PENALTY') {
+      return '⚡ 미달성 벌칙 추첨';
+    }
+    return '오늘의 모아당번 추첨';
+  });
+
+  const [rouletteItems, setRouletteItems] = useState<RouletteSliceItem[]>(() => {
+    if (initialPresetType === 'CELEBRATION') {
+      return GOAL_CELEBRATION_PRESET_ITEMS.map((item, idx) => ({
+        id: `celeb-${idx}`,
+        name: item,
+        avatar: '🎁',
+        weight: 10,
+      }));
+    }
+    if (initialPresetType === 'PENALTY') {
+      return GOAL_PENALTY_PRESET_ITEMS.map((item, idx) => ({
+        id: `pen-${idx}`,
+        name: item,
+        avatar: '⚡',
+        weight: 10,
+      }));
+    }
+    return Array.from({ length: 4 }).map((_, i) => {
       const presetChar = PRESET_CHARACTERS[i % PRESET_CHARACTERS.length];
       return {
         id: `m_${i + 1}`,
@@ -155,8 +199,8 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         avatar: presetChar.avatar,
         weight: 10,
       };
-    })
-  );
+    });
+  });
 
   // 8. 사다리(LADDER) 전용 상태
   const [winnerCount, setWinnerCount] = useState<number>(1);
@@ -273,17 +317,41 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
     setMembers(newMembers);
     setMemberCount(newMembers.length);
     setLadderGoals(generateDefaultLadderGoals(newMembers.length, Math.min(winnerCount, Math.max(1, newMembers.length - 1))));
-    setRouletteItems(
-      newMembers.map((m) => ({
-        id: m.id,
-        name: m.name,
-        avatar: m.avatar,
-        weight: 10,
-      }))
-    );
 
-    showToast(`'${targetGroup.name}' (${newMembers.length}명) 참여인원이 자동 반영되었습니다.`, 'success');
+    // 목표 그룹인 경우 축하 템플릿 자동 설정
+    if (targetGroup.type === 'GOAL' && initialPresetType === 'CELEBRATION') {
+      setRoulettePresetTitle(`${targetGroup.name.replace('[🎯목표] ', '')} 달성 축하 추첨`);
+      setRouletteItems(
+        GOAL_CELEBRATION_PRESET_ITEMS.map((item, idx) => ({
+          id: `celeb-${idx}`,
+          name: item,
+          avatar: '🎁',
+          weight: 10,
+        }))
+      );
+    } else {
+      setRouletteItems(
+        newMembers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          avatar: m.avatar,
+          weight: 10,
+        }))
+      );
+    }
+
+    showToast(`'${targetGroup.name}' (${newMembers.length}명) 참여인원이 실시간 연동되었습니다.`, 'success');
   };
+
+  // 딥링크 또는 전달된 파라미터가 있을 시 초기화 동기화
+  useEffect(() => {
+    if (initialGameType) {
+      setGameType(initialGameType);
+    }
+    if (initialGroupId && initialGroupId !== 'manual') {
+      handleSelectGroup(initialGroupId);
+    }
+  }, [initialGameType, initialGroupId]);
 
   // 11. 정산(SPLIT) 전용 상태
   const [splitAmount, setSplitAmount] = useState<string>('48000');
@@ -416,13 +484,34 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
     setIsDutyModalOpen(true);
   };
 
-  // 가계부 지출 기안 완료 핸들러
+  // 가계부 지출 기안 완료 핸들러 (오프라인 큐 무손실 보존 지원)
   const handleConfirmLedgerExpense = () => {
     setIsLedgerModalOpen(false);
-    showToast(
-      `[${ledgerExpenseData.targetLedgerName}]에 ₩${ledgerExpenseData.amount.toLocaleString()}원 지출이 성공적으로 등록되었습니다!`,
-      'success'
-    );
+    const isAppCurrentlyOffline =
+      isOffline || (typeof navigator !== 'undefined' && !navigator.onLine);
+
+    if (isAppCurrentlyOffline) {
+      const idempKey = `idemp_game_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      addOfflineQueueItem({
+        idempotencyKey: idempKey,
+        type: 'LEDGER_EXPENSE',
+        title: ledgerExpenseData.title,
+        amount: ledgerExpenseData.amount,
+        ledgerName: ledgerExpenseData.targetLedgerName,
+        payerName: ledgerExpenseData.payerName,
+        category: ledgerExpenseData.category,
+        memo: ledgerExpenseData.memo,
+      });
+      showToast(
+        `[오프라인 큐 보존] ₩${ledgerExpenseData.amount.toLocaleString()}원이 멱등키(${idempKey})와 함께 오프라인 동기화 큐에 안전하게 적재되었습니다.`,
+        'warning'
+      );
+    } else {
+      showToast(
+        `[${ledgerExpenseData.targetLedgerName}]에 ₩${ledgerExpenseData.amount.toLocaleString()}원 지출이 성공적으로 등록되었습니다!`,
+        'success'
+      );
+    }
   };
 
   // 당번 배정 완료 핸들러
@@ -741,6 +830,71 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         {/* 탭 3: 룰렛돌리기 (ROULETTE) */}
         {gameType === 'ROULETTE' && (
           <div className="space-y-4">
+            {/* 온디맨드 게이미피케이션 추천 템플릿 바 (스토어 저장 없이 즉시 룰렛 항목 교체) */}
+            <div className="flex items-center gap-1.5 flex-wrap p-2.5 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 text-xs">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 mr-1 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                추천 템플릿:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoulettePresetTitle('🎯 목표 달성 축하 리워드 추첨');
+                  setRouletteItems(
+                    GOAL_CELEBRATION_PRESET_ITEMS.map((item, idx) => ({
+                      id: `celeb-${idx}`,
+                      name: item,
+                      avatar: '🎁',
+                      weight: 10,
+                    }))
+                  );
+                  showToast('🎯 목표 달성 축하 리워드 템플릿 6종이 룰렛에 적용되었습니다!', 'success');
+                }}
+                className="px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+              >
+                <span>🎁 목표달성 축하 (6종)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoulettePresetTitle('⚡ 미달성 벌칙 추첨');
+                  setRouletteItems(
+                    GOAL_PENALTY_PRESET_ITEMS.map((item, idx) => ({
+                      id: `penalty-${idx}`,
+                      name: item,
+                      avatar: '⚡',
+                      weight: 10,
+                    }))
+                  );
+                  showToast('⚡ 미달성 벌칙 템플릿 6종이 룰렛에 적용되었습니다!', 'info');
+                }}
+                className="px-2.5 py-1 rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+              >
+                <span>⚡ 미달성 벌칙 (6종)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentGroup = DEFAULT_MEMBER_GROUPS.find((g) => g.id === selectedGroupId);
+                  setRoulettePresetTitle(
+                    currentGroup ? `${currentGroup.name} 당번/주자 추첨` : '참여자 추첨'
+                  );
+                  setRouletteItems(
+                    members.map((m) => ({
+                      id: m.id,
+                      name: m.name,
+                      avatar: m.avatar,
+                      weight: 10,
+                    }))
+                  );
+                  showToast(`👥 현재 참여인원 (${members.length}명)으로 룰렛 항목이 복원되었습니다.`, 'info');
+                }}
+                className="px-2.5 py-1 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+              >
+                <span>👥 참여인원 복귀 ({members.length}명)</span>
+              </button>
+            </div>
+
             <RouletteGameZone
               members={members}
               roulettePresetTitle={roulettePresetTitle}
