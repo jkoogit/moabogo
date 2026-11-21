@@ -408,22 +408,6 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
     memo: '모아게임 당첨 지출 기안',
   });
 
-  // 14. 모아당번 배정 기안 모달 상태
-  const [isDutyModalOpen, setIsDutyModalOpen] = useState<boolean>(false);
-  const [dutyAssignData, setDutyAssignData] = useState<{
-    dutyTitle: string;
-    assigneeName: string;
-    assigneeAvatar: string;
-    dueDate: string;
-    category: string;
-  }>({
-    dutyTitle: '오늘의 커피 픽업 당번',
-    assigneeName: '구본영 팀장',
-    assigneeAvatar: '👨‍💼',
-    dueDate: new Date().toISOString().slice(0, 10),
-    category: '티타임/음료',
-  });
-
   // 사다리 결과 가계부 기안 핸들러
   const handleOpenLadderExpense = () => {
     const winners = members.filter((m) => ladderResults && ladderResults[m.id]?.isWinner);
@@ -468,21 +452,6 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
     setIsLedgerModalOpen(true);
   };
 
-  // 룰렛 결과 당번 배정 핸들러
-  const handleOpenDutyAssign = () => {
-    if (!selectedRouletteWinner) return;
-    setDutyAssignData({
-      dutyTitle: selectedRouletteWinner.name.includes('당번')
-        ? selectedRouletteWinner.name
-        : `${selectedRouletteWinner.name} 당번`,
-      assigneeName: selectedRouletteWinner.name,
-      assigneeAvatar: selectedRouletteWinner.avatar,
-      dueDate: new Date().toISOString().slice(0, 10),
-      category: '라이프/협업',
-    });
-    setIsDutyModalOpen(true);
-  };
-
   // 가계부 지출 기안 완료 핸들러 (오프라인 큐 무손실 보존 지원)
   const handleConfirmLedgerExpense = () => {
     setIsLedgerModalOpen(false);
@@ -511,15 +480,6 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         'success'
       );
     }
-  };
-
-  // 당번 배정 완료 핸들러
-  const handleConfirmDutyAssign = () => {
-    setIsDutyModalOpen(false);
-    showToast(
-      `[${dutyAssignData.assigneeName}]님에게 '${dutyAssignData.dutyTitle}' 과업이 성공적으로 배정되었습니다!`,
-      'success'
-    );
   };
 
   return (
@@ -849,7 +809,6 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
               resolvedTheme={resolvedTheme}
               isDark={isDark}
               isItemCountDisabled={selectedGroupId !== 'manual'}
-              onAssignToDuty={handleOpenDutyAssign}
             />
           </div>
         )}
@@ -982,115 +941,7 @@ export const SCR_GAM_01_모아게임허브: React.FC<SCR_GAM_01Props> = ({
         </div>
       )}
 
-      {/* 6. 모아당번 배정 기안 모달 (GameToDutyAssignModal) */}
-      {isDutyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div
-            className={`w-full max-w-md p-5 sm:p-6 rounded-2xl border shadow-2xl space-y-4 ${
-              resolvedTheme === 'dawn'
-                ? 'bg-[#0d1838] border-[#1e3a6d] text-white'
-                : isDark
-                ? 'bg-[#18181b] border-[#27272a] text-slate-100'
-                : 'bg-white border-slate-200 text-slate-800'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-xl bg-purple-500/10 text-purple-500 text-lg">
-                  🧹
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold">모아당번 과업 원터치 배정</h3>
-                  <p className="text-[11px] text-slate-400">
-                    룰렛 당첨 항목을 당번 시스템에 즉시 등록합니다.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDutyModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                  당번 과업명
-                </label>
-                <input
-                  type="text"
-                  value={dutyAssignData.dutyTitle}
-                  onChange={(e) =>
-                    setDutyAssignData({ ...dutyAssignData, dutyTitle: e.target.value })
-                  }
-                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                    배정 대상자
-                  </label>
-                  <div className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20 font-bold">
-                    <span>{dutyAssignData.assigneeAvatar}</span>
-                    <span>{dutyAssignData.assigneeName}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                    마감 기한
-                  </label>
-                  <input
-                    type="date"
-                    value={dutyAssignData.dueDate}
-                    onChange={(e) =>
-                      setDutyAssignData({ ...dutyAssignData, dueDate: e.target.value })
-                    }
-                    className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                  카테고리
-                </label>
-                <input
-                  type="text"
-                  value={dutyAssignData.category}
-                  onChange={(e) =>
-                    setDutyAssignData({ ...dutyAssignData, category: e.target.value })
-                  }
-                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setIsDutyModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-bold text-xs cursor-pointer"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDutyAssign}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs cursor-pointer"
-              >
-                당번 배정 완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. 하단 글로벌 토스트 */}
+      {/* 6. 하단 글로벌 토스트 */}
       <ElmToast01
         message={toastMessage}
         type={toastType}

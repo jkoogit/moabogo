@@ -2595,6 +2595,8 @@ export interface ElmTre02AccountProps {
   onSelect?: never;
   title?: never;
   totalCount?: never;
+  heightPreset?: never;
+  onHeightPresetChange?: never;
 }
 
 export interface ElmTre02CategoryProps {
@@ -2607,6 +2609,8 @@ export interface ElmTre02CategoryProps {
   style?: React.CSSProperties;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  heightPreset?: 3 | 5 | 10 | 'ALL';
+  onHeightPresetChange?: (preset: 3 | 5 | 10 | 'ALL') => void;
   nodes?: never;
   selectedNodeId?: never;
   onSelectNode?: never;
@@ -2626,6 +2630,8 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
   totalCount,
   isCollapsed: controlledCollapsed,
   onToggleCollapse,
+  heightPreset: controlledHeightPreset,
+  onHeightPresetChange,
   className = '',
 }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(true);
@@ -2636,6 +2642,18 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
       onToggleCollapse();
     } else {
       setInternalCollapsed((prev) => !prev);
+    }
+  };
+
+  // 높이 표시 프리셋 상태 (기본값: 3건)
+  const [internalHeightPreset, setInternalHeightPreset] = useState<3 | 5 | 10 | 'ALL'>(3);
+  const currentHeightPreset = controlledHeightPreset !== undefined ? controlledHeightPreset : internalHeightPreset;
+
+  const changeHeightPreset = (preset: 3 | 5 | 10 | 'ALL') => {
+    if (onHeightPresetChange) {
+      onHeightPresetChange(preset);
+    } else {
+      setInternalHeightPreset(preset);
     }
   };
 
@@ -2832,9 +2850,30 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
         </div>
       </div>
 
-      {/* 접힘 상태 아닐 때만 카테고리 본문 표시 */}
+      {/* 접힘 상태 아닐 때만 카테고리 본문 및 높이 선택기 표시 (닫기 시 자동 숨김) */}
       {!isCollapsed && (
         <div className="space-y-2.5 animate-in fade-in duration-150">
+          {/* 목록 표시 높이 선택 세그먼트 (3건, 5건, 10건, 전체 - 기본값: 3건) */}
+          <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-800/80 text-[10px]">
+            <span className="font-semibold text-slate-500 dark:text-zinc-400">표시 높이</span>
+            <div className="flex items-center gap-1">
+              {([3, 5, 10, 'ALL'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => changeHeightPreset(preset)}
+                  className={`px-2 py-0.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    currentHeightPreset === preset
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  {preset === 'ALL' ? '전체' : `${preset}건`}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 전체 당번 보기 */}
           <div
             onClick={(e) => handleNodeClick(e, 'ALL')}
@@ -2861,8 +2900,18 @@ const ElmTre02CategoryView: React.FC<ElmTre02CategoryProps> = ({
             )}
           </div>
 
-          {/* 트리 목록 */}
-          <div className="space-y-0.5">
+          {/* 트리 목록 (선택된 높이 프리셋에 따라 스크롤 영역 제한) */}
+          <div
+            className={`space-y-0.5 custom-scrollbar ${
+              currentHeightPreset === 3
+                ? 'max-h-[145px] overflow-y-auto pr-1'
+                : currentHeightPreset === 5
+                ? 'max-h-[235px] overflow-y-auto pr-1'
+                : currentHeightPreset === 10
+                ? 'max-h-[460px] overflow-y-auto pr-1'
+                : 'max-h-none overflow-visible'
+            }`}
+          >
             {data.map((node) => renderNode(node, 0))}
           </div>
         </div>
