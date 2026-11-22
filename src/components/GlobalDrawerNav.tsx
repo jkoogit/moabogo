@@ -20,6 +20,7 @@ import {
   HelpCircle,
   ExternalLink,
   Laptop,
+  Calendar,
 } from 'lucide-react';
 import { MoaLogo } from './MoaLogo';
 
@@ -117,6 +118,15 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
       title: '라이프 협업 서비스',
       badge: 'LIFE',
       screens: [
+        {
+          id: 'SCR-DAY-01',
+          code: 'SCR-DAY-01',
+          title: '모아데이 (MoaDay)',
+          desc: '전역 일정 허브 & PWA 스마트 다이어리',
+          icon: <Calendar className="w-4 h-4 text-indigo-500" />,
+          badge: 'NEW',
+          isHighlight: true,
+        },
         {
           id: 'SCR-GAM-01',
           code: 'SCR-GAM-01',
