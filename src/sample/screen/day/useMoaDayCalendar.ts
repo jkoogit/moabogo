@@ -1,6 +1,6 @@
 // ==========================================
 // src/sample/screen/day/useMoaDayCalendar.ts
-// 모아데이 비즈니스 로직 및 상태 관리 커스텀 훅 (SRP & 6대 정책 준수)
+// 모아데이 비즈니스 로직 및 상태 관리 커스텀 훅 (SRP & 동적 네비게이션·리사이저)
 // ==========================================
 
 import { useState, useMemo, useEffect } from 'react';
@@ -267,6 +267,14 @@ const ALL_SERVICE_TYPES: ServiceType[] = [
   'DIARY',
 ];
 
+// 주차 계산 헬퍼
+const getWeekOfMonth = (date: Date) => {
+  const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+  const dayOfMonth = date.getDate();
+  const startDayOfWeek = startOfMonth.getDay();
+  return Math.ceil((dayOfMonth + startDayOfWeek) / 7);
+};
+
 export const useMoaDayCalendar = () => {
   // 1. 날짜 및 뷰모드 상태
   const [currentYear, setCurrentYear] = useState<number>(2026);
@@ -306,12 +314,48 @@ export const useMoaDayCalendar = () => {
     return ALL_SERVICE_TYPES;
   });
 
-  // 4. 패널 위치 및 레이아웃 상태 (정책 2, 3: 일시적 전체화면 & 반응형 상하접기)
+  // 4. 패널 위치 및 레이아웃 상태
   const [panelPosition, setPanelPosition] = useState<PanelPosition>(settings.panelPosition || 'RIGHT');
+  const [savedPanelBeforeCollapse, setSavedPanelBeforeCollapse] = useState<PanelPosition>('RIGHT');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
   const [savedPanelBeforeFullScreen, setSavedPanelBeforeFullScreen] = useState<PanelPosition>('RIGHT');
   const [isHistoryCollapsed, setIsHistoryCollapsed] = useState<boolean>(false);
+  const [isHistoryVisible, setIsHistoryVisible] = useState<boolean>(settings.isHistoryVisible ?? true);
+  const [isHistoryContentCollapsed, setIsHistoryContentCollapsed] = useState<boolean>(settings.isHistoryContentCollapsed ?? false);
   const [isDetailCollapsed, setIsDetailCollapsed] = useState<boolean>(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+
+  // 4-e. 가변 리사이저 크기 상태 (LocalStorage 영속화)
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_day_panel_width_v1');
+      return saved ? Math.min(560, Math.max(280, Number(saved))) : 380;
+    } catch {
+      return 380;
+    }
+  });
+
+  const [panelHeight, setPanelHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_day_panel_height_v1');
+      return saved ? Math.min(520, Math.max(220, Number(saved))) : 340;
+    } catch {
+      return 340;
+    }
+  });
+
+  // 크기 변경 시 LocalStorage 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem('moabogo_day_panel_width_v1', String(panelWidth));
+    } catch (_) {}
+  }, [panelWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('moabogo_day_panel_height_v1', String(panelHeight));
+    } catch (_) {}
+  }, [panelHeight]);
 
   // 5. 데이터 상태 (LocalStorage 영속화)
   const [events, setEvents] = useState<CalendarEventItem[]>(() => {
@@ -370,6 +414,103 @@ export const useMoaDayCalendar = () => {
   const [viewingDoc, setViewingDoc] = useState<{ name: string; size: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // 동적 네비게이션 타이틀 (요구사항 1)
+  const navTitleText = useMemo(() => {
+    try {
+      const parts = selectedDate.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      const dt = new Date(y, m - 1, d);
+
+      if (viewMode === 'MONTH') {
+        return `${currentYear}년 ${currentMonth}월`;
+      } else if (viewMode === 'WEEK') {
+        const weekNum = getWeekOfMonth(dt);
+        return `${y}년 ${m}월 ${weekNum}주`;
+      } else if (viewMode === 'DAY') {
+        return `${y}년 ${m}월 ${d}일`;
+      } else {
+        return `${currentYear}년 ${currentMonth}월 전체`;
+      }
+    } catch {
+      return `${currentYear}년 ${currentMonth}월`;
+    }
+  }, [viewMode, currentYear, currentMonth, selectedDate]);
+
+  // 이전/다음 동적 네비게이션 핸들러 (요구사항 1)
+  const handlePrevNav = () => {
+    if (viewMode === 'MONTH' || viewMode === 'AGENDA') {
+      if (currentMonth === 1) {
+        setCurrentMonth(12);
+        setCurrentYear((prev) => prev - 1);
+      } else {
+        setCurrentMonth((prev) => prev - 1);
+      }
+    } else if (viewMode === 'WEEK') {
+      const parts = selectedDate.split('-').map(Number);
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      dt.setDate(dt.getDate() - 7);
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      const nextDate = `${yStr}-${mStr}-${dStr}`;
+      setSelectedDate(nextDate);
+      setCurrentYear(dt.getFullYear());
+      setCurrentMonth(dt.getMonth() + 1);
+    } else if (viewMode === 'DAY') {
+      const parts = selectedDate.split('-').map(Number);
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      dt.setDate(dt.getDate() - 1);
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      const nextDate = `${yStr}-${mStr}-${dStr}`;
+      setSelectedDate(nextDate);
+      setCurrentYear(dt.getFullYear());
+      setCurrentMonth(dt.getMonth() + 1);
+    }
+  };
+
+  const handleNextNav = () => {
+    if (viewMode === 'MONTH' || viewMode === 'AGENDA') {
+      if (currentMonth === 12) {
+        setCurrentMonth(1);
+        setCurrentYear((prev) => prev + 1);
+      } else {
+        setCurrentMonth((prev) => prev + 1);
+      }
+    } else if (viewMode === 'WEEK') {
+      const parts = selectedDate.split('-').map(Number);
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      dt.setDate(dt.getDate() + 7);
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      const nextDate = `${yStr}-${mStr}-${dStr}`;
+      setSelectedDate(nextDate);
+      setCurrentYear(dt.getFullYear());
+      setCurrentMonth(dt.getMonth() + 1);
+    } else if (viewMode === 'DAY') {
+      const parts = selectedDate.split('-').map(Number);
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      dt.setDate(dt.getDate() + 1);
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      const nextDate = `${yStr}-${mStr}-${dStr}`;
+      setSelectedDate(nextDate);
+      setCurrentYear(dt.getFullYear());
+      setCurrentMonth(dt.getMonth() + 1);
+    }
+  };
+
+  const handleGoToday = () => {
+    setCurrentYear(2026);
+    setCurrentMonth(11);
+    setSelectedDate('2026-11-22');
+  };
+
   // 설정 저장 핸들러
   const handleUpdateSettings = (newSettings: Partial<DisplaySettings>) => {
     setSettings((prev) => {
@@ -384,8 +525,23 @@ export const useMoaDayCalendar = () => {
 
   // 패널 위치 변경 핸들러
   const handleSetPanelPosition = (pos: PanelPosition) => {
+    if (pos !== 'COLLAPSED') {
+      setSavedPanelBeforeCollapse(pos);
+    }
     setPanelPosition(pos);
     handleUpdateSettings({ panelPosition: pos });
+  };
+
+  // 방향성 패널 접기 및 복귀 핸들러 (요구사항 4-a~d)
+  const handleFoldPanel = () => {
+    if (panelPosition !== 'COLLAPSED') {
+      setSavedPanelBeforeCollapse(panelPosition);
+      setPanelPosition('COLLAPSED');
+      setToastMessage('패널을 접었습니다.');
+    } else {
+      setPanelPosition(savedPanelBeforeCollapse);
+      setToastMessage('패널을 다시 열었습니다.');
+    }
   };
 
   // 정책 3: 전체화면 일시적 토글 (Focus Mode)
@@ -401,9 +557,28 @@ export const useMoaDayCalendar = () => {
     }
   };
 
-  // 과거의 오늘 캐러셀 접기/펴기
+  // 과거의 오늘 캐러셀 접기/펴기 (레거시 호환)
   const toggleHistoryCollapse = () => {
     setIsHistoryCollapsed((prev) => !prev);
+  };
+
+  // 요구사항 1: 과거의 오늘 캐러셀 영역 완전 표시/숨김 (헤더 툴바 [달력이력] 버튼 연동)
+  const toggleHistoryVisibility = () => {
+    setIsHistoryVisible((prev) => {
+      const next = !prev;
+      handleUpdateSettings({ isHistoryVisible: next });
+      setToastMessage(next ? '🕰️ 달력 이력(과거의 오늘)을 표시합니다.' : '🕰️ 달력 이력을 숨겼습니다.');
+      return next;
+    });
+  };
+
+  // 요구사항 2: 과거의 오늘 헤더는 남기고 내용 슬라이더만 상하 아코디언 접기/펴기
+  const toggleHistoryContentCollapse = () => {
+    setIsHistoryContentCollapsed((prev) => {
+      const next = !prev;
+      handleUpdateSettings({ isHistoryContentCollapsed: next });
+      return next;
+    });
   };
 
   // 모바일 상하 접기/펴기 (정책 2)
@@ -523,31 +698,6 @@ export const useMoaDayCalendar = () => {
     return map;
   }, [filteredEvents]);
 
-  // 네비게이션 액션
-  const handlePrevMonth = () => {
-    if (currentMonth === 1) {
-      setCurrentMonth(12);
-      setCurrentYear((prev) => prev - 1);
-    } else {
-      setCurrentMonth((prev) => prev - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (currentMonth === 12) {
-      setCurrentMonth(1);
-      setCurrentYear((prev) => prev + 1);
-    } else {
-      setCurrentMonth((prev) => prev + 1);
-    }
-  };
-
-  const handleGoToday = () => {
-    setCurrentYear(2026);
-    setCurrentMonth(11);
-    setSelectedDate('2026-11-22');
-  };
-
   // 일정/일기 생성 팝업 열기
   const handleOpenCreateOnDate = (dateStr: string, defaultTab: 'DIARY' | 'PLAN' = 'PLAN') => {
     setCreateTargetDate(dateStr);
@@ -590,7 +740,7 @@ export const useMoaDayCalendar = () => {
           serviceType: 'DIARY',
           itemSubtype: 'DIARY_LOG',
           color: '#f59e0b',
-          sticker: '📝', // 기본은 일기 아이콘
+          sticker: '📝',
           description: newDiary.contentMarkdown.slice(0, 80),
         },
         ...filtered,
@@ -608,27 +758,40 @@ export const useMoaDayCalendar = () => {
     setSelectedDate,
     viewMode,
     setViewMode,
+    navTitleText,
+    handlePrevNav,
+    handleNextNav,
+    handleGoToday,
     selectedFilters,
     availableFilterTypes,
     handleToggleFilter,
     handleToggleAllFilters,
     isOnlyDiaryFiltered,
     panelPosition,
+    savedPanelBeforeCollapse,
     handleSetPanelPosition,
+    handleFoldPanel,
+    panelWidth,
+    setPanelWidth,
+    panelHeight,
+    setPanelHeight,
     isFullScreen,
     toggleFullScreen,
     isHistoryCollapsed,
     toggleHistoryCollapse,
+    isHistoryVisible,
+    toggleHistoryVisibility,
+    isHistoryContentCollapsed,
+    toggleHistoryContentCollapse,
     isDetailCollapsed,
     toggleDetailCollapse,
+    isDetailModalOpen,
+    setIsDetailModalOpen,
     settings,
     handleUpdateSettings,
     filteredEvents,
     eventsByDate,
     calendarDays,
-    handlePrevMonth,
-    handleNextMonth,
-    handleGoToday,
     handleOpenCreateOnDate,
     isSettingsOpen,
     setIsSettingsOpen,

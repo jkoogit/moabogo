@@ -1983,7 +1983,7 @@ export const ElmRng01: React.FC<{
   };
 
 /* =========================================================================
-   ELM-BSH-01 : 모바일 바텀시트 모달 (프로그레시브 디스클로저)
+   ELM-BSH-01 : 모바일 바텀시트 모달 (프로그레시브 디스클로저 / 고정 3분할 헤더-본문-푸터 구조)
    ========================================================================= */
 export const ElmBsh01: React.FC<{
   isOpen: boolean;
@@ -1991,33 +1991,45 @@ export const ElmBsh01: React.FC<{
   title: string;
   badge?: string;
   maxWidth?: string;
+  footer?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ isOpen, onClose, title, badge, maxWidth = 'max-w-lg', children }) => {
+}> = ({ isOpen, onClose, title, badge, maxWidth = 'max-w-lg', footer, children }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs">
-      <div className={`w-full ${maxWidth} bg-white dark:bg-zinc-900 rounded-t-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 border-t border-slate-200 dark:border-zinc-800`}>
-        {/* Drag handle */}
-        <div className="w-12 h-1.5 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mb-4 cursor-pointer hover:bg-slate-400 transition-colors" onClick={onClose} />
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 leading-none">{title}</h3>
-            {badge && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                {badge}
-              </span>
-            )}
+      <div className={`w-full ${maxWidth} bg-white dark:bg-zinc-900 rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 border-t border-slate-200 dark:border-zinc-800`}>
+        {/* 고정 상단 헤더 영역 (Drag handle + Title + Close) */}
+        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mb-3 cursor-pointer hover:bg-slate-400 transition-colors" onClick={onClose} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 leading-none">{title}</h3>
+              {badge && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  {badge}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
-        <div className="mt-4">{children}</div>
+
+        {/* 단독 세로 스크롤 본문 영역 */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+
+        {/* 고정 하단 푸터 영역 */}
+        {footer && (
+          <div className="px-6 py-3 border-t border-slate-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

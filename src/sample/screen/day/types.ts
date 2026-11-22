@@ -60,6 +60,16 @@ export interface AttachedMediaItem {
   imageToggle?: 'EXPANDED' | 'COLLAPSED';
 }
 
+export interface TaggedDiaryBlock {
+  tag: string;
+  threeLines?: {
+    event: string;
+    thought: string;
+    tomorrow: string;
+  };
+  contentMarkdown?: string;
+}
+
 export interface DiaryEntry {
   id: string;
   date: string; // YYYY-MM-DD
@@ -76,6 +86,8 @@ export interface DiaryEntry {
   };
   contentMarkdown: string;
   attachedMedia: AttachedMediaItem[];
+  // 태그별 에피소드 블록 (태그별 3줄 & 본문 지원)
+  taggedBlocks?: TaggedDiaryBlock[];
   // 구조적 블록 활성화 여부
   hasKeywords?: boolean;
   hasThreeLines?: boolean;
@@ -120,6 +132,7 @@ export interface DisplaySettings {
   // 뷰포트 및 패널 위치 설정
   panelPosition: PanelPosition;
   isHistoryVisible: boolean;
+  isHistoryContentCollapsed: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -144,4 +157,5 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   collectDocs: true,
   panelPosition: 'RIGHT',
   isHistoryVisible: true,
+  isHistoryContentCollapsed: false,
 };
