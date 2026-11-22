@@ -1,10 +1,10 @@
 // ==========================================
 // src/sample/screen/day/MoaDayDisplaySettingsModal.tsx
-// 계층적 2단계 표시 및 PWA 수집 설정 모달 (헤더 고정 + 단독 세로 스크롤)
+// 계층적 2단계 표시 및 PWA 수집 설정 모달 (전체 토글 & 헤더 고정 스크롤)
 // ==========================================
 
 import React from 'react';
-import { X, Settings2, Check } from 'lucide-react';
+import { X, Settings2, Check, CheckSquare, Square } from 'lucide-react';
 import { DisplaySettings } from './types';
 
 interface MoaDayDisplaySettingsModalProps {
@@ -14,6 +14,27 @@ interface MoaDayDisplaySettingsModalProps {
   onUpdateSettings: (newSettings: Partial<DisplaySettings>) => void;
 }
 
+const LEVEL1_KEYS: (keyof DisplaySettings)[] = [
+  'masterLedger',
+  'masterDuty',
+  'masterGoal',
+  'masterRoutine',
+  'masterDiary',
+];
+
+const LEVEL2_KEYS: (keyof DisplaySettings)[] = [
+  'itemBilling',
+  'itemFixedExpense',
+  'itemSalary',
+  'itemMyDuty',
+  'itemAllDuty',
+  'itemSubstitute',
+  'itemGoalDeadline',
+  'itemGoalMilestone',
+  'itemRoutineMedicine',
+  'itemRoutineTax',
+];
+
 export const MoaDayDisplaySettingsModal: React.FC<MoaDayDisplaySettingsModalProps> = ({
   isOpen,
   onClose,
@@ -21,6 +42,28 @@ export const MoaDayDisplaySettingsModal: React.FC<MoaDayDisplaySettingsModalProp
   onUpdateSettings,
 }) => {
   if (!isOpen) return null;
+
+  // Level 1 전체 켜기 / 끄기 토글
+  const isAllLevel1On = LEVEL1_KEYS.every((k) => !!settings[k]);
+  const handleToggleAllLevel1 = () => {
+    const nextVal = !isAllLevel1On;
+    const patch: Partial<DisplaySettings> = {};
+    LEVEL1_KEYS.forEach((k) => {
+      (patch as any)[k] = nextVal;
+    });
+    onUpdateSettings(patch);
+  };
+
+  // Level 2 전체 켜기 / 끄기 토글
+  const isAllLevel2On = LEVEL2_KEYS.every((k) => !!settings[k]);
+  const handleToggleAllLevel2 = () => {
+    const nextVal = !isAllLevel2On;
+    const patch: Partial<DisplaySettings> = {};
+    LEVEL2_KEYS.forEach((k) => {
+      (patch as any)[k] = nextVal;
+    });
+    onUpdateSettings(patch);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
@@ -54,11 +97,21 @@ export const MoaDayDisplaySettingsModal: React.FC<MoaDayDisplaySettingsModalProp
 
         {/* 바디 영역 (독립 세로 스크롤 영역) */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 text-xs text-slate-800 dark:text-zinc-200">
-          {/* Level 1: 서비스 마스터 토글 */}
+          {/* Level 1: 서비스 마스터 토글 (전체 체크 토글버튼 추가 - 요구사항 2-a) */}
           <div>
-            <h4 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">
-              Level 1. 4대 서비스 마스터 수집 설정 (상단 퀵필터 연동)
-            </h4>
+            <div className="flex items-center justify-between mb-1.5">
+              <h4 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                Level 1. 4대 서비스 마스터 수집 설정 (상단 퀵필터 연동)
+              </h4>
+              <button
+                type="button"
+                onClick={handleToggleAllLevel1}
+                className="px-2 py-1 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1 transition-colors"
+              >
+                {isAllLevel1On ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                <span>전체</span>
+              </button>
+            </div>
             <p className="text-[11px] text-slate-400 mb-2.5">
               여기서 비활성화된 서비스는 상단 퀵필터 칩에서도 완전히 숨겨져 깔끔하게 정리됩니다.
             </p>
@@ -89,11 +142,21 @@ export const MoaDayDisplaySettingsModal: React.FC<MoaDayDisplaySettingsModalProp
             </div>
           </div>
 
-          {/* Level 2: 개별 항목 상세 토글 (마스터 ON 시 종속) */}
+          {/* Level 2: 개별 항목 상세 토글 (전체 체크 토글버튼 추가 - 요구사항 2-b) */}
           <div className="pt-3 border-t border-slate-100 dark:border-zinc-800">
-            <h4 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">
-              Level 2. 서비스별 세부 항목 표시 설정
-            </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                Level 2. 서비스별 세부 항목 표시 설정
+              </h4>
+              <button
+                type="button"
+                onClick={handleToggleAllLevel2}
+                className="px-2 py-1 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1 transition-colors"
+              >
+                {isAllLevel2On ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                <span>전체</span>
+              </button>
+            </div>
             <div className="space-y-3">
               {/* 가계부 세부 */}
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-800">
