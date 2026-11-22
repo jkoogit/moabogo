@@ -23,6 +23,7 @@ import { SCR_GAM_01_모아게임허브 } from './sample/screen/SCR_GAM_01_모아
 import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른수행등록';
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
+import { SCR_DAY_01_모아데이 } from './sample/screen/SCR_DAY_01_모아데이';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
 import { getPendingCount } from './sample/data/offlineQueueStore';
@@ -34,6 +35,7 @@ import {
   Coins,
   Settings,
   Gamepad2,
+  Calendar,
   ChevronDown,
   LayoutDashboard,
   LogIn,
@@ -264,6 +266,25 @@ export default function App() {
       name: '통합 가계부·지출내역 종합관리',
       category: '핵심 서비스',
       comp: <SCR_LED_01_그룹가계부관리상세 onBack={() => setCurrentScreen('SCR-DSH-01')} />,
+    },
+    {
+      id: 'SCR-DAY-01',
+      name: '모아데이 (전역 일정 & 스마트 다이어리)',
+      category: '라이프 허브',
+      comp: (
+        <SCR_DAY_01_모아데이
+          onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
+          onNavigateToDuty={(dutyId) => {
+            setSelectedDutyId(dutyId || 'duty-01');
+            setCurrentScreen('SCR-DUT-02');
+          }}
+          onNavigateToGoal={(goalId) => {
+            setSelectedGoalId(goalId || 'goal-01');
+            setCurrentScreen('SCR-GOL-02');
+          }}
+          onNavigateToRoutine={() => setCurrentScreen('SCR-DAY-01')}
+        />
+      ),
     },
     {
       id: 'SCR-DUT-01',
