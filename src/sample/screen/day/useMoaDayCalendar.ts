@@ -1,9 +1,9 @@
 // ==========================================
 // src/sample/screen/day/useMoaDayCalendar.ts
-// 모아데이 비즈니스 로직 및 상태 관리 커스텀 훅 (SRP 준수)
+// 모아데이 비즈니스 로직 및 상태 관리 커스텀 훅 (SRP & 6대 정책 준수)
 // ==========================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CalendarEventItem,
   DiaryEntry,
@@ -11,7 +11,8 @@ import {
   DEFAULT_DISPLAY_SETTINGS,
   DayViewMode,
   PastYearDiary,
-  AttachedMediaItem,
+  ServiceType,
+  PanelPosition,
 } from './types';
 
 // 기본 Mock 이벤트 (2026년 11월)
@@ -169,10 +170,12 @@ const INITIAL_DIARIES: Record<string, DiaryEntry> = {
   '2026-11-22': {
     id: 'dia-2026-11-22',
     date: '2026-11-22',
-    mode: 'MARKDOWN',
+    mode: 'STRUCTURAL',
     moodEmoji: '🌟',
     weatherEmoji: '☀️',
-    keywordTags: ['#모아데이', '#안드로이드수집', '#스마트다이어리', '#성공적'],
+    weather: '맑음 (18℃)',
+    location: '서울 강남구 역삼동',
+    keywordTags: ['#모아데이', '#스마트다이어리', '#성공적'],
     threeLines: {
       event: '모아데이 전역 일정관리와 스마트 다이어리 PWA 연동 화면을 완벽히 설계했다.',
       thought: '통화녹음 재생과 네이버형 일정 등록 폼이 결합되니 생활 밀착형 체감이 확 살아난다.',
@@ -215,6 +218,9 @@ const INITIAL_DIARIES: Record<string, DiaryEntry> = {
         timestamp: '12:45',
       },
     ],
+    hasKeywords: true,
+    hasThreeLines: true,
+    hasMarkdown: true,
     updatedAt: '2026-11-22 18:30',
   },
 };
@@ -252,33 +258,106 @@ const PAST_YEARS_MOCK: PastYearDiary[] = [
   },
 ];
 
+const ALL_SERVICE_TYPES: ServiceType[] = [
+  'LEDGER',
+  'DUTY',
+  'GOAL',
+  'ROUTINE',
+  'PERSONAL',
+  'DIARY',
+];
+
 export const useMoaDayCalendar = () => {
   // 1. 날짜 및 뷰모드 상태
   const [currentYear, setCurrentYear] = useState<number>(2026);
   const [currentMonth, setCurrentMonth] = useState<number>(11);
   const [selectedDate, setSelectedDate] = useState<string>('2026-11-22');
   const [viewMode, setViewMode] = useState<DayViewMode>('MONTH');
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('ALL');
 
-  // 2. 데이터 상태
-  const [events, setEvents] = useState<CalendarEventItem[]>(INITIAL_EVENTS);
-  const [diaries, setDiaries] = useState<Record<string, DiaryEntry>>(INITIAL_DIARIES);
+  // 2. 표시 설정 (LocalStorage 영속화)
   const [settings, setSettings] = useState<DisplaySettings>(() => {
     try {
-      const saved = localStorage.getItem('moabogo_day_settings_v1');
+      const saved = localStorage.getItem('moabogo_day_settings_v2');
       return saved ? JSON.parse(saved) : DEFAULT_DISPLAY_SETTINGS;
     } catch {
       return DEFAULT_DISPLAY_SETTINGS;
     }
   });
 
-  // 3. 모달/팝업 상태
+  // 3. 퀵필터 멀티 선택 상태 (정책 1: 설정 팝업에서 켜진 서비스만 노출 및 영속화)
+  const availableFilterTypes = useMemo<ServiceType[]>(() => {
+    const list: ServiceType[] = [];
+    if (settings.masterLedger) list.push('LEDGER');
+    if (settings.masterDuty) list.push('DUTY');
+    if (settings.masterGoal) list.push('GOAL');
+    if (settings.masterRoutine) list.push('ROUTINE');
+    if (settings.masterDiary) list.push('DIARY');
+    list.push('PERSONAL'); // 개인 할일은 기본 활성
+    return list;
+  }, [settings]);
+
+  const [selectedFilters, setSelectedFilters] = useState<ServiceType[]>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_day_filters_v2');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (_) { }
+    return ALL_SERVICE_TYPES;
+  });
+
+  // 4. 패널 위치 및 레이아웃 상태 (정책 2, 3: 일시적 전체화면 & 반응형 상하접기)
+  const [panelPosition, setPanelPosition] = useState<PanelPosition>(settings.panelPosition || 'RIGHT');
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  const [savedPanelBeforeFullScreen, setSavedPanelBeforeFullScreen] = useState<PanelPosition>('RIGHT');
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState<boolean>(false);
+  const [isDetailCollapsed, setIsDetailCollapsed] = useState<boolean>(false);
+
+  // 5. 데이터 상태 (LocalStorage 영속화)
+  const [events, setEvents] = useState<CalendarEventItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_day_events_v2');
+      return saved ? JSON.parse(saved) : INITIAL_EVENTS;
+    } catch {
+      return INITIAL_EVENTS;
+    }
+  });
+
+  const [diaries, setDiaries] = useState<Record<string, DiaryEntry>>(() => {
+    try {
+      const saved = localStorage.getItem('moabogo_day_diaries_v2');
+      return saved ? JSON.parse(saved) : INITIAL_DIARIES;
+    } catch {
+      return INITIAL_DIARIES;
+    }
+  });
+
+  // 데이터 변경 시 자동 LocalStorage 동기화
+  useEffect(() => {
+    try {
+      localStorage.setItem('moabogo_day_events_v2', JSON.stringify(events));
+    } catch (_) { }
+  }, [events]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('moabogo_day_diaries_v2', JSON.stringify(diaries));
+    } catch (_) { }
+  }, [diaries]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('moabogo_day_filters_v2', JSON.stringify(selectedFilters));
+    } catch (_) { }
+  }, [selectedFilters]);
+
+  // 6. 모달/팝업 상태
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [createModalTab, setCreateModalTab] = useState<'DIARY' | 'PLAN'>('PLAN');
   const [createTargetDate, setCreateTargetDate] = useState<string>('2026-11-22');
 
-  // 4. 플로팅 오디오 플레이어 & 문서 뷰어 상태
+  // 7. 플로팅 오디오 플레이어 & 문서 뷰어 상태
   const [playingAudio, setPlayingAudio] = useState<{
     name: string;
     duration: string;
@@ -296,24 +375,83 @@ export const useMoaDayCalendar = () => {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       try {
-        localStorage.setItem('moabogo_day_settings_v1', JSON.stringify(updated));
-      } catch (_) {}
+        localStorage.setItem('moabogo_day_settings_v2', JSON.stringify(updated));
+      } catch (_) { }
       return updated;
     });
     setToastMessage('표시 설정이 저장되었습니다.');
   };
 
-  // 계층적 2단계 필터링 로직
+  // 패널 위치 변경 핸들러
+  const handleSetPanelPosition = (pos: PanelPosition) => {
+    setPanelPosition(pos);
+    handleUpdateSettings({ panelPosition: pos });
+  };
+
+  // 정책 3: 전체화면 일시적 토글 (Focus Mode)
+  const toggleFullScreen = () => {
+    if (!isFullScreen) {
+      setSavedPanelBeforeFullScreen(panelPosition);
+      setIsFullScreen(true);
+      setToastMessage('🖥️ 달력 전체화면(집중 모드)을 시작합니다.');
+    } else {
+      setIsFullScreen(false);
+      setPanelPosition(savedPanelBeforeFullScreen);
+      setToastMessage('🖥️ 이전 뷰 화면으로 복귀했습니다.');
+    }
+  };
+
+  // 과거의 오늘 캐러셀 접기/펴기
+  const toggleHistoryCollapse = () => {
+    setIsHistoryCollapsed((prev) => !prev);
+  };
+
+  // 모바일 상하 접기/펴기 (정책 2)
+  const toggleDetailCollapse = () => {
+    setIsDetailCollapsed((prev) => !prev);
+  };
+
+  // 정책 1: 퀵필터 멀티 선택 토글 핸들러
+  const handleToggleFilter = (type: ServiceType) => {
+    setSelectedFilters((prev) => {
+      if (prev.includes(type)) {
+        return prev.filter((t) => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
+  // 퀵필터 전체 선택/해제 토글
+  const handleToggleAllFilters = () => {
+    if (selectedFilters.length === availableFilterTypes.length) {
+      setSelectedFilters([]);
+    } else {
+      setSelectedFilters([...availableFilterTypes]);
+    }
+  };
+
+  // 정책 4: 일기만 단독 필터링된 상태 여부 확인
+  const isOnlyDiaryFiltered = useMemo(() => {
+    return selectedFilters.length === 1 && selectedFilters[0] === 'DIARY';
+  }, [selectedFilters]);
+
+  // 계층적 2단계 필터링 로직 (설정 마스터 & 멀티 퀵필터 결합)
   const filteredEvents = useMemo(() => {
     return events.filter((evt) => {
-      if (activeCategoryFilter !== 'ALL' && evt.serviceType !== activeCategoryFilter) {
+      // 1) 퀵필터 체크 (선택되지 않은 서비스는 숨김)
+      if (!selectedFilters.includes(evt.serviceType)) {
         return false;
       }
+
+      // 2) 설정 팝업 마스터 토글 체크 (OFF 시 숨김)
       if (evt.serviceType === 'LEDGER' && !settings.masterLedger) return false;
       if (evt.serviceType === 'DUTY' && !settings.masterDuty) return false;
       if (evt.serviceType === 'GOAL' && !settings.masterGoal) return false;
       if (evt.serviceType === 'ROUTINE' && !settings.masterRoutine) return false;
+      if (evt.serviceType === 'DIARY' && !settings.masterDiary) return false;
 
+      // 3) 세부 항목 토글 체크
       if (evt.serviceType === 'LEDGER') {
         if (evt.itemSubtype === 'BILLING' && !settings.itemBilling) return false;
         if (evt.itemSubtype === 'FIXED_EXPENSE' && !settings.itemFixedExpense) return false;
@@ -334,7 +472,7 @@ export const useMoaDayCalendar = () => {
       }
       return true;
     });
-  }, [events, activeCategoryFilter, settings]);
+  }, [events, selectedFilters, settings]);
 
   // 달력 42칸 일수 계산
   const calendarDays = useMemo(() => {
@@ -419,9 +557,9 @@ export const useMoaDayCalendar = () => {
 
   // 과거의 오늘 복기 목록
   const activePastDiaries = useMemo(() => {
-    if (settings.pastYearsCount === 0) return [];
+    if (settings.pastYearsCount === 0 || isHistoryCollapsed) return [];
     return PAST_YEARS_MOCK.filter((p) => p.yearsAgo <= settings.pastYearsCount);
-  }, [settings.pastYearsCount]);
+  }, [settings.pastYearsCount, isHistoryCollapsed]);
 
   // 일정 등록 핸들러
   const handleSavePlan = (newEvt: CalendarEventItem) => {
@@ -430,7 +568,7 @@ export const useMoaDayCalendar = () => {
     setToastMessage(`[${newEvt.title}] 일정이 성공적으로 등록되었습니다.`);
   };
 
-  // 일기 등록 핸들러
+  // 일기 등록 핸들러 (정책 4: 일기는 기본 '📝' 아이콘, 단독 필터 시 감정 이모지)
   const handleSaveDiary = (newDiary: DiaryEntry) => {
     setDiaries((prev) => ({
       ...prev,
@@ -439,24 +577,28 @@ export const useMoaDayCalendar = () => {
 
     setEvents((prev) => {
       const filtered = prev.filter((e) => !(e.serviceType === 'DIARY' && e.date === newDiary.date));
+      const summaryTitle = newDiary.threeLines.event
+        ? newDiary.threeLines.event.slice(0, 20)
+        : newDiary.keywordTags.slice(0, 2).join(' ') || '오늘의 일기';
+
       return [
         {
           id: `evt-dia-${newDiary.date}`,
-          title: `[일기] ${newDiary.moodEmoji} ${newDiary.keywordTags.slice(0, 2).join(' ')}`,
+          title: `[일기] ${summaryTitle}`,
           date: newDiary.date,
           isAllDay: true,
           serviceType: 'DIARY',
           itemSubtype: 'DIARY_LOG',
           color: '#f59e0b',
-          sticker: newDiary.moodEmoji,
-          description: newDiary.contentMarkdown.slice(0, 60),
+          sticker: '📝', // 기본은 일기 아이콘
+          description: newDiary.contentMarkdown.slice(0, 80),
         },
         ...filtered,
       ];
     });
 
     setIsCreateModalOpen(false);
-    setToastMessage(`[${newDiary.date}] 일기가 저장되었습니다.`);
+    setToastMessage(`[${newDiary.date}] 일기가 성공적으로 저장되었습니다.`);
   };
 
   return {
@@ -466,8 +608,19 @@ export const useMoaDayCalendar = () => {
     setSelectedDate,
     viewMode,
     setViewMode,
-    activeCategoryFilter,
-    setActiveCategoryFilter,
+    selectedFilters,
+    availableFilterTypes,
+    handleToggleFilter,
+    handleToggleAllFilters,
+    isOnlyDiaryFiltered,
+    panelPosition,
+    handleSetPanelPosition,
+    isFullScreen,
+    toggleFullScreen,
+    isHistoryCollapsed,
+    toggleHistoryCollapse,
+    isDetailCollapsed,
+    toggleDetailCollapse,
     settings,
     handleUpdateSettings,
     filteredEvents,

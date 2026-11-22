@@ -1107,6 +1107,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
           actions={
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('SCR-DAY-01')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                title="모아데이 전역 일정 허브 & 스마트 다이어리 바로가기"
+              >
+                <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden sm:inline">모아데이</span>
+              </button>
+
               {onOpenCommand && (
                 <button
                   type="button"
