@@ -1,10 +1,28 @@
 // ==========================================
 // src/sample/screen/day/types.ts
-// 모아데이 (MoaDay) 도메인 타입 정의
+// 모아데이 (MoaDay) 도메인 타입 정의 SSOT
 // ==========================================
 
 export type DayViewMode = 'MONTH' | 'WEEK' | 'DAY' | 'AGENDA';
 export type ServiceType = 'LEDGER' | 'DUTY' | 'GOAL' | 'ROUTINE' | 'PERSONAL' | 'DIARY';
+export type PanelPosition = 'LEFT' | 'RIGHT' | 'BOTTOM' | 'COLLAPSED';
+
+/**
+ * 네이버 캘린더형 상세 반복 설정 규칙
+ */
+export interface RecurrenceRule {
+  cycle: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  interval: number; // 예: 1주, 2일, 1개월
+  daysOfWeek: number[]; // 0(일), 1(월), 2(화), 3(수), 4(목), 5(금), 6(토)
+  startTime: string; // "19:30"
+  endTime: string; // "20:30"
+  isNextDayEnd?: boolean; // 익일 종료 여부
+  isAllDay: boolean; // 종일 여부
+  endCondition: 'NONE' | 'DATE' | 'COUNT'; // 종료 조건 (무한, 날짜, 횟수)
+  endDate?: string; // YYYY-MM-DD
+  endCount?: number; // N회
+  summary: string; // 실시간 조합 요약 텍스트
+}
 
 export interface CalendarEventItem {
   id: string;
@@ -20,9 +38,14 @@ export interface CalendarEventItem {
   color: string;
   location?: string;
   isImportant?: boolean;
+  isPrivate?: boolean;
   sticker?: string;
   description?: string;
   sourceId?: string;
+  // 반복 관련 속성 (네이버형 예외 처리 가드레일)
+  recurrenceRule?: RecurrenceRule;
+  recurrenceExceptions?: string[]; // 건너뛰거나 개별 처리된 YYYY-MM-DD 목록
+  parentRecurringId?: string;
 }
 
 export interface AttachedMediaItem {
@@ -40,9 +63,11 @@ export interface AttachedMediaItem {
 export interface DiaryEntry {
   id: string;
   date: string; // YYYY-MM-DD
-  mode: 'KEYWORD' | 'THREE_LINE' | 'MARKDOWN';
+  mode?: 'KEYWORD' | 'THREE_LINE' | 'MARKDOWN' | 'STRUCTURAL';
   moodEmoji: string;
   weatherEmoji: string;
+  weather?: string; // 날씨 설명 (예: 맑음, 기온 18℃)
+  location?: string; // 위치명 (예: 서울 강남구 역삼동)
   keywordTags: string[];
   threeLines: {
     event: string;
@@ -51,6 +76,10 @@ export interface DiaryEntry {
   };
   contentMarkdown: string;
   attachedMedia: AttachedMediaItem[];
+  // 구조적 블록 활성화 여부
+  hasKeywords?: boolean;
+  hasThreeLines?: boolean;
+  hasMarkdown?: boolean;
   updatedAt: string;
 }
 
@@ -88,6 +117,9 @@ export interface DisplaySettings {
   collectImages: boolean;
   collectAudio: boolean;
   collectDocs: boolean;
+  // 뷰포트 및 패널 위치 설정
+  panelPosition: PanelPosition;
+  isHistoryVisible: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -110,4 +142,6 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   collectImages: true,
   collectAudio: true,
   collectDocs: true,
+  panelPosition: 'RIGHT',
+  isHistoryVisible: true,
 };
