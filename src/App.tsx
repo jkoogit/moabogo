@@ -24,6 +24,7 @@ import { SCR_QCK_01_빠른머니등록 } from './sample/screen/SCR_QCK_01_빠른
 import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른수행등록';
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
 import { SCR_DAY_01_모아데이 } from './sample/screen/SCR_DAY_01_모아데이';
+import { SCR_ROU_01_모아루틴 } from './sample/screen/SCR_ROU_01_모아루틴';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
 import { getPendingCount } from './sample/data/offlineQueueStore';
@@ -61,6 +62,9 @@ export default function App() {
       }
       if (window.location.pathname.startsWith('/game') || window.location.search.includes('route=game')) {
         return 'SCR-GAM-01';
+      }
+      if (window.location.pathname.startsWith('/routine') || window.location.search.includes('route=routine')) {
+        return 'SCR-ROU-01';
       }
     }
     return 'SCR-GNT-01';
@@ -282,7 +286,19 @@ export default function App() {
             setSelectedGoalId(goalId || 'goal-01');
             setCurrentScreen('SCR-GOL-02');
           }}
-          onNavigateToRoutine={() => setCurrentScreen('SCR-DAY-01')}
+          onNavigateToRoutine={() => setCurrentScreen('SCR-ROU-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-ROU-01',
+      name: '모아루틴 (4대 생활·재무 루틴)',
+      category: '라이프 허브',
+      comp: (
+        <SCR_ROU_01_모아루틴
+          onBack={() => setCurrentScreen('SCR-DSH-01')}
+          onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
+          onNavigateToDay={() => setCurrentScreen('SCR-DAY-01')}
         />
       ),
     },

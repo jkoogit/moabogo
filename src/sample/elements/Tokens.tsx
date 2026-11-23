@@ -1983,7 +1983,7 @@ export const ElmRng01: React.FC<{
   };
 
 /* =========================================================================
-   ELM-BSH-01 : 모바일 바텀시트 모달 (프로그레시브 디스클로저 / 고정 3분할 헤더-본문-푸터 구조)
+   ELM-BSH-01 : 바텀시트 / 이동형 팝업 모달 (고정 3분할 헤더-본문-푸터 + 핸들 드래그 위치 이동)
    ========================================================================= */
 export const ElmBsh01: React.FC<{
   isOpen: boolean;
@@ -1991,22 +1991,188 @@ export const ElmBsh01: React.FC<{
   title: string;
   badge?: string;
   maxWidth?: string;
+  draggable?: boolean;
   footer?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ isOpen, onClose, title, badge, maxWidth = 'max-w-lg', footer, children }) => {
+}> = ({
+  isOpen,
+  onClose,
+  title,
+  badge,
+  maxWidth = 'max-w-lg',
+  draggable = true,
+  footer,
+  children,
+}) => {
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const suppressBackdropCloseRef = useRef(false);
+  const dragStateRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setOffset({ x: 0, y: 0 });
+      setIsDragging(false);
+      suppressBackdropCloseRef.current = false;
+      dragStateRef.current = null;
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const updatePosition = (clientX: number, clientY: number) => {
+      const state = dragStateRef.current;
+      if (!state) return;
+      const rawX = state.originX + (clientX - state.startX);
+      const rawY = state.originY + (clientY - state.startY);
+      const nextX = Math.min(state.maxX, Math.max(state.minX, rawX));
+      const nextY = Math.min(state.maxY, Math.max(state.minY, rawY));
+      setOffset({ x: nextX, y: nextY });
+    };
+
+    const handlePointerMove = (e: MouseEvent) => {
+      updatePosition(e.clientX, e.clientY);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      e.preventDefault();
+      updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const handleEnd = () => {
+      setIsDragging(false);
+      dragStateRef.current = null;
+      window.setTimeout(() => {
+        suppressBackdropCloseRef.current = false;
+      }, 80);
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+    window.addEventListener('touchcancel', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleEnd);
+      window.removeEventListener('touchcancel', handleEnd);
+    };
+  }, [isDragging]);
+
+  const startDrag = (clientX: number, clientY: number) => {
+    if (!draggable || !sheetRef.current) return;
+    const rect = sheetRef.current.getBoundingClientRect();
+    const baseLeft = rect.left - offset.x;
+    const baseTop = rect.top - offset.y;
+    const margin = 12;
+
+    const minX = margin - baseLeft;
+    const maxX = Math.max(minX, window.innerWidth - margin - (baseLeft + rect.width));
+    const minY = margin - baseTop;
+    const maxY = Math.max(minY, window.innerHeight - margin - (baseTop + rect.height));
+
+    suppressBackdropCloseRef.current = true;
+    dragStateRef.current = {
+      startX: clientX,
+      startY: clientY,
+      originX: offset.x,
+      originY: offset.y,
+      minX,
+      maxX,
+      minY,
+      maxY,
+    };
+    setIsDragging(true);
+  };
+
   if (!isOpen) return null;
 
+  const isMoved = Math.abs(offset.x) > 2 || Math.abs(offset.y) > 2;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs">
-      <div className={`w-full ${maxWidth} bg-white dark:bg-zinc-900 rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 border-t border-slate-200 dark:border-zinc-800`}>
-        {/* 고정 상단 헤더 영역 (Drag handle + Title + Close) */}
-        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
-          <div className="w-12 h-1.5 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mb-3 cursor-pointer hover:bg-slate-400 transition-colors" onClick={onClose} />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 leading-none">{title}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isDragging && !suppressBackdropCloseRef.current) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        ref={sheetRef}
+        style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0)` }}
+        className={`w-full ${maxWidth} bg-white dark:bg-zinc-900 ${
+          isMoved ? 'rounded-2xl border' : 'rounded-t-2xl border-t sm:border-x'
+        } shadow-2xl max-h-[85vh] flex flex-col overflow-hidden border-slate-200 dark:border-zinc-800 ${
+          isDragging ? 'select-none' : 'transition-[border-radius] duration-150'
+        }`}
+      >
+        {/* 고정 상단 헤더 영역 (이동용 드래그 핸들 + 타이틀 + 닫기) */}
+        <div className="px-6 pt-2 pb-3 border-b border-slate-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+          {/* 핸들 영역 DIV (마우스/터치 드래그로 화면 내 자유 위치 이동, 더블클릭 시 원위치 복귀) */}
+          <div
+            role="slider"
+            aria-label="팝업 위치 이동 핸들 (드래그하여 이동, 더블클릭 시 원위치)"
+            aria-valuenow={Math.round(offset.y)}
+            tabIndex={0}
+            title="드래그하여 화면 내 위치 이동 · 더블클릭 시 원위치"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              startDrag(e.clientX, e.clientY);
+            }}
+            onTouchStart={(e) => {
+              if (e.touches.length > 0) {
+                startDrag(e.touches[0].clientX, e.touches[0].clientY);
+              }
+            }}
+            onDoubleClick={() => setOffset({ x: 0, y: 0 })}
+            className={`w-full py-2.5 flex items-center justify-center touch-none select-none group ${
+              draggable
+                ? isDragging
+                  ? 'cursor-grabbing'
+                  : 'cursor-grab'
+                : 'cursor-default'
+            }`}
+          >
+            <div
+              className={`w-14 h-1.5 rounded-full transition-colors ${
+                isDragging
+                  ? 'bg-indigo-500 dark:bg-indigo-400'
+                  : 'bg-slate-300 dark:bg-zinc-700 group-hover:bg-indigo-400 dark:group-hover:bg-indigo-500'
+              }`}
+            />
+          </div>
+
+          {/* 타이틀 영역 DIV */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 leading-none truncate">
+                {title}
+              </h3>
               {badge && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 whitespace-nowrap shrink-0">
                   {badge}
                 </span>
               )}
@@ -2014,7 +2180,8 @@ export const ElmBsh01: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+              aria-label="닫기"
+              className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>

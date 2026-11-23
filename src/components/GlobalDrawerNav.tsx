@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Laptop,
   Calendar,
+  Repeat,
 } from 'lucide-react';
 import { MoaLogo } from './MoaLogo';
 
@@ -124,6 +125,15 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
           title: '모아데이 (MoaDay)',
           desc: '전역 일정 허브 & PWA 스마트 다이어리',
           icon: <Calendar className="w-4 h-4 text-indigo-500" />,
+          badge: 'NEW',
+          isHighlight: true,
+        },
+        {
+          id: 'SCR-ROU-01',
+          code: 'SCR-ROU-01',
+          title: '모아루틴 (MoaRoutine)',
+          desc: '약복용·알뜰폰·세금계산서·급여카드 4대 루틴',
+          icon: <Repeat className="w-4 h-4 text-emerald-500" />,
           badge: 'NEW',
           isHighlight: true,
         },
