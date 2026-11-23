@@ -3,7 +3,7 @@
 // 모아데이 (MoaDay) 전역 일정 허브 및 스마트 다이어리 화면 (동적네비·가변리사이저 완결)
 // ==========================================
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import {
   ElmMkdViewer,
+  ElmSld03,
   ElmToast01,
 } from '../elements/Tokens';
 import { useMoaDayCalendar } from './day/useMoaDayCalendar';
@@ -118,112 +119,12 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
     setToastMessage,
   } = useMoaDayCalendar();
 
-  // 슬라이드 드래그 휠 참조 및 상태 (필터)
-  const filterScrollRef = useRef<HTMLDivElement | null>(null);
-  const [isFilterDragging, setIsFilterDragging] = useState(false);
-  const [filterStartX, setFilterStartX] = useState(0);
-  const [filterScrollLeft, setFilterScrollLeft] = useState(0);
-
-  const handleFilterMouseDown = (e: React.MouseEvent) => {
-    if (!filterScrollRef.current) return;
-    setIsFilterDragging(true);
-    setFilterStartX(e.pageX - filterScrollRef.current.offsetLeft);
-    setFilterScrollLeft(filterScrollRef.current.scrollLeft);
-  };
-  const handleFilterMouseLeave = () => setIsFilterDragging(false);
-  const handleFilterMouseUp = () => setIsFilterDragging(false);
-  const handleFilterMouseMove = (e: React.MouseEvent) => {
-    if (!isFilterDragging || !filterScrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - filterScrollRef.current.offsetLeft;
-    const walk = (x - filterStartX) * 1.5;
-    filterScrollRef.current.scrollLeft = filterScrollLeft - walk;
-  };
-  // 슬라이드 드래그 휠 참조 및 상태 (필터 - 휠 트랩 방지 패스스루 통제 적용 - 요구사항 9-b)
-  const handleFilterWheel = (e: React.WheelEvent) => {
-    if (!filterScrollRef.current) return;
-    if (e.deltaY === 0) return;
-    const el = filterScrollRef.current;
-    const isAtStart = el.scrollLeft <= 0;
-    const isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-    if ((isAtStart && e.deltaY < 0) || (isAtEnd && e.deltaY > 0)) {
-      return; // 상위 세로 스크롤로 패스스루 허용
-    }
-    el.scrollLeft += e.deltaY;
-  };
-
-  // 과거의 오늘 가로 슬라이드 드래그 휠 참조 및 상태 (5년+ 넘침 방지 및 휠 트랩 방지 패스스루 통제 - 요구사항 9-c)
-  const historyScrollRef = useRef<HTMLDivElement | null>(null);
-  const [isHistoryDragging, setIsHistoryDragging] = useState(false);
-  const [historyStartX, setHistoryStartX] = useState(0);
-  const [historyScrollLeft, setHistoryScrollLeft] = useState(0);
-
-  const handleHistoryMouseDown = (e: React.MouseEvent) => {
-    if (!historyScrollRef.current) return;
-    setIsHistoryDragging(true);
-    setHistoryStartX(e.pageX - historyScrollRef.current.offsetLeft);
-    setHistoryScrollLeft(historyScrollRef.current.scrollLeft);
-  };
-  const handleHistoryMouseLeave = () => setIsHistoryDragging(false);
-  const handleHistoryMouseUp = () => setIsHistoryDragging(false);
-  const handleHistoryMouseMove = (e: React.MouseEvent) => {
-    if (!isHistoryDragging || !historyScrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - historyScrollRef.current.offsetLeft;
-    const walk = (x - historyStartX) * 1.5;
-    historyScrollRef.current.scrollLeft = historyScrollLeft - walk;
-  };
-  const handleHistoryWheel = (e: React.WheelEvent) => {
-    if (!historyScrollRef.current) return;
-    if (e.deltaY === 0) return;
-    const el = historyScrollRef.current;
-    const isAtStart = el.scrollLeft <= 0;
-    const isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-    if ((isAtStart && e.deltaY < 0) || (isAtEnd && e.deltaY > 0)) {
-      return; // 상위 세로 스크롤로 패스스루 허용
-    }
-    el.scrollLeft += e.deltaY;
-  };
-
   // 일자 상세 패널 내 스마트 다이어리 에피소드 태그 필터 (요구사항 10)
   const [selectedDetailTagFilter, setSelectedDetailTagFilter] = useState<string>('ALL');
 
   useEffect(() => {
     setSelectedDetailTagFilter('ALL');
   }, [selectedDate]);
-
-  // 일자 상세 패널 내 스마트 다이어리 태그 칩 바 가로 슬라이더 참조 및 상태 (요구사항 3-b)
-  const detailTagScrollRef = useRef<HTMLDivElement | null>(null);
-  const [isDetailTagDragging, setIsDetailTagDragging] = useState(false);
-  const [detailTagStartX, setDetailTagStartX] = useState(0);
-  const [detailTagScrollLeft, setDetailTagScrollLeft] = useState(0);
-
-  const handleDetailTagMouseDown = (e: React.MouseEvent) => {
-    if (!detailTagScrollRef.current) return;
-    setIsDetailTagDragging(true);
-    setDetailTagStartX(e.pageX - detailTagScrollRef.current.offsetLeft);
-    setDetailTagScrollLeft(detailTagScrollRef.current.scrollLeft);
-  };
-  const handleDetailTagMouseLeave = () => setIsDetailTagDragging(false);
-  const handleDetailTagMouseUp = () => setIsDetailTagDragging(false);
-  const handleDetailTagMouseMove = (e: React.MouseEvent) => {
-    if (!isDetailTagDragging || !detailTagScrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - detailTagScrollRef.current.offsetLeft;
-    const walk = (x - detailTagStartX) * 1.5;
-    detailTagScrollRef.current.scrollLeft = detailTagScrollLeft - walk;
-  };
-  const handleDetailTagWheel = (e: React.WheelEvent) => {
-    if (!detailTagScrollRef.current) return;
-    if (e.deltaY === 0) return;
-    const el = detailTagScrollRef.current;
-    const isAtStart = el.scrollLeft <= 0;
-    const isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-    if ((isAtStart && e.deltaY < 0) || (isAtEnd && e.deltaY > 0)) {
-      return; // 상위 세로 스크롤로 패스스루 허용
-    }
-    el.scrollLeft += e.deltaY;
-  };
 
   // 일간 뷰 상세 아코디언 상태
   const [expandedDayEventId, setExpandedDayEventId] = useState<string | null>(null);
@@ -428,53 +329,53 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
 
         {/* 2. 4대 서비스 퀵필터 바 & 뷰모드/패널위치 설정 아이콘 (요구사항 2, 4-a: 접기버튼 제거) */}
         <div className="max-w-7xl mx-auto mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          {/* 가로 슬라이드 드래그 휠 필터 목록 (요구사항 2) */}
-          <div
-            ref={filterScrollRef}
-            onMouseDown={handleFilterMouseDown}
-            onMouseLeave={handleFilterMouseLeave}
-            onMouseUp={handleFilterMouseUp}
-            onMouseMove={handleFilterMouseMove}
-            onWheel={handleFilterWheel}
-            className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5 cursor-grab active:cursor-grabbing select-none flex-1"
-          >
+          {/* 가로 슬라이드 드래그 휠 필터 목록 (타이틀 고정, 전체~개인할일 항목만 ElmSld03 적용) */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-[11px] font-bold text-slate-400 dark:text-zinc-500 shrink-0 flex items-center gap-1 whitespace-nowrap">
               <Filter className="w-3 h-3" /> 필터:
             </span>
 
-            {/* 전체 선택 토글 칩 */}
-            <button
-              onClick={handleToggleAllFilters}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 whitespace-nowrap border ${
-                selectedFilters.length === availableFilterTypes.length
-                  ? 'bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-slate-900 dark:border-zinc-100 shadow-xs'
-                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:bg-slate-100'
-              }`}
+            <ElmSld03
+              showNavButtons={false}
+              className="min-w-0 flex-1"
+              innerClassName="flex items-center gap-2 pb-0.5"
             >
-              <span>전체 ({selectedFilters.length}/{availableFilterTypes.length})</span>
-            </button>
+              {/* 전체 선택 토글 칩 */}
+              <button
+                type="button"
+                onClick={handleToggleAllFilters}
+                className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 whitespace-nowrap border ${
+                  selectedFilters.length === availableFilterTypes.length
+                    ? 'bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-slate-900 dark:border-zinc-100 shadow-xs'
+                    : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:bg-slate-100'
+                }`}
+              >
+                <span>전체 ({selectedFilters.length}/{availableFilterTypes.length})</span>
+              </button>
 
-            {/* 켜진 서비스 개별 멀티 토글 칩 */}
-            {availableFilterTypes.map((type) => {
-              const info = getServiceInfo(type);
-              const isSelected = selectedFilters.includes(type);
-              return (
-                <button
-                  key={type}
-                  onClick={() => handleToggleFilter(type)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 whitespace-nowrap border ${
-                    isSelected
-                      ? 'bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-slate-900 dark:border-zinc-100 shadow-xs'
-                      : 'bg-white dark:bg-zinc-800/80 text-slate-400 dark:text-zinc-500 border-slate-200/80 dark:border-zinc-700/80 hover:bg-slate-100'
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${isSelected ? info.color : 'bg-slate-300 dark:bg-zinc-600'}`}
-                  />
-                  <span>{info.label}</span>
-                </button>
-              );
-            })}
+              {/* 켜진 서비스 개별 멀티 토글 칩 */}
+              {availableFilterTypes.map((type) => {
+                const info = getServiceInfo(type);
+                const isSelected = selectedFilters.includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => handleToggleFilter(type)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 whitespace-nowrap border ${
+                      isSelected
+                        ? 'bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-slate-900 dark:border-zinc-100 shadow-xs'
+                        : 'bg-white dark:bg-zinc-800/80 text-slate-400 dark:text-zinc-500 border-slate-200/80 dark:border-zinc-700/80 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${isSelected ? info.color : 'bg-slate-300 dark:bg-zinc-600'}`}
+                    />
+                    <span>{info.label}</span>
+                  </button>
+                );
+              })}
+            </ElmSld03>
           </div>
 
           {/* 뷰 제어 아이콘 툴바 (요구사항 4-a: 접기 제거하고 [좌측|우측|하단] 3개 위치만 제공) */}
@@ -1051,19 +952,16 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
                 </div>
 
                 {!isHistoryContentCollapsed && (
-                  <div
-                    ref={historyScrollRef}
-                    onMouseDown={handleHistoryMouseDown}
-                    onMouseLeave={handleHistoryMouseLeave}
-                    onMouseUp={handleHistoryMouseUp}
-                    onMouseMove={handleHistoryMouseMove}
-                    onWheel={handleHistoryWheel}
-                    className="flex gap-3 overflow-x-auto scrollbar-none pb-1 cursor-grab active:cursor-grabbing select-none"
+                  <ElmSld03
+                    showNavButtons={false}
+                    stepWidth={280}
+                    className="min-w-0"
+                    innerClassName="flex items-stretch gap-3 pb-1"
                   >
                     {activePastDiaries.map((past) => (
                       <div
                         key={past.yearsAgo}
-                        className="min-w-[260px] max-w-[320px] p-3.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-amber-100 dark:border-zinc-700/80 shadow-xs shrink-0 flex flex-col justify-between"
+                        className="min-w-[260px] max-w-[320px] p-3.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-amber-100 dark:border-zinc-700/80 shadow-xs shrink-0 self-stretch flex flex-col justify-between"
                       >
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
@@ -1087,7 +985,7 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
                         )}
                       </div>
                     ))}
-                  </div>
+                  </ElmSld03>
                 )}
               </div>
             )}
@@ -1390,21 +1288,16 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
                     </div>
                   )}
 
-                  {/* 태그 칩 필터 바 (클릭 시 해당 태그 에피소드 필터링 - 요구사항 10) */}
-                  {/* 태그 칩 필터 바 (가로 슬라이드 드래그 휠 & 패스스루 통제 - 요구사항 3-b) */}
-                  <div
-                    ref={detailTagScrollRef}
-                    onMouseDown={handleDetailTagMouseDown}
-                    onMouseLeave={handleDetailTagMouseLeave}
-                    onMouseUp={handleDetailTagMouseUp}
-                    onMouseMove={handleDetailTagMouseMove}
-                    onWheel={handleDetailTagWheel}
-                    className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5 select-none cursor-grab active:cursor-grabbing"
+                  {/* 태그 칩 필터 바 (ElmSld03 슬라이드드래그휠 적용) */}
+                  <ElmSld03
+                    showNavButtons={false}
+                    className="min-w-0"
+                    innerClassName="flex items-center gap-1 pb-0.5"
                   >
                     <button
                       type="button"
                       onClick={() => setSelectedDetailTagFilter('ALL')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all whitespace-nowrap ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all whitespace-nowrap shrink-0 ${
                         selectedDetailTagFilter === 'ALL'
                           ? 'bg-amber-500 text-white shadow-2xs'
                           : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 hover:bg-slate-100'
@@ -1419,7 +1312,7 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
                         onClick={() =>
                           setSelectedDetailTagFilter((prev) => (prev === tag ? 'ALL' : tag))
                         }
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all shadow-2xs whitespace-nowrap ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all shadow-2xs whitespace-nowrap shrink-0 ${
                           selectedDetailTagFilter === tag
                             ? 'bg-indigo-600 text-white shadow-xs'
                             : 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-300 hover:bg-slate-100'
@@ -1428,7 +1321,7 @@ export const SCR_DAY_01_모아데이: React.FC<SCR_DAY_01_Props> = ({
                         {tag}
                       </button>
                     ))}
-                  </div>
+                  </ElmSld03>
 
                   {/* 일기 렌더링 영역 (전체보기 시 공통 + 태그별 에피소드 전수 표시 - 요구사항 5) */}
                   {selectedDetailTagFilter === 'ALL' ? (
