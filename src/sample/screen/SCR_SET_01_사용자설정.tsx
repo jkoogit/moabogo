@@ -132,6 +132,11 @@ import {
   loadNotificationMatrix,
   loadSystemNotices,
 } from '../data/systemGovernancePool';
+import {
+  loadRoutinePluginSettings,
+  saveRoutinePluginSettings,
+  RoutinePluginSettings,
+} from './routine/plugins/pluginSettings';
 export const SCR_SET_01_사용자설정: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('THEME');
@@ -181,6 +186,21 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
     saveDashboardModules(updated);
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 2000);
+  };
+
+  // 6.2-1 모아루틴 4대 플러그인 동적 ON/OFF 설정 (SSOT: pluginSettings)
+  const [routineSettings, setRoutineSettings] = useState<RoutinePluginSettings>(() =>
+    loadRoutinePluginSettings()
+  );
+
+  const handleToggleRoutinePlugin = (key: keyof RoutinePluginSettings) => {
+    setRoutineSettings((prev) => {
+      const updated = { ...prev, [key]: !prev[key] };
+      saveRoutinePluginSettings(updated);
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 2000);
+      return updated;
+    });
   };
 
   // 6.2 빠른수행 우선순위 설정
@@ -878,6 +898,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           <div className="flex items-center min-w-max border-b border-slate-200 dark:border-zinc-800">
             {[
               { id: 'THEME', label: '화면 테마' },
+              { id: 'ROUTINE', label: '모아루틴 플러그인' },
               { id: 'STORE', label: '게임프리셋' },
               { id: 'EXT_ACCOUNT', label: '거래계좌' },
               { id: 'LAYOUT', label: '화면배치' },
@@ -1034,6 +1055,124 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
                 운영체제(OS)의 다크/라이트 모드 설정에 자동 동기화
               </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Tab: 모아루틴 4대 플러그인 동적 ON/OFF 설정 */}
+      {activeTab === 'ROUTINE' && (
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                모아루틴 플러그인 동적 활성화 (ON/OFF)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                사용하지 않는 라이프·금융 루틴을 비활성화하면, 모아루틴 허브(SCR-ROU-01) 탭과 카드 목록에서 깔끔하게 숨겨집니다.
+              </p>
+            </div>
+            <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800/80">
+              ✓ 변경 시 즉시 로컬스토리지 영속화 및 화면 반영
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. 약복용 루틴 */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/50 flex flex-col justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                    💊 약복용 루틴
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      매일 · 약봉지 OCR
+                    </span>
+                  </span>
+                  <ElmSwt01
+                    checked={routineSettings.HEALTH_MEDICINE}
+                    onChange={() => handleToggleRoutinePlugin('HEALTH_MEDICINE')}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  처방전 및 약봉투 사진 OCR 첨부로 다중 약품, 아침·점심·저녁 시점별 복약 타임라인 및 보유수량 소진일(D-Day)을 자동 계산합니다.
+                </p>
+              </div>
+              <div className="text-[11px] text-slate-400 dark:text-zinc-500 flex items-center gap-1.5 pt-2 border-t border-slate-200/60 dark:border-zinc-800">
+                <span>연동 도메인: 헬스케어 · 복약 스케줄러</span>
+              </div>
+            </div>
+
+            {/* 2. 알뜰폰 환승 루틴 */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/50 flex flex-col justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                    📱 알뜰폰 환승 루틴
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300">
+                      6~7개월 특가 · 다회선 관리
+                    </span>
+                  </span>
+                  <ElmSwt01
+                    checked={routineSettings.LIFE_PHONE}
+                    onChange={() => handleToggleRoutinePlugin('LIFE_PHONE')}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  6~7개월 프로모션 할인 종료 D-Day 추적, 가족 다인·다회선 및 2026-차수 정원 관리, 24개월 약정 유지 점검, 실물 USIM(ICCID) 관리를 지원합니다.
+                </p>
+              </div>
+              <div className="text-[11px] text-slate-400 dark:text-zinc-500 flex items-center gap-1.5 pt-2 border-t border-slate-200/60 dark:border-zinc-800">
+                <span>연동 도메인: 통신비 최적화 · 실물 USIM 보안</span>
+              </div>
+            </div>
+
+            {/* 3. 세금계산서 발급 */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/50 flex flex-col justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                    📑 전자세금계산서 발급
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                      매월 10일 마감
+                    </span>
+                  </span>
+                  <ElmSwt01
+                    checked={routineSettings.BIZ_TAX}
+                    onChange={() => handleToggleRoutinePlugin('BIZ_TAX')}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  개인사업자 매월 10일 의무 발급 집중 리마인더 및 국세청 전자세금계산서 이미지 OCR 자동등록과 거래처 매칭을 집행합니다.
+                </p>
+              </div>
+              <div className="text-[11px] text-slate-400 dark:text-zinc-500 flex items-center gap-1.5 pt-2 border-t border-slate-200/60 dark:border-zinc-800">
+                <span>연동 도메인: 개인사업자 세무 · 홈택스 매칭</span>
+              </div>
+            </div>
+
+            {/* 4. 급여·카드 일괄 정산 */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/50 flex flex-col justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                    💳 급여·카드 일괄 정산 집행
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                      월간 급여일 · TRANSFER
+                    </span>
+                  </span>
+                  <ElmSwt01
+                    checked={routineSettings.FINANCE_CARD_SETTLE}
+                    onChange={() => handleToggleRoutinePlugin('FINANCE_CARD_SETTLE')}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  급여일 카드사별 청구서 대사, 토스 송금 딥링크 집행 및 완료 시 가계부 자산이동(TRANSFER, 이중계상 원천 차단)으로 자동 기장합니다.
+                </p>
+              </div>
+              <div className="text-[11px] text-slate-400 dark:text-zinc-500 flex items-center gap-1.5 pt-2 border-t border-slate-200/60 dark:border-zinc-800">
+                <span>연동 도메인: 가계부 자산이동(TRANSFER) · 토스 1-Click</span>
+              </div>
             </div>
           </div>
         </section>

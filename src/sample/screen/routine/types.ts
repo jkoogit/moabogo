@@ -240,6 +240,53 @@ export interface MvnoOcrCaptureStep {
   ocrReview?: OcrReviewState;
 }
 
+export type MvnoLineMode = 'MNP_PROMO' | 'LONG_TERM_CONTRACT';
+export type MvnoRoundLineStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED' | 'MAINTAINED';
+
+export interface MvnoRoundLineEntry {
+  lineId: string;
+  ownerName: string; // 본인, 배우자, 어머니 등 (1인 다번호 허용)
+  lineAlias: string; // e.g. "본인 메인", "본인 업무용"
+  phoneNumberMasked: string;
+  lineMode: MvnoLineMode; // 단기 번호이동 vs 장기 약정 점검용
+  roundStatus: MvnoRoundLineStatus;
+  skipReason?: string; // 차수 생략 시 사유
+  networkType: 'SKT망' | 'KT망' | 'LGU+망';
+  carrierName: string;
+  planName: string;
+  dataCallSpec: string;
+  promoMonthlyFee: number;
+  normalMonthlyFee: number;
+  promoMonths: number;
+  openedDate: string;
+  mnpRestrictionEndDate: string;
+  promoEndDate: string;
+  penaltyFreeDate?: string;
+  // 장기 약정 정보 (lineMode === 'LONG_TERM_CONTRACT')
+  contractInfo?: {
+    contractType: 'SELECTIVE_DISCOUNT' | 'DEVICE_SUBSIDY';
+    contractMonths: number; // e.g. 24
+    contractStartDate: string;
+    contractEndDate: string;
+    bundleMemo?: string;
+  };
+  // USIM / eSIM 관리
+  usimType: 'USIM' | 'eSIM';
+  usimSerialMasked?: string; // 실물 USIM 유심번호 (마스킹 저장)
+  autoPayMethod: string;
+  benefitMemo?: string;
+  ocrCaptureSteps?: MvnoOcrCaptureStep[];
+  checklist?: MvnoChecklistStep[];
+}
+
+export interface MvnoRoundGroup {
+  roundId: string; // "2026-R2"
+  year: number; // 2026
+  roundNo: number; // 2 (표시: "2026-2차")
+  maxLineCount: number; // 차수 관리 최대 회선 정원 (e.g. 5)
+  lines: MvnoRoundLineEntry[];
+}
+
 export interface MvnoRoutine extends BaseRoutineItem {
   category: 'LIFE_PHONE';
   lineOwner: string;
@@ -262,6 +309,9 @@ export interface MvnoRoutine extends BaseRoutineItem {
   recommendedCarrierHint: string;
   ocrCaptureSteps: MvnoOcrCaptureStep[];
   checklist: MvnoChecklistStep[];
+  // [0047] 다인·다회선 및 년도-차수 관리 확장
+  roundGroup?: MvnoRoundGroup;
+  activeLineId?: string;
 }
 
 export interface TaxClientItem {

@@ -10,6 +10,11 @@ import { medicinePlugin } from './medicinePlugin';
 import { mvnoPlugin } from './mvnoPlugin';
 import { taxInvoicePlugin } from './taxInvoicePlugin';
 import { cardSettlePlugin } from './cardSettlePlugin';
+import {
+  RoutinePluginSettings,
+  loadRoutinePluginSettings,
+  isPluginCategoryEnabled,
+} from './pluginSettings';
 
 const PLUGIN_LIST: Array<RoutinePlugin<any>> = [
   medicinePlugin,
@@ -29,8 +34,20 @@ export function getRoutinePlugin(category: RoutineCategory): RoutinePlugin<any> 
   return ROUTINE_PLUGIN_MAP[category];
 }
 
-export function getEnabledRoutinePlugins(): Array<RoutinePlugin<any>> {
-  return PLUGIN_LIST.filter((plugin) => plugin.enabled);
+export function getEnabledRoutinePlugins(
+  settings?: RoutinePluginSettings
+): Array<RoutinePlugin<any>> {
+  const currentSettings = settings || loadRoutinePluginSettings();
+  return PLUGIN_LIST.filter(
+    (plugin) => plugin.enabled && isPluginCategoryEnabled(plugin.category, currentSettings)
+  );
+}
+
+export function isRoutineCategoryActive(
+  category: RoutineCategory,
+  settings?: RoutinePluginSettings
+): boolean {
+  return isPluginCategoryEnabled(category, settings);
 }
 
 export function isRoutineItemUrgent(item: RoutineItem): boolean {

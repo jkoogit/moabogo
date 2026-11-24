@@ -3,7 +3,7 @@
 // 모아루틴 (MoaRoutine) 허브: 4대 생활·재무 루틴 카드/리스트 통합 화면
 // ============================================================================
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   LayoutGrid,
@@ -19,6 +19,12 @@ import {
 } from './routine/types';
 import { getEnabledRoutinePlugins } from './routine/plugins/registry';
 import {
+  loadRoutinePluginSettings,
+  RoutinePluginSettings,
+  ROUTINE_PLUGIN_SETTINGS_EVENT,
+} from './routine/plugins/pluginSettings';
+import { RoutineStreakGrass } from './routine/RoutineStreakGrass';
+import {
   RoutineCardRenderer,
   RoutineListRow,
   RoutineCardActionHandlers,
@@ -31,17 +37,48 @@ export interface SCR_ROU_01_Props {
   onNavigateToDay?: () => void;
 }
 
-const FILTER_OPTIONS: Array<{ id: RoutineFilterCategory; label: string }> = [
-  { id: 'ALL', label: '전체 루틴' },
-  ...getEnabledRoutinePlugins().map((plugin) => ({
-    id: plugin.category as RoutineFilterCategory,
-    label: plugin.meta.shortLabel,
-  })),
-];
-
 export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
   onNavigateToLedger,
 }) => {
+  const [pluginSettings, setPluginSettings] = useState<RoutinePluginSettings>(
+    loadRoutinePluginSettings
+  );
+
+  useEffect(() => {
+    const handleSettingsChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<RoutinePluginSettings>;
+      if (customEvent.detail) {
+        setPluginSettings(customEvent.detail);
+      } else {
+        setPluginSettings(loadRoutinePluginSettings());
+      }
+    };
+    window.addEventListener(ROUTINE_PLUGIN_SETTINGS_EVENT, handleSettingsChanged);
+    return () => {
+      window.removeEventListener(ROUTINE_PLUGIN_SETTINGS_EVENT, handleSettingsChanged);
+    };
+  }, []);
+
+  const enabledPlugins = useMemo(
+    () => getEnabledRoutinePlugins(pluginSettings),
+    [pluginSettings]
+  );
+
+  const filterOptions = useMemo<Array<{ id: RoutineFilterCategory; label: string }>>(
+    () => [
+      { id: 'ALL', label: '전체 루틴' },
+      ...enabledPlugins.map((plugin) => ({
+        id: plugin.category as RoutineFilterCategory,
+        label: plugin.meta.shortLabel,
+      })),
+    ],
+    [enabledPlugins]
+  );
+
+  const activeCategorySet = useMemo(
+    () => new Set(enabledPlugins.map((p) => p.category)),
+    [enabledPlugins]
+  );
   const {
     filteredRoutines,
     selectedCategory,
@@ -91,6 +128,11 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
     onNavigateToLedger,
   };
 
+  const visibleRoutines = useMemo(
+    () => filteredRoutines.filter((r) => activeCategorySet.has(r.category)),
+    [filteredRoutines, activeCategorySet]
+  );
+
   return (
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
       {/* 1. 상단 타이틀 및 루틴 등록 헤더 */}
@@ -121,7 +163,7 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
           className="min-w-0 flex-1"
           innerClassName="flex items-center gap-1.5 pb-1 md:pb-0"
         >
-          {FILTER_OPTIONS.map((opt) => {
+          {filterOptions.map((opt) => {
             const active = selectedCategory === opt.id;
             const count = categoryCounts[opt.id];
             return (
@@ -199,8 +241,14 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
         </div>
       </section>
 
+      {/* 2-1. [0047] 주기 적응형 루틴 트래커 (선택 탭별 일간잔디/12개월블록/차수타임라인 동적 전환) */}
+      <RoutineStreakGrass
+        routines={visibleRoutines}
+        selectedCategory={selectedCategory}
+      />
+
       {/* 3. 메인 루틴 콘텐츠 (카드 그리드 vs 고밀도 리스트 vs 빈 상태) */}
-      {filteredRoutines.length === 0 ? (
+      {visibleRoutines.length === 0 ? (
         <section className="bg-white dark:bg-[#131926] border border-slate-200/90 dark:border-zinc-800 rounded-xl p-10 text-center space-y-3">
           <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 mx-auto flex items-center justify-center">
             <SearchX className="w-5 h-5" />
@@ -235,13 +283,13 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
         </section>
       ) : viewMode === 'CARD' ? (
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-          {filteredRoutines.map((item) => (
+          {visibleRoutines.map((item) => (
             <RoutineCardRenderer key={item.id} item={item} handlers={cardHandlers} />
           ))}
         </section>
       ) : (
         <section className="bg-white dark:bg-[#131926] border border-slate-200/90 dark:border-zinc-800 rounded-xl divide-y divide-slate-100 dark:divide-zinc-800 overflow-hidden">
-          {filteredRoutines.map((item) => (
+          {visibleRoutines.map((item) => (
             <RoutineListRow key={item.id} item={item} handlers={cardHandlers} />
           ))}
         </section>
