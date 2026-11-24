@@ -3649,49 +3649,36 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         </div>
       )}
 
-      {/* 7. 머니등록 모달 (단일 레이어 & 전파 차단) */}
-      {activeQuickModal === 'MONEY' && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-          onClick={() => setActiveQuickModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl my-auto animate-in zoom-in-95"
-          >
-            <SCR_QCK_01_빠른머니등록
-              onClose={() => setActiveQuickModal(null)}
-              onSuccess={() => {
-                setActiveQuickModal(null);
-                showToast('✓ 머니 지출이 성공적으로 기록되었습니다!');
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* 7. 빠른 머니등록 팝업 (ElmBsh01 고정 3분할 바텀시트) */}
+      <SCR_QCK_01_빠른머니등록
+        isOpen={activeQuickModal === 'MONEY'}
+        variant="sheet"
+        onClose={() => setActiveQuickModal(null)}
+        onSuccess={() => {
+          setActiveQuickModal(null);
+          showToast('✓ 머니 지출이 성공적으로 기록되었습니다!');
+        }}
+      />
 
-      {/* 8. 수행등록 모달 (단일 레이어 & 전파 차단) */}
-      {activeQuickModal === 'DUTY' && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-          onClick={() => setActiveQuickModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl my-auto animate-in zoom-in-95"
-          >
-            <SCR_QCK_02_빠른수행등록
-              onClose={() => setActiveQuickModal(null)}
-              onSuccess={() => {
-                setActiveQuickModal(null);
-                showToast('✓ 당번 과업 수행 및 사진 인증이 완료되었습니다!');
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* 8. 빠른 수행등록 팝업 (ElmBsh01 고정 3분할 바텀시트) */}
+      <SCR_QCK_02_빠른수행등록
+        isOpen={activeQuickModal === 'DUTY'}
+        variant="sheet"
+        onClose={() => setActiveQuickModal(null)}
+        onSuccess={() => {
+          setActiveQuickModal(null);
+          showToast('✓ 당번 과업 수행 및 1초 사진 인증이 완료되었습니다!');
+        }}
+      />
+
+      {/* 8-1. 대시보드 플로팅 Speed Dial FAB (OCR / 빠른머니 / 당번빠른수행) */}
+      <ElmFab01
+        showScrollTop={false}
+        className="bottom-32 sm:bottom-20 right-3 sm:right-6"
+        onOcrClick={() => setActiveQuickModal('MONEY')}
+        onQuickExpenseClick={() => setActiveQuickModal('MONEY')}
+        onQuickDutyClick={() => setActiveQuickModal('DUTY')}
+      />
 
       {/* 9. 새 가계부 생성 모달 */}
       <NewLedgerModal
