@@ -25,6 +25,7 @@ import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
 import { SCR_DAY_01_모아데이 } from './sample/screen/SCR_DAY_01_모아데이';
 import { SCR_ROU_01_모아루틴 } from './sample/screen/SCR_ROU_01_모아루틴';
+import { SCR_MYP_01_마이페이지 } from './sample/screen/SCR_MYP_01_마이페이지';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
 import { getPendingCount } from './sample/data/offlineQueueStore';
@@ -65,6 +66,9 @@ export default function App() {
       }
       if (window.location.pathname.startsWith('/routine') || window.location.search.includes('route=routine')) {
         return 'SCR-ROU-01';
+      }
+      if (window.location.pathname.startsWith('/mypage') || window.location.search.includes('route=mypage')) {
+        return 'SCR-MYP-01';
       }
     }
     return 'SCR-GNT-01';
@@ -398,6 +402,21 @@ export default function App() {
       name: '빠른 수행등록 (사진인증 & 당번)',
       category: '빠른 입력',
       comp: <SCR_QCK_02_빠른수행등록 />,
+    },
+    {
+      id: 'SCR-MYP-01',
+      name: '마이페이지 & 개인 프로필 허브',
+      category: '개인화 / 프로필',
+      comp: (
+        <SCR_MYP_01_마이페이지
+          onNavigateToSettings={() => setCurrentScreen('SCR-SET-01')}
+          onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
+          onNavigateToDay={() => setCurrentScreen('SCR-DAY-01')}
+          onNavigateToRoutine={() => setCurrentScreen('SCR-ROU-01')}
+          onNavigateToDuty={() => setCurrentScreen('SCR-DUT-01')}
+          onNavigateToGoal={() => setCurrentScreen('SCR-GOL-01')}
+        />
+      ),
     },
     {
       id: 'SCR-SET-01',

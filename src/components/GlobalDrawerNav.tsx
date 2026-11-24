@@ -22,6 +22,7 @@ import {
   Laptop,
   Calendar,
   Repeat,
+  User,
 } from 'lucide-react';
 import { MoaLogo } from './MoaLogo';
 
@@ -187,6 +188,15 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
       badge: 'SYSTEM',
       screens: [
         {
+          id: 'SCR-MYP-01',
+          code: 'SCR-MYP-01',
+          title: '마이페이지 & 개인 프로필',
+          desc: '프로필, 대표 송금계좌, 참여 가계부, 4대 라이프 활동 허브',
+          icon: <User className="w-4 h-4 text-indigo-500" />,
+          badge: 'NEW',
+          isHighlight: true,
+        },
+        {
           id: 'SCR-SET-01',
           code: 'SCR-SET-01',
           title: '사용자 맞춤 설정',
@@ -302,11 +312,25 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
 
           {/* Active Ledger context preview */}
           {isLoggedIn && (
-            <div className="text-[11px] text-slate-600 dark:text-zinc-400 bg-white/60 dark:bg-[#131B2E]/60 px-2.5 py-1.5 rounded-xl border border-indigo-100/60 dark:border-indigo-900/40 flex items-center justify-between">
-              <span className="text-slate-400 dark:text-zinc-500 font-semibold">활성 장부:</span>
-              <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[170px]">
-                {activeLedgerName}
-              </span>
+            <div className="space-y-1.5">
+              <div className="text-[11px] text-slate-600 dark:text-zinc-400 bg-white/60 dark:bg-[#131B2E]/60 px-2.5 py-1.5 rounded-xl border border-indigo-100/60 dark:border-indigo-900/40 flex items-center justify-between">
+                <span className="text-slate-400 dark:text-zinc-500 font-semibold">활성 장부:</span>
+                <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[170px]">
+                  {activeLedgerName}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectScreen('SCR-MYP-01');
+                  onClose();
+                }}
+                className="w-full min-h-[34px] px-2.5 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>마이페이지 & 개인 프로필 허브</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
             </div>
           )}
         </div>
