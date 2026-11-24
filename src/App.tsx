@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
 import { GlobalDrawerNav } from './components/GlobalDrawerNav';
-import { ElmNav01, ElmOff01, ElmQck01 } from './sample/elements/Tokens';
+import { ElmNav01, ElmOff01, ElmQck01, ElmToast01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
 import { CommandPalette } from './components/CommandPalette';
 import { Ledger } from './types';
@@ -78,6 +78,8 @@ export default function App() {
   const [deviceView, setDeviceView] = useState<'FULL' | 'TABLET' | 'MOBILE'>('FULL');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
+  const [quickPopupMode, setQuickPopupMode] = useState<'MONEY' | 'DUTY' | null>(null);
+  const [quickToast, setQuickToast] = useState<string | null>(null);
   const [selectedDutyId, setSelectedDutyId] = useState<string>('duty-01');
   const [selectedGoalId, setSelectedGoalId] = useState<string>('goal-01');
 
@@ -317,7 +319,7 @@ export default function App() {
             setSelectedDutyId(id);
             setCurrentScreen('SCR-DUT-02');
           }}
-          onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
+          onOpenQuickRegister={() => setQuickPopupMode('DUTY')}
           onNavigateToGoal={() => setCurrentScreen('SCR-GOL-01')}
         />
       ),
@@ -331,7 +333,7 @@ export default function App() {
           dutyId={selectedDutyId}
           onBack={() => setCurrentScreen('SCR-DUT-01')}
           onNavigateToManagement={() => setCurrentScreen('SCR-DUT-01')}
-          onOpenQuickRegister={() => setCurrentScreen('SCR-QCK-02')}
+          onOpenQuickRegister={() => setQuickPopupMode('DUTY')}
         />
       ),
     },
@@ -395,13 +397,25 @@ export default function App() {
       id: 'SCR-QCK-01',
       name: '빠른 머니등록 (영수증 & OCR)',
       category: '빠른 입력',
-      comp: <SCR_QCK_01_빠른머니등록 />,
+      comp: (
+        <SCR_QCK_01_빠른머니등록
+          variant="standalone"
+          isOffline={isOffline}
+          onClose={() => setCurrentScreen('SCR-DSH-01')}
+        />
+      ),
     },
     {
       id: 'SCR-QCK-02',
       name: '빠른 수행등록 (사진인증 & 당번)',
       category: '빠른 입력',
-      comp: <SCR_QCK_02_빠른수행등록 />,
+      comp: (
+        <SCR_QCK_02_빠른수행등록
+          variant="standalone"
+          isOffline={isOffline}
+          onClose={() => setCurrentScreen('SCR-DSH-01')}
+        />
+      ),
     },
     {
       id: 'SCR-MYP-01',
@@ -757,7 +771,7 @@ export default function App() {
         }}
         onOpenOCR={() => {
           setIsCommandOpen(false);
-          setCurrentScreen('SCR-QCK-01');
+          setQuickPopupMode('MONEY');
         }}
         onOpenSettle={() => {
           setIsCommandOpen(false);
@@ -765,7 +779,7 @@ export default function App() {
         }}
         onOpenNewTx={() => {
           setIsCommandOpen(false);
-          setCurrentScreen('SCR-QCK-01');
+          setQuickPopupMode('MONEY');
         }}
         onSelectTab={(tab) => {
           setIsCommandOpen(false);
@@ -785,13 +799,40 @@ export default function App() {
         }}
       />
 
-      {/* 6. Global Movable Quick Action Dock (로그인한 모든 메뉴 화면 공통 표시) */}
+      {/* 6. Global Movable Quick Action Dock (로그인한 모든 메뉴 화면 공통 표시 -> ElmBsh01 팝업 직결) */}
       {(isLoggedIn || !['SCR-GNT-01', 'SCR-AUT-01', 'SCR-AUT-02'].includes(currentScreen)) && (
         <ElmQck01
-          onOpenMoney={() => setCurrentScreen('SCR-QCK-01')}
-          onOpenDuty={() => setCurrentScreen('SCR-QCK-02')}
+          onOpenMoney={() => setQuickPopupMode('MONEY')}
+          onOpenDuty={() => setQuickPopupMode('DUTY')}
         />
       )}
+
+      {/* 6-1. 전역 빠른 등록 ElmBsh01 고정 3분할 바텀시트 팝업 */}
+      <SCR_QCK_01_빠른머니등록
+        isOpen={quickPopupMode === 'MONEY'}
+        variant="sheet"
+        isOffline={isOffline}
+        onClose={() => setQuickPopupMode(null)}
+        onSuccess={() => {
+          setQuickPopupMode(null);
+          setQuickToast('✓ 빠른 머니등록이 완료되었습니다.');
+        }}
+      />
+      <SCR_QCK_02_빠른수행등록
+        isOpen={quickPopupMode === 'DUTY'}
+        variant="sheet"
+        isOffline={isOffline}
+        onClose={() => setQuickPopupMode(null)}
+        onSuccess={() => {
+          setQuickPopupMode(null);
+          setQuickToast('✓ 빠른 수행등록이 완료되었습니다.');
+        }}
+      />
+      <ElmToast01
+        message={quickToast}
+        type="success"
+        onClose={() => setQuickToast(null)}
+      />
 
       {/* 7. Global Scroll to Top Floating Layer Widget (화면 스크롤 발생 시 우측하단 고정 노출) */}
       {showScrollTop && (
