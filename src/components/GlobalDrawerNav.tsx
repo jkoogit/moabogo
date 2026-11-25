@@ -23,6 +23,7 @@ import {
   Calendar,
   Repeat,
   User,
+  Car,
 } from 'lucide-react';
 import { MoaLogo } from './MoaLogo';
 
@@ -135,6 +136,15 @@ export const GlobalDrawerNav: React.FC<GlobalDrawerNavProps> = ({
           title: '모아루틴 (MoaRoutine)',
           desc: '약복용·알뜰폰·세금계산서·급여카드 4대 루틴',
           icon: <Repeat className="w-4 h-4 text-emerald-500" />,
+          badge: 'NEW',
+          isHighlight: true,
+        },
+        {
+          id: 'SCR-CAR-01',
+          code: 'SCR-CAR-01',
+          title: '모아부릉 (MoaVroom)',
+          desc: '자동차 6대 일상관리 허브 & 가계부 1:1 연동',
+          icon: <Car className="w-4 h-4 text-emerald-500" />,
           badge: 'NEW',
           isHighlight: true,
         },

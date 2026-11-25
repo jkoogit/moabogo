@@ -25,6 +25,7 @@ import { SCR_QCK_02_빠른수행등록 } from './sample/screen/SCR_QCK_02_빠른
 import { SCR_SET_01_사용자설정 } from './sample/screen/SCR_SET_01_사용자설정';
 import { SCR_DAY_01_모아데이 } from './sample/screen/SCR_DAY_01_모아데이';
 import { SCR_ROU_01_모아루틴 } from './sample/screen/SCR_ROU_01_모아루틴';
+import { SCR_CAR_01_모아부릉 } from './sample/screen/SCR_CAR_01_모아부릉';
 import { SCR_MYP_01_마이페이지 } from './sample/screen/SCR_MYP_01_마이페이지';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
@@ -66,6 +67,9 @@ export default function App() {
       }
       if (window.location.pathname.startsWith('/routine') || window.location.search.includes('route=routine')) {
         return 'SCR-ROU-01';
+      }
+      if (window.location.pathname.startsWith('/car') || window.location.search.includes('route=car')) {
+        return 'SCR-CAR-01';
       }
       if (window.location.pathname.startsWith('/mypage') || window.location.search.includes('route=mypage')) {
         return 'SCR-MYP-01';
@@ -309,6 +313,17 @@ export default function App() {
           onBack={() => setCurrentScreen('SCR-DSH-01')}
           onNavigateToLedger={() => setCurrentScreen('SCR-LED-01')}
           onNavigateToDay={() => setCurrentScreen('SCR-DAY-01')}
+        />
+      ),
+    },
+    {
+      id: 'SCR-CAR-01',
+      name: '모아부릉 (내 차 6대 일상관리)',
+      category: '라이프 허브',
+      comp: (
+        <SCR_CAR_01_모아부릉
+          onBack={() => setCurrentScreen('SCR-DSH-01')}
+          onGoSettings={() => setCurrentScreen('SCR-SET-01')}
         />
       ),
     },
