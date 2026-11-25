@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Calendar,
+  Car,
   Check,
   Flame,
+  Gauge,
   History,
   Repeat,
+  ShieldAlert,
 } from 'lucide-react';
 import { ThemeMode } from '../../../context/ThemeContext';
 import { ElmSld03 } from '../../elements/Tokens';
@@ -16,6 +19,14 @@ import {
   RoutinePluginSettings,
 } from '../routine/plugins/pluginSettings';
 import { ROUTINE_CATEGORY_META, RoutineCategory } from '../routine/types';
+import {
+  CAR_PREFS_UPDATED_EVENT,
+  loadCarPreferences,
+  maskPlateNumber,
+  CarPreferencesState,
+} from '../../data/servicePreferencesPool';
+import { INITIAL_MAINTENANCE_RULES } from '../car/carMockData';
+import { calculateMaintenanceFsm } from '../car/useMoaCar';
 import {
   BentoCardHeader,
   getBentoBorderClass,
@@ -367,6 +378,135 @@ export const RoutineBentoCard: React.FC<{
             className="min-h-[44px] px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <span>모아루틴 허브 열기</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </section>
+  );
+};
+
+/** MODULE: 🚗 모아부릉 내 차 관리 벤토 카드 (2-Col) */
+export const CarBentoCard: React.FC<{
+  resolvedTheme: ThemeMode;
+  orderStyle: React.CSSProperties;
+  onNavigate?: (screenId: string) => void;
+}> = ({ resolvedTheme, orderStyle, onNavigate }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [carPrefs, setCarPrefs] = useState<CarPreferencesState>(() => loadCarPreferences());
+
+  useEffect(() => {
+    const syncCar = (e?: Event) => {
+      const detail = (e as CustomEvent<CarPreferencesState> | undefined)?.detail || loadCarPreferences();
+      setCarPrefs(detail);
+    };
+    window.addEventListener(CAR_PREFS_UPDATED_EVENT, syncCar);
+    return () => window.removeEventListener(CAR_PREFS_UPDATED_EVENT, syncCar);
+  }, []);
+
+  const primaryVehicle = useMemo(
+    () => carPrefs.vehicles.find((v) => v.is_primary) || carPrefs.vehicles[0],
+    [carPrefs.vehicles]
+  );
+
+  const topRules = useMemo(() => {
+    if (!primaryVehicle) return [];
+    return INITIAL_MAINTENANCE_RULES.filter((r) => r.vehicle_id === primaryVehicle.vehicle_id && r.is_active)
+      .slice(0, 3)
+      .map((rule) => ({
+        rule,
+        fsm: calculateMaintenanceFsm(rule, primaryVehicle.current_odometer_km),
+      }));
+  }, [primaryVehicle]);
+
+  return (
+    <section
+      style={orderStyle}
+      className={`md:col-span-2 lg:col-span-2 p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-emerald-400/50 ${getBentoSurfaceClass(
+        resolvedTheme
+      )}`}
+    >
+      <div>
+        <BentoCardHeader
+          resolvedTheme={resolvedTheme}
+          icon={<Car className="w-4 h-4" />}
+          iconBgClass="bg-emerald-500/10 text-emerald-500"
+          title="모아부릉 내 차 관리"
+          countBadge={`(${carPrefs.vehicles.filter((v) => v.is_active).length}대)`}
+          subtitle="대표 차량 Odometer · 소모품/보험 D-Day · 가계부 1:1 멱등 연동"
+          screenBadge="SCR-CAR-01"
+          isExpanded={isExpanded}
+          onToggleExpand={() => setIsExpanded((prev) => !prev)}
+        />
+
+        {isExpanded && primaryVehicle && (
+          <div className="space-y-3">
+            <div
+              className={`p-3 rounded-xl border flex items-center justify-between gap-2 flex-wrap ${getBentoSubCardClass(
+                resolvedTheme
+              )}`}
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white whitespace-nowrap">
+                    대표
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                    {primaryVehicle.nickname}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+                    {maskPlateNumber(primaryVehicle.plate_number, carPrefs.settings.privacy_mask_plate_number)}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  {primaryVehicle.model_name} ({primaryVehicle.model_year})
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-extrabold text-slate-800 dark:text-zinc-100 whitespace-nowrap">
+                <Gauge className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>{primaryVehicle.current_odometer_km.toLocaleString()} km</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              {topRules.map(({ rule, fsm }) => (
+                <div
+                  key={rule.rule_id}
+                  className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-xs ${getBentoSubCardClass(
+                    resolvedTheme
+                  )}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="font-bold text-slate-800 dark:text-zinc-100 truncate">
+                      {rule.title}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap shrink-0">
+                    {fsm.badgeText}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div
+          className={`mt-3 pt-2.5 border-t flex items-center justify-between gap-2 ${getBentoBorderClass(
+            resolvedTheme
+          )}`}
+        >
+          <span className="text-[11px] text-slate-400 truncate">
+            SCR-SET-01 차량·마스킹 설정 실시간 동기화
+          </span>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('SCR-CAR-01')}
+            className="min-h-[44px] px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <span>모아부릉 허브 열기</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

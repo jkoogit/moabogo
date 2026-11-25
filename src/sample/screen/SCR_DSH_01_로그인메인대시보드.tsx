@@ -71,7 +71,7 @@ import {
   saveDashboardPreset,
   applyDashboardPreset,
 } from '../data/dashboardConfigPool';
-import { DayBentoCard, RoutineBentoCard } from './dashboard/BentoLifeServiceCards';
+import { DayBentoCard, RoutineBentoCard, CarBentoCard } from './dashboard/BentoLifeServiceCards';
 import { MoneyBalanceBentoCard, MyPageBentoCard } from './dashboard/BentoFinanceProfileCards';
 import { DashboardCustomizeSheet } from './dashboard/DashboardCustomizeSheet';
 import {
@@ -2395,6 +2395,14 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             orderStyle={{ order: getModuleOrder('routine_widget') }}
             onNavigate={onNavigate}
             onNotify={showToast}
+          />
+        )}
+
+        {isEnabled('car_widget') && (
+          <CarBentoCard
+            resolvedTheme={resolvedTheme}
+            orderStyle={{ order: getModuleOrder('car_widget') }}
+            onNavigate={onNavigate}
           />
         )}
 

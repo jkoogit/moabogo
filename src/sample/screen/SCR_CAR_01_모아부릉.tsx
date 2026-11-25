@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Car,
   Fuel,
@@ -79,7 +79,11 @@ export const SCR_CAR_01_모아부릉: React.FC<ScreenProps> = ({ onBack, onGoSet
   const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
   const [selectedLinkedLog, setSelectedLinkedLog] = useState<VehicleLog | null>(null);
   const [viewerPhotos, setViewerPhotos] = useState<string[] | null>(null);
-  const [isMaskPlate, setIsMaskPlate] = useState(true);
+  const [isMaskPlate, setIsMaskPlate] = useState(() => userSettings.privacy_mask_plate_number);
+
+  useEffect(() => {
+    setIsMaskPlate(userSettings.privacy_mask_plate_number);
+  }, [userSettings.privacy_mask_plate_number]);
   const [isEditingOdometer, setIsEditingOdometer] = useState(false);
   const [tempOdometer, setTempOdometer] = useState<number>(currentVehicle?.current_odometer_km || 0);
 

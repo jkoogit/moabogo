@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Vehicle,
   VehicleLog,
@@ -10,12 +10,16 @@ import {
   CarUserSettings,
 } from './types';
 import {
-  INITIAL_VEHICLES,
   INITIAL_VEHICLE_LOGS,
   INITIAL_MAINTENANCE_RULES,
   INITIAL_DUPLICATE_CANDIDATES,
-  INITIAL_CAR_SETTINGS,
 } from './carMockData';
+import {
+  loadCarPreferences,
+  saveCarPreferences,
+  CAR_PREFS_UPDATED_EVENT,
+  CarPreferencesState,
+} from '../../data/servicePreferencesPool';
 
 const TODAY_STR = '2026-11-25';
 
@@ -68,13 +72,26 @@ export function calculateMaintenanceFsm(
 }
 
 export function useMoaCar() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(INITIAL_VEHICLES);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() => INITIAL_VEHICLES[0]?.vehicle_id || 'veh-1');
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => loadCarPreferences().vehicles);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
+    () => loadCarPreferences().vehicles.find((v) => v.is_primary)?.vehicle_id || loadCarPreferences().vehicles[0]?.vehicle_id || 'veh-1'
+  );
   const [logs, setLogs] = useState<VehicleLog[]>(INITIAL_VEHICLE_LOGS);
   const [rules, setRules] = useState<VehicleMaintenanceRule[]>(INITIAL_MAINTENANCE_RULES);
   const [activeTab, setActiveTab] = useState<CarFilterTab>('ALL');
   const [duplicates, setDuplicates] = useState<DuplicateExpenseCandidate[]>(INITIAL_DUPLICATE_CANDIDATES);
-  const [userSettings, setUserSettings] = useState<CarUserSettings>(INITIAL_CAR_SETTINGS);
+  const [userSettings, setUserSettings] = useState<CarUserSettings>(() => loadCarPreferences().settings);
+
+  // SCR-SET-01 등 외부 설정 변경 시 실시간 동기화
+  useEffect(() => {
+    const syncFromStore = (e?: Event) => {
+      const detail = (e as CustomEvent<CarPreferencesState> | undefined)?.detail || loadCarPreferences();
+      setVehicles(detail.vehicles);
+      setUserSettings(detail.settings);
+    };
+    window.addEventListener(CAR_PREFS_UPDATED_EVENT, syncFromStore);
+    return () => window.removeEventListener(CAR_PREFS_UPDATED_EVENT, syncFromStore);
+  }, []);
 
   // 현재 선택된 차량
   const currentVehicle = useMemo(() => {
@@ -139,13 +156,16 @@ export function useMoaCar() {
   // 2. 계기판 주행거리 직접 갱신
   const updateOdometer = useCallback((newOdometerKm: number) => {
     if (newOdometerKm <= 0) return;
-    setVehicles((prev) =>
-      prev.map((v) =>
+    setVehicles((prev) => {
+      const updated = prev.map((v) =>
         v.vehicle_id === selectedVehicleId
           ? { ...v, current_odometer_km: newOdometerKm, updated_at: TODAY_STR }
           : v
-      )
-    );
+      );
+      const currentPrefs = loadCarPreferences();
+      saveCarPreferences({ ...currentPrefs, vehicles: updated });
+      return updated;
+    });
   }, [selectedVehicleId]);
 
   // 3. 신규 차량 등록
@@ -157,7 +177,12 @@ export function useMoaCar() {
       created_at: TODAY_STR,
       updated_at: TODAY_STR,
     };
-    setVehicles((prev) => [...prev, created]);
+    setVehicles((prev) => {
+      const updated = [...prev, created];
+      const currentPrefs = loadCarPreferences();
+      saveCarPreferences({ ...currentPrefs, vehicles: updated });
+      return updated;
+    });
     setSelectedVehicleId(id);
   }, []);
 
@@ -380,7 +405,12 @@ export function useMoaCar() {
 
   // 8. 사용자 설정 변경 (모아데이 연동 대상 및 개인정보 마스킹)
   const updateCarUserSettings = useCallback((newSettings: Partial<CarUserSettings>) => {
-    setUserSettings((prev) => ({ ...prev, ...newSettings }));
+    setUserSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      const currentPrefs = loadCarPreferences();
+      saveCarPreferences({ ...currentPrefs, settings: updated });
+      return updated;
+    });
   }, []);
 
   return {

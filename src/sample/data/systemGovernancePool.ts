@@ -52,20 +52,32 @@ export const DEFAULT_AUTH_SECURITY_CONFIG: SystemAuthSecurityConfig = {
    ========================================================================= */
 export interface SystemNotificationMatrix {
   requireVerifiedEmailOnly: boolean; // 인증된 이메일에만 알림 발송 제한 옵션
-  // 12종 전역 서비스 알림 토글
-  ledgerMemberRegistered: boolean; // i. 가계부 구성원 등록 알림
-  ledgerRecurringExpense: boolean; // ii. 정기지출 도래 알림
-  dutyWatchEvent: boolean; // iii. 모아당번 관람당번 이벤트 알림
-  dutyScheduleReminder: boolean; // iv. 모아당번 담당일정 알림
-  dutyActionRequest: boolean; // v. 모아당번 수행요청 알림
-  dutyInviteAccepted: boolean; // vi. 모아당번 초대요청/수용 알림
-  goalWatchEvent: boolean; // vii. 모아목표 관람목표 이벤트 알림
-  goalScheduleReminder: boolean; // viii. 모아목표 수행일정 알림
-  goalCheerMessage: boolean; // ix. 모아목표 수행응원 알림
-  goalInviteAccepted: boolean; // x. 모아목표 초대요청/수용 알림
-  moneySettleProcessed: boolean; // xi. 모아머니 정산요청/승인 알림 (정산결과)
-  moneySupportProcessed: boolean; // xii. 모아머니 지원요청/승인 알림 (용돈/가불)
-  moneyRewardProcessed: boolean; // xiii. 모아머니 보상요청/승인 알림 (당번수행대가)
+  // 전 서비스 22종 전역 알림 토글
+  ledgerMemberRegistered: boolean; // 1. 가계부 구성원 등록 알림
+  ledgerRecurringExpense: boolean; // 2. 정기지출 도래 알림
+  dutyWatchEvent: boolean; // 3. 모아당번 관람당번 이벤트 알림
+  dutyScheduleReminder: boolean; // 4. 모아당번 담당일정 알림
+  dutyActionRequest: boolean; // 5. 모아당번 수행요청 알림
+  dutyInviteAccepted: boolean; // 6. 모아당번 초대요청/수용 알림
+  goalWatchEvent: boolean; // 7. 모아목표 관람목표 이벤트 알림
+  goalScheduleReminder: boolean; // 8. 모아목표 수행일정 알림
+  goalCheerMessage: boolean; // 9. 모아목표 수행응원 알림
+  goalInviteAccepted: boolean; // 10. 모아목표 초대요청/수용 알림
+  moneySettleProcessed: boolean; // 11. 모아머니 정산요청/승인 알림
+  moneySupportProcessed: boolean; // 12. 모아머니 지원요청/승인 알림
+  moneyRewardProcessed: boolean; // 13. 모아머니 보상요청/승인 알림
+  // 모아부릉 (3종)
+  carInsuranceExpiry: boolean; // 14. 자동차보험 만기 갱신 D-Day
+  carLegalInspection: boolean; // 15. 정기종합검사 도래 알림
+  carConsumableDue: boolean; // 16. 소모품 교체 임박 알림
+  // 모아데이 (2종)
+  dayScheduleReminder: boolean; // 17. 모아데이 일정 리마인더
+  dayPastYearBriefing: boolean; // 18. 과거의 오늘 회고 브리핑
+  // 모아루틴 (4종)
+  routineMedicineReminder: boolean; // 19. 약복용 시점·소진 임박 알림
+  routineMvnoDue: boolean; // 20. 알뜰폰 프로모션·약정 D-Day
+  routineTaxDeadline: boolean; // 21. 세금계산서 매월 10일 마감 알림
+  routineCardSettlement: boolean; // 22. 급여·카드 일괄 정산 실행 알림
 }
 
 export const DEFAULT_NOTIFICATION_MATRIX: SystemNotificationMatrix = {
@@ -83,6 +95,32 @@ export const DEFAULT_NOTIFICATION_MATRIX: SystemNotificationMatrix = {
   moneySettleProcessed: true,
   moneySupportProcessed: true,
   moneyRewardProcessed: true,
+  carInsuranceExpiry: true,
+  carLegalInspection: true,
+  carConsumableDue: true,
+  dayScheduleReminder: true,
+  dayPastYearBriefing: true,
+  routineMedicineReminder: true,
+  routineMvnoDue: true,
+  routineTaxDeadline: true,
+  routineCardSettlement: true,
+};
+
+/* =========================================================================
+   2-1. 스토리지 및 미아데이터 수명주기 정책 (Retention Policies Governance)
+   ========================================================================= */
+export interface SystemRetentionPolicy {
+  orphanTtlDays: number; // UNALLOCATED 미아 데이터 보존 TTL (기본 90일)
+  archiveTierDays: number; // ACTIVE -> ARCHIVED tarball 전환 일수 (기본 30일)
+  autoPurgeOrphan: boolean; // 만료 미아 데이터 야간 배치 자동 GC 여부
+  streamCachePolicy: 'INSTANT' | '1_DAY' | '30_DAYS'; // 온디맨드 스트리밍 캐시 파기 정책
+}
+
+export const DEFAULT_RETENTION_POLICY: SystemRetentionPolicy = {
+  orphanTtlDays: 90,
+  archiveTierDays: 30,
+  autoPurgeOrphan: true,
+  streamCachePolicy: 'INSTANT',
 };
 
 /* =========================================================================
@@ -183,13 +221,43 @@ export interface TermsDocument {
 export const DEFAULT_MENUS: MenuItem[] = [
   { id: 'MENU_DSH_01', name: '로그인 메인 대시보드', path: 'SCR-DSH-01', category: '금융서비스', order: 1, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
   { id: 'MENU_LED_01', name: '가계부 관리 상세', path: 'SCR-LED-01', category: '금융서비스', order: 2, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_DUT_01', name: '모아당번 관리', path: 'SCR-DUT-01', category: '라이프협업', order: 3, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_GOL_01', name: '모아목표 관리', path: 'SCR-GOL-01', category: '라이프협업', order: 4, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_MON_01', name: '모아머니 이동관리', path: 'SCR-MON-01', category: '금융서비스', order: 5, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_QCK_01', name: '빠른 머니등록 (영수증 OCR)', path: 'SCR-QCK-01', category: '빠른입력', order: 6, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_QCK_02', name: '빠른 수행등록 (사진인증)', path: 'SCR-QCK-02', category: '빠른입력', order: 7, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_SET_01', name: '사용자 맞춤 환경설정', path: 'SCR-SET-01', category: '시스템운영', order: 8, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
-  { id: 'MENU_SYS_01', name: '시스템 운영관리 백오피스', path: 'SCR-SYS-01', category: '시스템운영', order: 9, isEnabled: true, requiredRole: 'ROLE_SYSTEM_ADMIN' },
+  { id: 'MENU_MON_01', name: '모아머니 이동관리', path: 'SCR-MON-01', category: '금융서비스', order: 3, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_DAY_01', name: '모아데이 (전역 일정·일기)', path: 'SCR-DAY-01', category: '라이프협업', order: 4, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_ROU_01', name: '모아루틴 (4대 루틴 허브)', path: 'SCR-ROU-01', category: '라이프협업', order: 5, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_CAR_01', name: '모아부릉 (자동차 6대 관리)', path: 'SCR-CAR-01', category: '라이프협업', order: 6, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_DUT_01', name: '모아당번 관리', path: 'SCR-DUT-01', category: '라이프협업', order: 7, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_GOL_01', name: '모아목표 관리', path: 'SCR-GOL-01', category: '라이프협업', order: 8, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_GAM_01', name: '모아게임 허브 (정산/사다리/룰렛)', path: 'SCR-GAM-01', category: '라이프협업', order: 9, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_QCK_01', name: '빠른 머니등록 (영수증 OCR)', path: 'SCR-QCK-01', category: '빠른입력', order: 10, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_QCK_02', name: '빠른 수행등록 (사진인증)', path: 'SCR-QCK-02', category: '빠른입력', order: 11, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_MYP_01', name: '마이페이지 & 프로필 허브', path: 'SCR-MYP-01', category: '시스템운영', order: 12, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_SET_01', name: '사용자 맞춤 환경설정', path: 'SCR-SET-01', category: '시스템운영', order: 13, isEnabled: true, requiredRole: 'ROLE_MEMBER' },
+  { id: 'MENU_OFF_01', name: '오프라인 동기화 & Stale 관리', path: 'SCR-OFF-01', category: '시스템운영', order: 14, isEnabled: true, requiredRole: 'ROLE_GUEST' },
+  { id: 'MENU_SYS_01', name: '시스템 운영관리 백오피스', path: 'SCR-SYS-01', category: '시스템운영', order: 15, isEnabled: true, requiredRole: 'ROLE_SYSTEM_ADMIN' },
+  { id: 'MENU_SMP_01', name: '공통 UI 토큰 쇼케이스', path: 'SCR-SMP-01', category: '시스템운영', order: 16, isEnabled: true, requiredRole: 'ROLE_GUEST' },
+];
+
+const ALL_MEMBER_SCREEN_IDS = [
+  'SCR-GNT-01',
+  'SCR-AUT-01',
+  'SCR-AUT-02',
+  'SCR-DSH-01',
+  'SCR-LED-01',
+  'SCR-MON-01',
+  'SCR-DAY-01',
+  'SCR-ROU-01',
+  'SCR-CAR-01',
+  'SCR-DUT-01',
+  'SCR-DUT-02',
+  'SCR-GOL-01',
+  'SCR-GOL-02',
+  'SCR-GAM-01',
+  'SCR-QCK-01',
+  'SCR-QCK-02',
+  'SCR-MYP-01',
+  'SCR-SET-01',
+  'SCR-OFF-01',
+  'SCR-SMP-01',
 ];
 
 export const DEFAULT_SCREENS: ScreenItem[] = [
@@ -199,9 +267,27 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/guest',
     category: '게스트',
     requiredRole: 'ROLE_GUEST',
-    descriptionMd: `### 비회원 게스트 전용 메인 화면
-- 소멸성 룰렛 및 사다리 타기 게임 진행
-- 임시 N빵 정산 및 가계부 체험 모드 제공`,
+    descriptionMd: `### 비회원 게스트 전용 메인 화면 (SCR-EVT-01 게스트 정산/게임 통합)\n- 소멸성 룰렛 및 사다리 타기 게임 진행\n- 임시 N빵 정산 및 가계부 체험 모드 제공`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_GUEST', 'ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-AUT-01',
+    name: '회원가입 (3초 가입)',
+    route: '/signup',
+    category: '인증·세션',
+    requiredRole: 'ROLE_GUEST',
+    descriptionMd: `### 이메일·3대 소셜 회원가입 및 약관 동의\n- 카카오/네이버/구글 간편가입 및 개인 가계부 자동 개설`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_GUEST', 'ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-AUT-02',
+    name: '로그인 & 오프라인 세션',
+    route: '/login',
+    category: '인증·세션',
+    requiredRole: 'ROLE_GUEST',
+    descriptionMd: `### 로그인 및 IndexedDB 오프라인 자동 로그인 세션\n- 2FA OTP 검증 및 오프라인 세션 토큰 유지`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_GUEST', 'ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
@@ -211,9 +297,7 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/dashboard',
     category: '금융서비스',
     requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 회원 로그인 메인 대시보드 허브
-- 위젯 커스텀 배치 (4대 추천 프리셋)
-- 최근 지출 요약 및 금전관리 3대 원칙 상태 브리핑`,
+    descriptionMd: `### 회원 로그인 메인 대시보드 허브\n- 12종 Bento 위젯 커스텀 배치 (모아부릉 car_widget 포함)\n- 최근 지출 요약 및 금전관리 3대 원칙 상태 브리핑`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
@@ -223,33 +307,7 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/ledger',
     category: '금융서비스',
     requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 가계부 및 지출원장 상세 관리
-- 개인/모임 장부 단일 귀속성 검증
-- TRANSFER 단일 연결 자금 이동 및 태깅 정산`,
-    isEnabled: true,
-    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
-  },
-  {
-    id: 'SCR-DUT-01',
-    name: '모아당번 순환관리',
-    route: '/duty',
-    category: '라이프협업',
-    requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 모임 생활 당번 자동 순환 및 사진 인증
-- 직교 3상태머신 (진행, 완료/정산, 평가)
-- 당번 수행 완료 대가 모아머니 연동`,
-    isEnabled: true,
-    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
-  },
-  {
-    id: 'SCR-GOL-01',
-    name: '모아목표 실천관리',
-    route: '/goal',
-    category: '라이프협업',
-    requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 협업 실천 목표 및 응원 시스템
-- 목표 실천 기간별 챌린지
-- 친구 응원 메시지 및 송금 연계`,
+    descriptionMd: `### 가계부 및 지출원장 상세 관리\n- 개인/모임 장부 단일 귀속성 검증\n- TRANSFER 단일 연결 자금 이동 및 태깅 정산`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
@@ -259,9 +317,117 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/money',
     category: '금융서비스',
     requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 모아머니 정산, 지원, 보상 중앙 관리
-- N빵 정산 요청 및 상호 확인
-- 긴급 용돈 지원 및 가불 처리`,
+    descriptionMd: `### 모아머니 정산, 지원, 보상 중앙 관리\n- N빵 정산 요청 및 상호 확인\n- 긴급 용돈 지원 및 가불 처리`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-DAY-01',
+    name: '모아데이 전역 일정·다이어리',
+    route: '/day',
+    category: '라이프허브',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 전 서비스 통합 일정 및 스마트 다이어리\n- 가계부·당번·목표·루틴·모아부릉 투영 및 과거의 오늘 회고`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-ROU-01',
+    name: '모아루틴 4대 루틴 허브',
+    route: '/routine',
+    category: '라이프허브',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 4대 핵심 루틴(약복용·알뜰폰·세금계산서·카드정산)\n- 멀티 첨부 OCR 및 가계부 TRANSFER 멱등 연동`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-CAR-01',
+    name: '모아부릉 자동차 6대 관리',
+    route: '/car',
+    category: '라이프허브',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 다중 차량 Odometer & 6대 관리포인트 허브\n- 주유·점검·수리·세차·보험·주차 이력 및 중복지출 정리센터`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-DUT-01',
+    name: '모아당번 관리',
+    route: '/duty',
+    category: '라이프협업',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 모임 생활 당번 자동 순환 및 목록 관리\n- 카테고리 트리 선택 및 모임 구성원 초대`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-DUT-02',
+    name: '모아당번 상세',
+    route: '/duty/:id',
+    category: '라이프협업',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 단건 당번 직교 3상태머신 실행·정산·평가\n- 사진 인증, 대신수행 상계정산(Netting) 보고서`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-GOL-01',
+    name: '모아목표 관리',
+    route: '/goal',
+    category: '라이프협업',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 협업 실천 목표 목록 및 등록 관리\n- 목표 유형·실천 기간·목표량 설정`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-GOL-02',
+    name: '모아목표 상세',
+    route: '/goal/:id',
+    category: '라이프협업',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 목표 실천 기록, 동행원·관람원 및 응원 송금\n- 3대 탭 진행률, 댓글·사진 인증 및 용돈 이체`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-GAM-01',
+    name: '모아게임 허브',
+    route: '/game',
+    category: '라이프협업',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 로그인 회원 전용 정산·사다리·룰렛 허브 (SCR-EVT-01 회원 통합)\n- 모임 멤버·개인 프리셋 연동 및 가계부 결과 직행`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-QCK-01',
+    name: '빠른 머니등록',
+    route: '/quick/money',
+    category: '빠른입력',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 영수증 2단계 OCR 기반 빠른 지출/지급 등록\n- 오프라인 큐 캐싱 및 가계부 즉시 기장`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-QCK-02',
+    name: '빠른 수행등록',
+    route: '/quick/task',
+    category: '빠른입력',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 당번·목표 원클릭 빠른 수행 및 사진 인증\n- 증감 휠 및 직교 3상태 전이`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-MYP-01',
+    name: '마이페이지 & 개인 프로필 허브',
+    route: '/mypage',
+    category: '개인화',
+    requiredRole: 'ROLE_MEMBER',
+    descriptionMd: `### 프로필, 대표 수신계좌 퀵복사 및 4대 라이프 요약\n- 참여 가계부 책꽂이 및 활동 KPI`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
@@ -271,11 +437,19 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/settings',
     category: '시스템운영',
     requiredRole: 'ROLE_MEMBER',
-    descriptionMd: `### 개인별 테마, 단골매장, 계좌 및 OCR 키 관리
-- 4색 디스플레이 테마 (주간/야간/여명/시스템)
-- 외부 거래계좌 트리 및 송금 대표계좌 풀`,
+    descriptionMd: `### 12탭 전 서비스 개인화 환경설정 허브\n- 테마, 모아부릉, 모아데이, 모아루틴, 오프라인, 대시보드 12종 배치, 알림, 계좌, OCR 키`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-OFF-01',
+    name: '오프라인 PWA 동기화 & Stale',
+    route: '/offline',
+    category: '시스템운영',
+    requiredRole: 'ROLE_GUEST',
+    descriptionMd: `### 오프라인 동기화 대기열 및 LWW 충돌 해결\n- 멱등키 기반 재전송 및 IndexedDB 세션 상태 점검`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_GUEST', 'ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
   {
     id: 'SCR-SYS-01',
@@ -283,11 +457,19 @@ export const DEFAULT_SCREENS: ScreenItem[] = [
     route: '/system',
     category: '시스템운영',
     requiredRole: 'ROLE_SYSTEM_ADMIN',
-    descriptionMd: `### 플랫폼 8대 거버넌스 전역 백오피스
-- 보안/로그인, 12종 알림 매트릭스, RBAC, 마스터 코드
-- PostgreSQL 풀, Cloudflare 터널, EasyOCR 큐 실시간 관제`,
+    descriptionMd: `### 플랫폼 전역 거버넌스 백오피스\n- 인프라·수명주기(Retention), 보안, 22종 알림 매트릭스, 21개 화면 RBAC, 금융통제, 28대 마스터코드, 게임풀, 공지`,
     isEnabled: true,
     mappedRoleIds: ['ROLE_SYSTEM_ADMIN'],
+  },
+  {
+    id: 'SCR-SMP-01',
+    name: '공통 컴포넌트 쇼케이스',
+    route: '/showcase',
+    category: '디자인표준',
+    requiredRole: 'ROLE_GUEST',
+    descriptionMd: `### 14종 원자적 UI 디자인 토큰 검증 쇼케이스\n- 다크/여명/주간 테마 및 44px 터치타겟 검증`,
+    isEnabled: true,
+    mappedRoleIds: ['ROLE_GUEST', 'ROLE_MEMBER', 'ROLE_OWNER', 'ROLE_SYSTEM_ADMIN'],
   },
 ];
 
@@ -296,58 +478,33 @@ export const DEFAULT_ROLE_GROUPS: RoleGroupItem[] = [
     id: 'ROLE_SYSTEM_ADMIN',
     name: '최고 시스템 관리자',
     isEnabled: true,
-    description: '백오피스(/system) 접근, 8대 거버넌스 및 플랫폼 전역 설정 통제',
+    description: '백오피스(/system) 접근, 8대 거버넌스 및 플랫폼 전역 설정 통제 (21개 전 화면)',
     userCount: 2,
-    mappedScreenIds: [
-      'SCR-GNT-01',
-      'SCR-DSH-01',
-      'SCR-LED-01',
-      'SCR-DUT-01',
-      'SCR-GOL-01',
-      'SCR-MON-01',
-      'SCR-SET-01',
-      'SCR-SYS-01',
-    ],
+    mappedScreenIds: [...ALL_MEMBER_SCREEN_IDS, 'SCR-SYS-01'],
   },
   {
     id: 'ROLE_OWNER',
     name: '가계부/모임 소유자',
     isEnabled: true,
-    description: '모임 생성 및 멤버 초대, 예산 책정 및 정산 최종 승인 권한',
+    description: '모임 생성 및 멤버 초대, 예산 책정 및 정산 최종 승인 권한 (20개 회원 화면)',
     userCount: 18,
-    mappedScreenIds: [
-      'SCR-GNT-01',
-      'SCR-DSH-01',
-      'SCR-LED-01',
-      'SCR-DUT-01',
-      'SCR-GOL-01',
-      'SCR-MON-01',
-      'SCR-SET-01',
-    ],
+    mappedScreenIds: [...ALL_MEMBER_SCREEN_IDS],
   },
   {
     id: 'ROLE_MEMBER',
     name: '일반 정회원',
     isEnabled: true,
-    description: 'OAuth 간편로그인 완료 사용자, 가계부 기장 및 당번/목표 참여',
+    description: 'OAuth 간편로그인 완료 사용자, 전 라이프·금융 서비스 참여 (20개 회원 화면)',
     userCount: 142,
-    mappedScreenIds: [
-      'SCR-GNT-01',
-      'SCR-DSH-01',
-      'SCR-LED-01',
-      'SCR-DUT-01',
-      'SCR-GOL-01',
-      'SCR-MON-01',
-      'SCR-SET-01',
-    ],
+    mappedScreenIds: [...ALL_MEMBER_SCREEN_IDS],
   },
   {
     id: 'ROLE_GUEST',
     name: '임시 게스트',
     isEnabled: true,
-    description: '비로그인 사용자, 소멸성 룰렛/사다리 및 임시 정산 열람 한정',
+    description: '비로그인 사용자, 소멸성 게임·인증·오프라인·쇼케이스 열람 한정',
     userCount: 38,
-    mappedScreenIds: ['SCR-GNT-01'],
+    mappedScreenIds: ['SCR-GNT-01', 'SCR-AUT-01', 'SCR-AUT-02', 'SCR-OFF-01', 'SCR-SMP-01'],
   },
 ];
 
@@ -603,7 +760,7 @@ export const DEFAULT_FINANCIAL_COMPLIANCE: SystemFinancialCompliance = {
 export interface MasterGroupCode {
   groupCode: string;
   groupName: string;
-  category: '장부' | '금융' | '지출이동' | '모아당번' | '모아목표' | '정산';
+  category: '장부' | '금융' | '지출이동' | '모아당번' | '모아목표' | '정산' | '모아데이' | '모아루틴' | '모아부릉';
   description: string;
   isSystemReadOnly: boolean;
 }
@@ -657,6 +814,20 @@ export const MASTER_GROUP_CODES: MasterGroupCode[] = [
 
   // 20: 정산 도메인
   { groupCode: 'SETTLE_INITIAL_CATEGORY', groupName: '정산.초기카테고리', category: '정산', description: '식사/모임N빵, 펜션여행, 경조사비, 장보기, 공동구매정산', isSystemReadOnly: false },
+
+  // 21: 모아데이 도메인
+  { groupCode: 'DAY_SOURCE_TYPE', groupName: '모아데이.출처서비스', category: '모아데이', description: '가계부, 당번, 목표, 루틴, 모아부릉, 개인일정, 스마트일기', isSystemReadOnly: true },
+
+  // 22~23: 모아루틴 도메인
+  { groupCode: 'ROUTINE_CATEGORY', groupName: '모아루틴.4대카테고리', category: '모아루틴', description: '약복용, 알뜰폰환승, 세금계산서, 급여·카드정산', isSystemReadOnly: true },
+  { groupCode: 'MVNO_NETWORK', groupName: '모아루틴.알뜰폰통신망', category: '모아루틴', description: 'SKT망, KT망, LGU+망 통신망 구분', isSystemReadOnly: true },
+
+  // 24~28: 모아부릉 도메인
+  { groupCode: 'CAR_FUEL_TYPE', groupName: '모아부릉.유종구분', category: '모아부릉', description: '휘발유, 경유, 하이브리드, 전기, LPG', isSystemReadOnly: true },
+  { groupCode: 'CAR_LOG_TYPE', groupName: '모아부릉.6대관리포인트', category: '모아부릉', description: '주유·충전, 점검, 수리, 세차, 보험, 주차', isSystemReadOnly: true },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', groupName: '모아부릉.소모품규칙', category: '모아부릉', description: '엔진오일, 에어컨필터, 타이어위치교환, 종합검사, 보험갱신, 정기주차권', isSystemReadOnly: false },
+  { groupCode: 'CAR_INSURANCE_CO', groupName: '모아부릉.자동차보험사', category: '모아부릉', description: '삼성화재, DB손해보험, 현대해상, KB손해보험 등 주요 보험사', isSystemReadOnly: false },
+  { groupCode: 'CAR_INSPECT_CAT', groupName: '모아부릉.점검항목분류', category: '모아부릉', description: '동력·오일, 제동·타이어, 배터리·등화, 외관·와이퍼', isSystemReadOnly: false },
 ];
 
 // 초기 상세코드 데이터 풀 (20대 그룹별 풍부한 사전 정의값)
@@ -787,6 +958,61 @@ export const DEFAULT_DETAIL_CODES: MasterDetailCode[] = [
   { groupCode: 'SETTLE_INITIAL_CATEGORY', code: 'TRAVEL_TRIP', codeName: '주말 펜션 / 여행 경비', sortOrder: 2, isDefault: false, isEnabled: true },
   { groupCode: 'SETTLE_INITIAL_CATEGORY', code: 'CONGRAT_EVENT', codeName: '결혼식 / 경조사 모금', sortOrder: 3, isDefault: false, isEnabled: true },
   { groupCode: 'SETTLE_INITIAL_CATEGORY', code: 'CO_BUY', codeName: '생필품 공동구매 정산', sortOrder: 4, isDefault: false, isEnabled: true },
+
+  // 21. DAY_SOURCE_TYPE
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'LEDGER', codeName: '가계부', enName: 'Ledger', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'DUTY', codeName: '모아당번', enName: 'Duty', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'GOAL', codeName: '모아목표', enName: 'Goal', sortOrder: 3, isDefault: false, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'ROUTINE', codeName: '모아루틴', enName: 'Routine', sortOrder: 4, isDefault: false, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'CAR', codeName: '모아부릉', enName: 'MoaVroom', sortOrder: 5, isDefault: false, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'PERSONAL', codeName: '개인 일정', enName: 'Personal', sortOrder: 6, isDefault: false, isEnabled: true },
+  { groupCode: 'DAY_SOURCE_TYPE', code: 'DIARY', codeName: '스마트 일기', enName: 'Diary', sortOrder: 7, isDefault: false, isEnabled: true },
+
+  // 22. ROUTINE_CATEGORY
+  { groupCode: 'ROUTINE_CATEGORY', code: 'HEALTH_MEDICINE', codeName: '약복용 루틴', enName: 'Medicine Routine', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'ROUTINE_CATEGORY', code: 'LIFE_PHONE', codeName: '알뜰폰 환승', enName: 'MVNO Transfer', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'ROUTINE_CATEGORY', code: 'BIZ_TAX', codeName: '세금계산서 발급', enName: 'Tax Invoice', sortOrder: 3, isDefault: false, isEnabled: true },
+  { groupCode: 'ROUTINE_CATEGORY', code: 'FINANCE_CARD_SETTLE', codeName: '급여·카드 정산', enName: 'Card Settlement', sortOrder: 4, isDefault: false, isEnabled: true },
+
+  // 23. MVNO_NETWORK
+  { groupCode: 'MVNO_NETWORK', code: 'SKT', codeName: 'SKT망 (7모바일/티플러스)', enName: 'SKT Network', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'MVNO_NETWORK', code: 'KT', codeName: 'KT망 (M모바일/스카이라이프)', enName: 'KT Network', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'MVNO_NETWORK', code: 'LGU', codeName: 'LGU+망 (유모바일/리브모바일)', enName: 'LGU+ Network', sortOrder: 3, isDefault: false, isEnabled: true },
+
+  // 24. CAR_FUEL_TYPE
+  { groupCode: 'CAR_FUEL_TYPE', code: 'GASOLINE', codeName: '휘발유', enName: 'Gasoline', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'CAR_FUEL_TYPE', code: 'DIESEL', codeName: '경유', enName: 'Diesel', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_FUEL_TYPE', code: 'HYBRID', codeName: '하이브리드', enName: 'Hybrid', sortOrder: 3, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_FUEL_TYPE', code: 'EV', codeName: '전기차', enName: 'Electric', sortOrder: 4, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_FUEL_TYPE', code: 'LPG', codeName: 'LPG', enName: 'LPG', sortOrder: 5, isDefault: false, isEnabled: true },
+
+  // 25. CAR_LOG_TYPE
+  { groupCode: 'CAR_LOG_TYPE', code: 'FUEL', codeName: '주유·충전', enName: 'Fuel', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'CAR_LOG_TYPE', code: 'INSPECTION', codeName: '점검', enName: 'Inspection', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_LOG_TYPE', code: 'REPAIR', codeName: '수리', enName: 'Repair', sortOrder: 3, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_LOG_TYPE', code: 'WASH', codeName: '세차', enName: 'Car Wash', sortOrder: 4, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_LOG_TYPE', code: 'INSURANCE', codeName: '보험', enName: 'Insurance', sortOrder: 5, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_LOG_TYPE', code: 'PARKING', codeName: '주차', enName: 'Parking', sortOrder: 6, isDefault: false, isEnabled: true },
+
+  // 26. CAR_MAINTENANCE_TYPE
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'ENGINE_OIL', codeName: '엔진오일 & 필터', enName: 'Engine Oil', sortOrder: 1, isDefault: true, isEnabled: true, userField1: '6개월', userField2: '10,000km' },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'AIR_FILTER', codeName: '에어컨/캐빈 필터', enName: 'Air Filter', sortOrder: 2, isDefault: false, isEnabled: true, userField1: '6개월', userField2: '10,000km' },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'TIRE_ROTATION', codeName: '타이어 위치교환', enName: 'Tire Rotation', sortOrder: 3, isDefault: false, isEnabled: true, userField1: '12개월', userField2: '15,000km' },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'LEGAL_INSPECTION', codeName: '정기종합검사', enName: 'Legal Inspection', sortOrder: 4, isDefault: false, isEnabled: true, userField1: '24개월' },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'INSURANCE_RENEWAL', codeName: '자동차보험 갱신', enName: 'Insurance Renewal', sortOrder: 5, isDefault: false, isEnabled: true, userField1: '12개월' },
+  { groupCode: 'CAR_MAINTENANCE_TYPE', code: 'PARKING_PASS', codeName: '월 정기주차권', enName: 'Parking Pass', sortOrder: 6, isDefault: false, isEnabled: true, userField1: '1개월' },
+
+  // 27. CAR_INSURANCE_CO
+  { groupCode: 'CAR_INSURANCE_CO', code: 'SAMSUNG', codeName: '삼성화재 다이렉트', enName: 'Samsung Fire', sortOrder: 1, isDefault: true, isEnabled: true, userField1: '1588-5114' },
+  { groupCode: 'CAR_INSURANCE_CO', code: 'DB', codeName: 'DB손해보험', enName: 'DB Insurance', sortOrder: 2, isDefault: false, isEnabled: true, userField1: '1588-0100' },
+  { groupCode: 'CAR_INSURANCE_CO', code: 'HYUNDAI', codeName: '현대해상 다이렉트', enName: 'Hyundai Marine', sortOrder: 3, isDefault: false, isEnabled: true, userField1: '1588-5656' },
+  { groupCode: 'CAR_INSURANCE_CO', code: 'KB', codeName: 'KB손해보험', enName: 'KB Insurance', sortOrder: 4, isDefault: false, isEnabled: true, userField1: '1544-0114' },
+
+  // 28. CAR_INSPECT_CAT
+  { groupCode: 'CAR_INSPECT_CAT', code: 'POWERTRAIN', codeName: '동력 · 엔진오일 · 냉각수', enName: 'Powertrain', sortOrder: 1, isDefault: true, isEnabled: true },
+  { groupCode: 'CAR_INSPECT_CAT', code: 'BRAKE_TIRE', codeName: '제동 패드 · 타이어 공기압', enName: 'Brake & Tire', sortOrder: 2, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_INSPECT_CAT', code: 'ELECTRICAL', codeName: '배터리 · 등화장치 · 센서', enName: 'Electrical', sortOrder: 3, isDefault: false, isEnabled: true },
+  { groupCode: 'CAR_INSPECT_CAT', code: 'BODY_EXTERIOR', codeName: '와이퍼 · 워셔액 · 차체외관', enName: 'Body & Exterior', sortOrder: 4, isDefault: false, isEnabled: true },
 ];
 
 /* =========================================================================
@@ -795,6 +1021,7 @@ export const DEFAULT_DETAIL_CODES: MasterDetailCode[] = [
 const STORAGE_KEYS = {
   AUTH_SECURITY: 'moabogo_system_auth_security',
   NOTIFICATIONS: 'moabogo_system_notifications',
+  RETENTION_POLICY: 'moabogo_system_retention_policy',
   FINANCE_COMPLIANCE: 'moabogo_system_finance_compliance',
   MENUS: 'moabogo_system_menus',
   SCREENS: 'moabogo_system_screens',
@@ -807,6 +1034,12 @@ const STORAGE_KEYS = {
   ROULETTE_PRESETS: 'moabogo_system_roulette_presets_pool',
   NOTICES: 'moabogo_system_notices_pool',
 };
+
+function mergeMissingDefaults<T extends { id: string }>(saved: T[], defaults: T[]): T[] {
+  const seen = new Set(saved.map((item) => item.id));
+  const missing = defaults.filter((def) => !seen.has(def.id));
+  return missing.length > 0 ? [...saved, ...missing] : saved;
+}
 
 // 1. 로그인 인증 및 보안 설정 로드 / 저장
 export const loadAuthSecurityConfig = (): SystemAuthSecurityConfig => {
@@ -826,7 +1059,7 @@ export const saveAuthSecurityConfig = (config: SystemAuthSecurityConfig): void =
 export const loadNotificationMatrix = (): SystemNotificationMatrix => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    return raw ? JSON.parse(raw) : DEFAULT_NOTIFICATION_MATRIX;
+    return raw ? { ...DEFAULT_NOTIFICATION_MATRIX, ...JSON.parse(raw) } : DEFAULT_NOTIFICATION_MATRIX;
   } catch {
     return DEFAULT_NOTIFICATION_MATRIX;
   }
@@ -834,6 +1067,20 @@ export const loadNotificationMatrix = (): SystemNotificationMatrix => {
 
 export const saveNotificationMatrix = (matrix: SystemNotificationMatrix): void => {
   localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(matrix));
+};
+
+// 2-1. 스토리지 및 미아데이터 수명주기 정책 로드 / 저장
+export const loadRetentionPolicy = (): SystemRetentionPolicy => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.RETENTION_POLICY);
+    return raw ? { ...DEFAULT_RETENTION_POLICY, ...JSON.parse(raw) } : DEFAULT_RETENTION_POLICY;
+  } catch {
+    return DEFAULT_RETENTION_POLICY;
+  }
+};
+
+export const saveRetentionPolicy = (policy: SystemRetentionPolicy): void => {
+  localStorage.setItem(STORAGE_KEYS.RETENTION_POLICY, JSON.stringify(policy));
 };
 
 // 3. 금융 컴플라이언스 로드 / 저장
@@ -850,11 +1097,13 @@ export const saveFinancialCompliance = (config: SystemFinancialCompliance): void
   localStorage.setItem(STORAGE_KEYS.FINANCE_COMPLIANCE, JSON.stringify(config));
 };
 
-// 4. RBAC 메뉴, 화면, 권한, 사용자, 약관 로드 / 저장
+// 4. RBAC 메뉴, 화면, 권한, 사용자, 약관 로드 / 저장 (구버전 로컬스토리지 누락분 안전 병합)
 export const loadManagedMenus = (): MenuItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.MENUS);
-    return raw ? JSON.parse(raw) : DEFAULT_MENUS;
+    if (!raw) return DEFAULT_MENUS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? mergeMissingDefaults(parsed, DEFAULT_MENUS) : DEFAULT_MENUS;
   } catch {
     return DEFAULT_MENUS;
   }
@@ -867,7 +1116,9 @@ export const saveManagedMenus = (menus: MenuItem[]): void => {
 export const loadManagedScreens = (): ScreenItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SCREENS);
-    return raw ? JSON.parse(raw) : DEFAULT_SCREENS;
+    if (!raw) return DEFAULT_SCREENS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? mergeMissingDefaults(parsed, DEFAULT_SCREENS) : DEFAULT_SCREENS;
   } catch {
     return DEFAULT_SCREENS;
   }
@@ -880,7 +1131,18 @@ export const saveManagedScreens = (screens: ScreenItem[]): void => {
 export const loadManagedRoles = (): RoleGroupItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.ROLES);
-    return raw ? JSON.parse(raw) : DEFAULT_ROLE_GROUPS;
+    if (!raw) return DEFAULT_ROLE_GROUPS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_ROLE_GROUPS;
+    const merged = mergeMissingDefaults(parsed, DEFAULT_ROLE_GROUPS);
+    return merged.map((role) => {
+      const def = DEFAULT_ROLE_GROUPS.find((d) => d.id === role.id);
+      if (!def) return role;
+      const missingScreenIds = def.mappedScreenIds.filter((sid) => !role.mappedScreenIds.includes(sid));
+      return missingScreenIds.length > 0 && role.mappedScreenIds.length <= 8
+        ? { ...role, mappedScreenIds: [...role.mappedScreenIds, ...missingScreenIds] }
+        : role;
+    });
   } catch {
     return DEFAULT_ROLE_GROUPS;
   }
@@ -916,11 +1178,16 @@ export const saveManagedTerms = (terms: TermsDocument[]): void => {
   localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(terms));
 };
 
-// 5. 20대 마스터 코드 로드 / 저장 / 필터
+// 5. 28대 마스터 코드 로드 / 저장 / 필터
 export const loadMasterDetailCodes = (): MasterDetailCode[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DETAIL_CODES);
-    return raw ? JSON.parse(raw) : DEFAULT_DETAIL_CODES;
+    if (!raw) return DEFAULT_DETAIL_CODES;
+    const parsed: MasterDetailCode[] = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_DETAIL_CODES;
+    const existingKeys = new Set(parsed.map((c) => `${c.groupCode}::${c.code}`));
+    const missing = DEFAULT_DETAIL_CODES.filter((d) => !existingKeys.has(`${d.groupCode}::${d.code}`));
+    return missing.length > 0 ? [...parsed, ...missing] : parsed;
   } catch {
     return DEFAULT_DETAIL_CODES;
   }
@@ -995,6 +1262,7 @@ export const saveSystemNotices = (notices: SystemNoticeItem[]): void => {
 export const resetAllSystemGovernance = (): void => {
   saveAuthSecurityConfig(DEFAULT_AUTH_SECURITY_CONFIG);
   saveNotificationMatrix(DEFAULT_NOTIFICATION_MATRIX);
+  saveRetentionPolicy(DEFAULT_RETENTION_POLICY);
   saveFinancialCompliance(DEFAULT_FINANCIAL_COMPLIANCE);
   saveManagedMenus(DEFAULT_MENUS);
   saveManagedScreens(DEFAULT_SCREENS);

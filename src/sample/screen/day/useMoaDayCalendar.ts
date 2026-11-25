@@ -292,6 +292,17 @@ export const useMoaDayCalendar = () => {
     }
   });
 
+  useEffect(() => {
+    const syncDaySettings = () => {
+      try {
+        const saved = localStorage.getItem('moabogo_day_settings_v2');
+        if (saved) setSettings({ ...DEFAULT_DISPLAY_SETTINGS, ...JSON.parse(saved) });
+      } catch (_) {}
+    };
+    window.addEventListener('moabogo_day_settings_updated', syncDaySettings);
+    return () => window.removeEventListener('moabogo_day_settings_updated', syncDaySettings);
+  }, []);
+
   // 3. 퀵필터 멀티 선택 상태 (정책 1: 설정 팝업에서 켜진 서비스만 노출 및 영속화)
   const availableFilterTypes = useMemo<ServiceType[]>(() => {
     const list: ServiceType[] = [];
@@ -517,6 +528,7 @@ export const useMoaDayCalendar = () => {
       const updated = { ...prev, ...newSettings };
       try {
         localStorage.setItem('moabogo_day_settings_v2', JSON.stringify(updated));
+        window.dispatchEvent(new Event('moabogo_day_settings_updated'));
       } catch (_) { }
       return updated;
     });

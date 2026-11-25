@@ -79,6 +79,7 @@ import {
 import {
   SystemAuthSecurityConfig,
   SystemNotificationMatrix,
+  SystemRetentionPolicy,
   SystemFinancialCompliance,
   MenuItem,
   ScreenItem,
@@ -97,6 +98,8 @@ import {
   saveAuthSecurityConfig,
   loadNotificationMatrix,
   saveNotificationMatrix,
+  loadRetentionPolicy,
+  saveRetentionPolicy,
   loadFinancialCompliance,
   saveFinancialCompliance,
   loadManagedMenus,
@@ -122,6 +125,7 @@ import {
   resetAllSystemGovernance,
 } from '../data/systemGovernancePool';
 import { StorePreset, StoreMenuItem, RoulettePreset, LadderGoalPreset } from '../data/systemStorePool';
+import { RetentionPolicyPanel } from './system/RetentionPolicyPanel';
 
 type SystemTabId =
   | 'INFRA'
@@ -155,10 +159,20 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
     loadAuthSecurityConfig()
   );
 
-  // 4. 알림 발송 매트릭스 설정 (12종 전수 복원)
+  // 4. 알림 발송 매트릭스 설정 (22종 전 서비스 확장)
   const [notifyMatrix, setNotifyMatrix] = useState<SystemNotificationMatrix>(() =>
     loadNotificationMatrix()
   );
+
+  // 4-1. 스토리지 및 미아데이터 수명주기(Retention) 정책
+  const [retentionPolicy, setRetentionPolicy] = useState<SystemRetentionPolicy>(() =>
+    loadRetentionPolicy()
+  );
+
+  const handleSaveRetentionPolicy = () => {
+    saveRetentionPolicy(retentionPolicy);
+    showToast('스토리지 및 미아데이터 수명주기 정책이 저장되었습니다.');
+  };
 
   // 5. 금융 기능 컴플라이언스 통제
   const [financeComp, setFinanceComp] = useState<SystemFinancialCompliance>(() =>
@@ -1522,6 +1536,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
     resetAllSystemGovernance();
     setAuthSec(loadAuthSecurityConfig());
     setNotifyMatrix(loadNotificationMatrix());
+    setRetentionPolicy(loadRetentionPolicy());
     setFinanceComp(loadFinancialCompliance());
     setMenus(loadManagedMenus());
     setScreens(loadManagedScreens());
@@ -1612,7 +1627,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
         <ElmTyp01
           title="시스템 운영관리 백오피스"
           badge="SCR-SYS-01"
-          subtitle="플랫폼 8대 거버넌스 • 보안/인증 • 12종 알림 매트릭스 • RBAC/약관 • 금융통제 • 20대 마스터코드 • 게임풀 • 인프라 관제"
+          subtitle="플랫폼 8대 거버넌스 • 보안/인증 • 22종 알림 매트릭스 • 21개 화면 RBAC/약관 • 28대 마스터코드 • 수명주기·인프라 관제"
           actions={
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
@@ -1768,6 +1783,12 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
               <p className="text-[10px] text-slate-400 dark:text-zinc-500">오늘 완료: 48건 • OOM 재시도: 0건</p>
             </div>
           </div>
+
+          <RetentionPolicyPanel
+            retention={retentionPolicy}
+            onChangeRetention={setRetentionPolicy}
+            onSaveRetention={handleSaveRetentionPolicy}
+          />
         </section>
       )}
 
@@ -1934,10 +1955,10 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
                 <Bell className="w-4 h-4 text-indigo-600" />
-                <span>서비스 전역 알림 발송 매트릭스 정책 (12종 알림 토글)</span>
+                <span>서비스 전역 알림 발송 매트릭스 정책 (7대 서비스 22종 토글)</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                인증 메일 한정 발송 옵션 및 가계부, 모아당번, 모아목표, 모아머니 12종 알림을 제어합니다.
+                인증 메일 한정 발송 옵션 및 가계부·모아당번·모아목표·모아머니·모아부릉·모아데이·모아루틴 22종 알림을 제어합니다.
               </p>
             </div>
             <button
@@ -1965,7 +1986,7 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
           {/* 12종 서비스 알림 토글 매트릭스 */}
           <div className="space-y-4">
             <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">
-              서비스 전역 12종 알림 매트릭스 목록
+              서비스 전역 22종 알림 매트릭스 목록
             </span>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2188,6 +2209,71 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
                       className="min-h-0 py-0 pointer-events-none"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* 5. 모아부릉 영역 (3종) */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0E131F] space-y-2.5">
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>모아부릉(차량) 알림 (3종)</span>
+                </span>
+                <div className="divide-y divide-slate-100 dark:divide-zinc-800">
+                  {[
+                    { key: 'carInsuranceExpiry' as const, title: '자동차보험 만기 갱신 D-Day 알림', desc: '만기 30일/7일 전 갱신 안내 발송' },
+                    { key: 'carLegalInspection' as const, title: '정기종합검사 도래 알림', desc: '교통안전공단 법정 검사 기한 알림' },
+                    { key: 'carConsumableDue' as const, title: '소모품 교체 임박 알림', desc: '엔진오일·필터·타이어 주행거리/기간 도래' },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      onClick={() => setNotifyMatrix((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                      className="py-1.5 flex items-center justify-between cursor-pointer group select-none"
+                    >
+                      <div>
+                        <div className="text-xs font-semibold group-hover:text-emerald-600 transition-colors">{item.title}</div>
+                        <div className="text-[10px] text-slate-400">{item.desc}</div>
+                      </div>
+                      <ElmChk01
+                        checked={notifyMatrix[item.key]}
+                        onChange={(chk) => setNotifyMatrix((prev) => ({ ...prev, [item.key]: chk }))}
+                        className="min-h-0 py-0 pointer-events-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 6. 모아데이(2종) & 모아루틴(4종) 영역 */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0E131F] space-y-2.5">
+                <span className="text-xs font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>모아데이(2종) · 모아루틴(4종) 알림</span>
+                </span>
+                <div className="divide-y divide-slate-100 dark:divide-zinc-800">
+                  {[
+                    { key: 'dayScheduleReminder' as const, title: '모아데이 일정 사전 리마인더', desc: '전역 캘린더 등록 일정 사전 알림' },
+                    { key: 'dayPastYearBriefing' as const, title: '모아데이 과거의 오늘 회고 브리핑', desc: 'N년 전 오늘 일기/소비 내역 브리핑' },
+                    { key: 'routineMedicineReminder' as const, title: '모아루틴 약복용 시점·소진 임박', desc: '아침/점심/저녁/취침전 복약 및 재처방 알림' },
+                    { key: 'routineMvnoDue' as const, title: '모아루틴 알뜰폰 프로모션·약정 D-Day', desc: '특가 종료 및 90일 제한 해제 알림' },
+                    { key: 'routineTaxDeadline' as const, title: '모아루틴 세금계산서 10일 마감 알림', desc: '매월 10일 의무 발급 사전 리마인더' },
+                    { key: 'routineCardSettlement' as const, title: '모아루틴 급여·카드 일괄 정산 알림', desc: '급여일 카드 청구서 대사 및 송금 안내' },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      onClick={() => setNotifyMatrix((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                      className="py-1.5 flex items-center justify-between cursor-pointer group select-none"
+                    >
+                      <div>
+                        <div className="text-xs font-semibold group-hover:text-sky-600 transition-colors">{item.title}</div>
+                        <div className="text-[10px] text-slate-400">{item.desc}</div>
+                      </div>
+                      <ElmChk01
+                        checked={notifyMatrix[item.key]}
+                        onChange={(chk) => setNotifyMatrix((prev) => ({ ...prev, [item.key]: chk }))}
+                        className="min-h-0 py-0 pointer-events-none"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -3743,10 +3829,10 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-indigo-600" />
-                <span>플랫폼 전역 20대 마스터 그룹코드 및 상세코드 풀</span>
+                <span>플랫폼 전역 28대 마스터 그룹코드 및 상세코드 풀</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                장부, 금융, 지출이동, 당번, 목표, 정산 6대 카테고리 20종 그룹코드를 관리합니다.
+                장부, 금융, 지출이동, 당번, 목표, 정산, 모아데이, 모아루틴, 모아부릉 9대 카테고리 28종 그룹코드를 관리합니다.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -3772,18 +3858,18 @@ export const SCR_SYS_01_시스템운영관리: React.FC<{
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
-              {['ALL', '장부', '금융', '지출이동', '모아당번', '모아목표', '정산'].map((cat) => (
+              {['ALL', '장부', '금융', '지출이동', '모아당번', '모아목표', '정산', '모아데이', '모아루틴', '모아부릉'].map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCodeFilterCategory(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     codeFilterCategory === cat
                       ? 'bg-indigo-600 text-white'
                       : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
                   }`}
                 >
-                  {cat === 'ALL' ? '전체 그룹 (20종)' : cat}
+                  {cat === 'ALL' ? '전체 그룹 (28종)' : cat}
                 </button>
               ))}
             </div>
