@@ -8,16 +8,10 @@ import {
 import {
   Wifi,
   WifiOff,
-  Clock,
-  RotateCw,
-  AlertOctagon,
-  CheckCircle2,
   Database,
-  ArrowRight,
   ShieldAlert,
   Plus,
   Trash2,
-  Sparkles,
 } from 'lucide-react';
 import {
   OfflineQueueItem,
@@ -27,15 +21,27 @@ import {
   resolveOfflineConflict,
   clearOfflineQueue,
 } from '../data/offlineQueueStore';
+import {
+  extendOfflineSession,
+  getCachedOfflineSession,
+  hydrateOfflineSessionFromIDB,
+  issueOfflineSession,
+  OFFLINE_SESSION_CHANGED_EVENT,
+  OfflineAuthSession,
+  revokeOfflineSession,
+} from '../data/offlineSessionStore';
+import { OfflineSessionTokenCard } from './auth/OfflineSessionTokenCard';
 
 export interface SCR_OFF_01Props {
   isOffline?: boolean;
   onToggleOffline?: () => void;
+  onGoLogin?: () => void;
 }
 
 export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
   isOffline: externalIsOffline,
   onToggleOffline,
+  onGoLogin,
 }) => {
   const [internalOffline, setInternalOffline] = useState(true);
   const isOffline = externalIsOffline !== undefined ? externalIsOffline : internalOffline;
@@ -43,6 +49,9 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
   const [showStaleModal, setShowStaleModal] = useState(false);
   const [staleConflictItem, setStaleConflictItem] = useState<OfflineQueueItem | null>(null);
   const [pendingQueue, setPendingQueue] = useState<OfflineQueueItem[]>(() => getOfflineQueue());
+  const [cachedSession, setCachedSession] = useState<OfflineAuthSession | null>(() =>
+    getCachedOfflineSession()
+  );
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -56,12 +65,18 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
 
   useEffect(() => {
     refreshQueue();
+    void hydrateOfflineSessionFromIDB().then((sess) => setCachedSession(sess));
     const handleQueueChange = () => {
       refreshQueue();
     };
+    const handleSessionChange = () => {
+      setCachedSession(getCachedOfflineSession());
+    };
     window.addEventListener('moabogo:offline-queue-changed', handleQueueChange);
+    window.addEventListener(OFFLINE_SESSION_CHANGED_EVENT, handleSessionChange);
     return () => {
       window.removeEventListener('moabogo:offline-queue-changed', handleQueueChange);
+      window.removeEventListener(OFFLINE_SESSION_CHANGED_EVENT, handleSessionChange);
     };
   }, []);
 
@@ -137,23 +152,23 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
           <button
             type="button"
             onClick={handleAddGameExpenseMock}
-            className="min-h-[44px] flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-zinc-700 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 active:scale-95"
+            className="min-h-[44px] flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-zinc-700 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
             title="모아게임 오프라인 지출 기안 시뮬레이션 적재"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>게임 지출 큐 적재</span>
           </button>
 
           <button
             type="button"
             onClick={isOffline ? handleReconnectAndSync : handleToggleMode}
-            className={`min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0 active:scale-95 ${
+            className={`min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
               isOffline
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 : 'bg-amber-600 hover:bg-amber-500 text-white'
             }`}
           >
-            {isOffline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+            {isOffline ? <Wifi className="w-4 h-4 shrink-0" /> : <WifiOff className="w-4 h-4 shrink-0" />}
             <span>{isOffline ? '온라인으로 재연결 (동기화 검증)' : '오프라인 모드 시뮬레이션'}</span>
           </button>
         </div>
@@ -166,18 +181,48 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
           <button
             type="button"
             onClick={() => setFeedbackNotice(null)}
-            className="text-indigo-500 hover:text-indigo-700 cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
+            aria-label="알림 닫기"
+            className="text-indigo-500 hover:text-indigo-700 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
           >
             ✕
           </button>
         </aside>
       )}
 
+      {/* Section 2-1: IndexedDB 오프라인 세션 토큰 유지 상태 뷰어 */}
+      <section className="rounded-2xl bg-white dark:bg-[#131B2E] shadow-xs">
+        <OfflineSessionTokenCard
+          mode="VIEWER"
+          isOffline={isOffline}
+          cachedSession={cachedSession}
+          onExtendSession={() => {
+            const updated = extendOfflineSession();
+            setCachedSession(updated);
+            showToast('✓ 오프라인 세션 유효기간이 7일 연장되었습니다.');
+          }}
+          onReissueSession={() => {
+            const issued = issueOfflineSession({
+              email: 'jkok2j2m@gmail.com',
+              nickname: '구본영(호스트)',
+              provider: 'EMAIL',
+            });
+            setCachedSession(issued);
+            showToast(`✓ 오프라인 세션(${issued.maskedToken})이 발급되었습니다.`);
+          }}
+          onRevokeSession={() => {
+            revokeOfflineSession();
+            setCachedSession(null);
+            showToast('오프라인 세션 토큰이 폐기되었습니다.');
+          }}
+          onGoLogin={onGoLogin}
+        />
+      </section>
+
       {/* Section 3: Status Box & Queue List (Flat Peer 3) */}
       <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
               오프라인 로컬 저장소 (IndexedDB / LocalQueue) 대기열
             </h3>
@@ -187,7 +232,8 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
             <button
               type="button"
               onClick={handleResetQueue}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 hover:text-rose-500 text-xs transition-colors cursor-pointer"
+              aria-label="대기열 초기화"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 hover:text-rose-500 text-xs transition-colors cursor-pointer"
               title="대기열 초기화"
             >
               <Trash2 className="w-4 h-4" />
