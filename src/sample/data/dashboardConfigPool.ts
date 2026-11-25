@@ -12,6 +12,7 @@ export type DashboardModuleId =
   | 'goal_widget'
   | 'day_widget'
   | 'routine_widget'
+  | 'car_widget'
   | 'money_balance_widget'
   | 'mypage_widget'
   | 'quick_game'
@@ -90,6 +91,14 @@ export const DEFAULT_MODULES: ModuleConfig[] = [
     detailFeatures: ['설정 ON/OFF 동적 필터링', '12일 미니 스트릭 트래커', '원클릭 오늘 루틴 완료'],
   },
   {
+    id: 'car_widget',
+    enabled: true,
+    title: '모아부릉 내 차 관리',
+    category: '라이프',
+    description: '대표 차량 Odometer · 보험/소모품 D-Day · 당월 유지비 요약',
+    detailFeatures: ['대표차량 주행거리 & 번호판 마스킹', '소모품·보험 D-Day 경보', 'SCR-CAR-01 원클릭 이동'],
+  },
+  {
     id: 'money_balance_widget',
     enabled: true,
     title: '모아머니 가족 대차대조표',
@@ -132,6 +141,7 @@ export const PRESET_ORDER_MAP: Record<DashboardPreset, DashboardModuleId[]> = {
     'goal_widget',
     'day_widget',
     'routine_widget',
+    'car_widget',
     'money_balance_widget',
     'mypage_widget',
     'quick_game',
@@ -143,6 +153,7 @@ export const PRESET_ORDER_MAP: Record<DashboardPreset, DashboardModuleId[]> = {
     'money_balance_widget',
     'mypage_widget',
     'inbound_radar',
+    'car_widget',
     'routine_widget',
     'day_widget',
     'duty_widget',
@@ -153,6 +164,7 @@ export const PRESET_ORDER_MAP: Record<DashboardPreset, DashboardModuleId[]> = {
   LIFE_FIRST: [
     'day_widget',
     'routine_widget',
+    'car_widget',
     'duty_widget',
     'goal_widget',
     'mypage_widget',
@@ -167,6 +179,7 @@ export const PRESET_ORDER_MAP: Record<DashboardPreset, DashboardModuleId[]> = {
     'quick_game',
     'day_widget',
     'routine_widget',
+    'car_widget',
     'inbound_radar',
     'money_balance_widget',
     'mypage_widget',
