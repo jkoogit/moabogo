@@ -328,3 +328,60 @@ export const INITIAL_CAR_SETTINGS: CarUserSettings = {
   auto_reconcile_duplicates: true,
   privacy_mask_plate_number: true,
 };
+
+// 결제수단별 상세 대상 목록 (사용자 피드백 4.c)
+export const PAYMENT_TARGET_DETAILS: Record<string, string[]> = {
+  CREDIT_CARD: ['비씨카드 (끝자리 1234)', '현대카드 ZERO (7789)', '신한카드 플래티넘 (9012)', '국민카드 노리2'],
+  CHECK_CARD: ['카카오뱅크 프렌즈 체크', '토스뱅크 체크카드', '신한 체크카드'],
+  TRANSFER: ['카카오뱅크 (내 대표계좌)', 'KB국민은행 (생활비)', '토스뱅크 파킹통장', '신한은행 주거래'],
+  LOCAL_PAY: ['성남사랑상품권 (모바일)', '경기지역화폐', '서울Pay+ (강남)'],
+  CASH: ['지갑 현금', '차량 보조수납 현금'],
+  OTHER: ['카카오페이 머니', '네이버페이 포인트'],
+};
+
+// 모아데이(SCR-DAY-01) 연계 계획 풀 (이력 등록 시 상호 연결 팝업용)
+export const MOA_DAY_SCHEDULE_POOL = [
+  {
+    schedule_id: 'day-sch-1',
+    date: '2026-11-25',
+    title: '오토큐 정자점 정기점검 및 엔진오일 교환 예약',
+    category: 'CAR' as const,
+    is_completed: false,
+  },
+  {
+    schedule_id: 'day-sch-2',
+    date: '2026-11-24',
+    title: '고속도로 장거리 출장 전 가득 주유 및 자동세차',
+    category: 'CAR' as const,
+    is_completed: true,
+  },
+  {
+    schedule_id: 'day-sch-3',
+    date: '2026-11-23',
+    title: '현대백화점 판교점 쇼핑 및 주차',
+    category: 'CAR' as const,
+    is_completed: true,
+  },
+  {
+    schedule_id: 'day-sch-4',
+    date: '2027-08-07',
+    title: 'DB손해보험 프로미카다이렉트 만기 갱신 D-Day',
+    category: 'CAR' as const,
+    is_completed: false,
+  },
+];
+
+// DB손해보험 실제 증권 샘플 OCR 프리셋 (업로드 증권 4종 반영)
+export const DB_INSURANCE_PRESET = {
+  insurance_company: 'DB손해보험 (프로미카 다이렉트)',
+  insurance_policy_no: '220264437812000',
+  insurance_insured_name: '조정국 (800415-1******)',
+  policy_start_date: '2026-08-07',
+  policy_end_date: '2027-08-07',
+  amount: 453850,
+  emergency_tel: '1588-0100 (프로미카SOS 6회)',
+  insurance_driver_limit: '부부운전자한정 (만 43세 이상)',
+  insurance_department: '인터넷자동차사업부',
+  vendor_name: 'DB손해보험주식회사',
+  summary: '프로미카다이렉트 개인용(프리미어형) 연납',
+};
