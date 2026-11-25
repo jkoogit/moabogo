@@ -235,6 +235,9 @@ export default function App() {
         <SCR_AUT_02_로그인오프라인세션
           onGoHome={() => setCurrentScreen('SCR-GNT-01')}
           onGoSignup={() => setCurrentScreen('SCR-AUT-01')}
+          isOffline={isOffline}
+          onToggleOffline={() => setIsOffline((prev) => !prev)}
+          onOpenOfflineViewer={() => setCurrentScreen('SCR-OFF-01')}
           onSuccessLogin={() => {
             setIsLoggedIn(true);
             setCurrentScreen('SCR-DSH-01');
@@ -250,6 +253,7 @@ export default function App() {
         <SCR_AUT_01_회원가입
           onGoHome={() => setCurrentScreen('SCR-GNT-01')}
           onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
+          isOffline={isOffline}
           onSuccessSignup={() => {
             setIsLoggedIn(true);
             setCurrentScreen('SCR-DSH-01');
@@ -446,6 +450,7 @@ export default function App() {
         <SCR_OFF_01_오프라인동기화
           isOffline={isOffline}
           onToggleOffline={() => setIsOffline((prev) => !prev)}
+          onGoLogin={() => setCurrentScreen('SCR-AUT-02')}
         />
       ),
     },
