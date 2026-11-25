@@ -59,7 +59,12 @@ import {
   ArrowDown,
   SlidersHorizontal,
   RefreshCw,
+  Car,
+  Calendar,
+  Layers,
 } from 'lucide-react';
+import { DuplicateExpenseReconcileModal } from './car/DuplicateExpenseReconcileModal';
+import { INITIAL_DUPLICATE_CANDIDATES } from './car/carMockData';
 import {
   ModuleConfig,
   DashboardModuleId,
@@ -141,6 +146,20 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('THEME');
   const [saveToast, setSaveToast] = useState(false);
+
+  // 6.7 모아부릉(SCR-CAR-01) 자동차 설정 & 중복지출 정리 관리
+  const [carSettings, setCarSettings] = useState(() => ({
+    sync_to_day_targets: ['INSURANCE', 'LEGAL_INSPECTION'] as (
+      | 'INSURANCE'
+      | 'LEGAL_INSPECTION'
+      | 'CONSUMABLES'
+      | 'PARKING_PASS'
+    )[],
+    auto_reconcile_duplicates: true,
+    privacy_mask_plate_number: true,
+  }));
+  const [isCarReconcileModalOpen, setIsCarReconcileModalOpen] = useState(false);
+  const [duplicateCandidates, setDuplicateCandidates] = useState(INITIAL_DUPLICATE_CANDIDATES);
 
   // 6.0 시스템 전역 거버넌스 정책 연동 (SSOT: systemGovernancePool)
   const [financialCompliance] = useState(() => loadFinancialCompliance());
@@ -898,6 +917,7 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           <div className="flex items-center min-w-max border-b border-slate-200 dark:border-zinc-800">
             {[
               { id: 'THEME', label: '화면 테마' },
+              { id: 'CAR', label: '모아부릉(차량)' },
               { id: 'ROUTINE', label: '모아루틴 플러그인' },
               { id: 'STORE', label: '게임프리셋' },
               { id: 'EXT_ACCOUNT', label: '거래계좌' },
@@ -1055,6 +1075,100 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
               <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
                 운영체제(OS)의 다크/라이트 모드 설정에 자동 동기화
               </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Tab: 모아부릉(SCR-CAR-01) 자동차 일상관리 및 중복지출 정리 설정 */}
+      {activeTab === 'CAR' && (
+        <section className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-zinc-800 shadow-xs space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+              <Car className="w-4 h-4 text-emerald-600" />
+              <span>모아부릉(SCR-CAR-01) 자동차 관리 및 중복지출 연동 설정</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              전역 캘린더(모아데이) 자동 투영 대상 필터링 및 지출일자·결제수단·금액 기준 중복지출을 수동으로 정리합니다.
+            </p>
+          </div>
+
+          {/* 1. 모아데이(SCR-DAY-01) 전역 캘린더 연동 대상 설정 (사용자 요구사항 1) */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-[#0E131F] space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-zinc-100">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <span>모아데이 전역 캘린더 연동 대상 관리</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+              체크된 대상만 모아데이 전역 일정에 자동으로 등록되며, 불필요한 알림 피로도를 방지합니다.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {[
+                { id: 'INSURANCE' as const, label: '자동차보험 만기 갱신 D-Day', desc: '만기 30일/7일 전 캘린더 알림 투영' },
+                { id: 'LEGAL_INSPECTION' as const, label: '한국교통안전공단 정기종합검사', desc: '검사 만료 전 예약 일정 투영' },
+                { id: 'CONSUMABLES' as const, label: '소모품(엔진오일/필터) 교체 도래', desc: '주행거리/기간 만료 임박 투영' },
+                { id: 'PARKING_PASS' as const, label: '월 정기주차권 갱신일', desc: '매월 정기결제 갱신 일정 투영' },
+              ].map((item) => {
+                const isChecked = carSettings.sync_to_day_targets.includes(item.id);
+                return (
+                  <label
+                    key={item.id}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      isChecked
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20'
+                        : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...carSettings.sync_to_day_targets, item.id]
+                          : carSettings.sync_to_day_targets.filter((t) => t !== item.id);
+                        setCarSettings((prev) => ({ ...prev, sync_to_day_targets: next }));
+                      }}
+                      className="w-4 h-4 text-emerald-600 rounded mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 block">
+                        {item.label}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        {item.desc}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. 중복지출 정리 기능 (사용자 요구사항 3) */}
+          <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                <Layers className="w-4 h-4 text-amber-600" />
+                <span>중복지출 정리 센터 (원자성 유지 프로세스)</span>
+              </div>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                대기 {duplicateCandidates.filter((d) => !d.is_resolved).length}건
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-800/80 dark:text-amber-300 leading-relaxed">
+              • <strong>검토 프로세스</strong>: 지출내용 작성 ➔ 카드명세서 등록 ➔ 자동차이력 등록 시 동일한 지출일자, 결제수단, 금액 기준의 항목을 교차 검토합니다.
+              <br />
+              • 모아부릉 이력과 가계부 지출이 중복 집계되지 않도록 수동으로 1건으로 안전하게 병합하거나 개별 지출로 유지할 수 있습니다.
+            </p>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setIsCarReconcileModalOpen(true)}
+                className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-all shadow-2xs flex items-center gap-1.5"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>중복지출 정리 센터 열기</span>
+              </button>
             </div>
           </div>
         </section>
@@ -3775,6 +3889,28 @@ export const SCR_SET_01_사용자설정: React.FC = () => {
           saveUserStorePreference(nextPref);
           setIsStoreExcelModalOpen(false);
         }}
+      />
+
+      {/* 모아부릉 중복지출 정리 모달 (사용자 설정) */}
+      <DuplicateExpenseReconcileModal
+        isOpen={isCarReconcileModalOpen}
+        onClose={() => setIsCarReconcileModalOpen(false)}
+        duplicates={duplicateCandidates}
+        onResolveDuplicate={(candidateId, resolution, primaryEntryId) => {
+          setDuplicateCandidates((prev) =>
+            prev.map((d) =>
+              d.candidate_id === candidateId
+                ? {
+                    ...d,
+                    is_resolved: true,
+                    resolution_type: resolution,
+                    primary_entry_id: primaryEntryId,
+                  }
+                : d
+            )
+          );
+        }}
+        isDark={theme === 'dark' || theme === 'dawn'}
       />
     </div>
   );
