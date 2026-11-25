@@ -198,7 +198,7 @@ export function useMoaCar() {
     [logs, duplicates]
   );
 
-  // 6. 6대 이력 신규 등록 (가계부 1:1 연동 & 모아데이 사용자설정 반영)
+  // 6. 6대 이력 신규 등록 (가계부 1:1 연동 & 모아데이 사용자설정 및 계획 연동)
   const addVehicleLog = useCallback(
     (params: {
       log_type: VehicleLogType;
@@ -212,6 +212,8 @@ export function useMoaCar() {
       meta?: VehicleLog['meta'];
       auto_ledger_booking: boolean;
       force_sync_to_day?: boolean;
+      linked_day_schedule_id?: string;
+      linked_day_schedule_title?: string;
     }) => {
       const logId = `log-${Date.now()}`;
       const isDuplicate = detectDuplicateSuspect(params.occurred_at, params.payment_method, params.amount);
@@ -225,6 +227,17 @@ export function useMoaCar() {
       const allowedBySettings = shouldSyncToDay(params.log_type);
       const syncToDay = params.force_sync_to_day !== undefined ? params.force_sync_to_day : allowedBySettings;
 
+      // 주유 시 세차 추가 부가정보가 포함된 경우 연계 세차 ID 사전 생성
+      const washLogId =
+        params.log_type === 'FUEL' && params.meta?.add_wash_included
+          ? `log-wash-${Date.now() + 1}`
+          : undefined;
+
+      const meta: VehicleLog['meta'] = {
+        ...(params.meta || {}),
+        linked_wash_log_id: washLogId,
+      };
+
       const newLog: VehicleLog = {
         log_id: logId,
         vehicle_id: selectedVehicleId,
@@ -237,14 +250,41 @@ export function useMoaCar() {
         vendor_name: params.vendor_name,
         summary: params.summary,
         detail_memo: params.detail_memo,
-        meta: params.meta || {},
-        linked_expense_id: params.auto_ledger_booking ? `exp-car-${Date.now()}` : undefined,
+        meta,
+        linked_expense_id: `exp-car-${Date.now()}`, // 시스템 1:1 보장
         sync_to_day: syncToDay,
+        linked_day_schedule_id: params.linked_day_schedule_id,
+        linked_day_schedule_title: params.linked_day_schedule_title,
         is_duplicate_suspected: isDuplicate,
         created_at: new Date().toISOString(),
       };
 
-      setLogs((prev) => [newLog, ...prev]);
+      // 주유 시 세차가 추가된 경우 연계 세차 이력 동시 생성 (사용자 피드백 4.e)
+      const newLogs: VehicleLog[] = [newLog];
+      if (washLogId && params.meta?.add_wash_included) {
+        newLogs.push({
+          log_id: washLogId,
+          vehicle_id: selectedVehicleId,
+          user_id: 'user-1',
+          log_type: 'WASH',
+          occurred_at: params.occurred_at,
+          odometer_km: params.odometer_km,
+          amount: params.meta.add_wash_amount || 3000,
+          payment_method: params.payment_method,
+          vendor_name: `${params.vendor_name} (자동세차)`,
+          summary: '자동세차 (주유 연계)',
+          detail_memo: `${params.vendor_name} 주유 시 자동세차 추가 영수증 연동`,
+          meta: {
+            wash_type: 'AUTOMATIC',
+            linked_fuel_log_id: logId,
+          },
+          linked_expense_id: `exp-wash-${Date.now() + 1}`,
+          sync_to_day: false,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      setLogs((prev) => [...newLogs, ...prev]);
 
       // 중복 의심 감지 시 후보 목록에 자동 등록
       if (isDuplicate) {

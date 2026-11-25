@@ -22,26 +22,43 @@ export type VehicleLogType = 'FUEL' | 'INSPECTION' | 'REPAIR' | 'WASH' | 'INSURA
 export type PaymentMethodType = 'CREDIT_CARD' | 'CHECK_CARD' | 'CASH' | 'TRANSFER' | 'LOCAL_PAY' | 'OTHER';
 
 export interface VehicleLogMeta {
+  // 결제수단 상세 대상 (카드사/계좌명/지역화폐유형)
+  payment_target_detail?: string;
   // FUEL
   unit_price?: number;
   volume_liters?: number;
   is_full_tank?: boolean;
   calc_efficiency_km_per_l?: number;
+  add_wash_included?: boolean;
+  add_wash_amount?: number;
+  linked_wash_log_id?: string; // 주유 연계 세차 이력 ID
   // INSPECTION / REPAIR
   parts_replaced?: string[];
   warranty_until?: string;
+  warning_lights_detected?: string[]; // 점검 경고등 (공기압, 워셔액 등)
+  inspection_items?: string[]; // 카테고리별 점검/이상 항목 목록
+  repair_plan_schedule_title?: string; // 등록된 모아데이 수리 계획명
+  linked_repair_log_id?: string; // 점검 ➔ 수리 조치 연계 ID
   // WASH
   wash_type?: 'SELF' | 'AUTOMATIC' | 'HAND' | 'DETAILING';
-  // INSURANCE
+  linked_fuel_log_id?: string; // 세차 연계 주유 이력 ID
+  // INSURANCE (DB손해보험 등 실전 증권 OCR 항목)
   insurance_company?: string;
+  insurance_policy_no?: string;
+  insurance_insured_name?: string;
+  insurance_driver_limit?: string;
+  insurance_department?: string;
   policy_start_date?: string;
   policy_end_date?: string;
   emergency_tel?: string;
+  sync_month_before_alarm?: boolean; // 만기 1개월 전 알림 자동등록
   // PARKING
   parking_zone?: string; // 예: 지하 3층 G-12 기둥
   is_monthly_pass?: boolean;
+  entry_time?: string; // 입차 시간 (10분/30분 증감)
   exit_time?: string;
-  // 기타 공통
+  // 첨부 증빙 파일 목록 (다중 슬라이드/확대 미리보기)
+  photo_urls?: string[];
   photo_proof_url?: string;
 }
 
@@ -59,7 +76,9 @@ export interface VehicleLog {
   detail_memo?: string;
   meta: VehicleLogMeta;
   linked_expense_id?: string; // SCR-LED-01 1:1 매핑 ID (이중계상 차단)
-  sync_to_day?: boolean; // 모아데이 캘린더 등록 여부 (사용자 설정 대상만 반영)
+  sync_to_day?: boolean; // 모아데이 캘린더 등록 여부
+  linked_day_schedule_id?: string; // 모아데이 상호 연결 계획 ID
+  linked_day_schedule_title?: string; // 모아데이 상호 연결 계획 일정명
   is_duplicate_suspected?: boolean; // 지출일자+수단+금액 동일 의심 플래그
   linked_primary_source_id?: string; // 다른 지출이 원본인 경우 해당 원본 ID (사본 표시용)
   linked_replica_entries?: {
@@ -69,6 +88,15 @@ export interface VehicleLog {
     description: string;
   }[]; // 이 건이 원본이고 연결된 사본 지출 목록
   created_at: string;
+}
+
+// 모아데이 상호 연결 대상 계획 모델
+export interface MoaDayScheduleCandidate {
+  schedule_id: string;
+  date: string;
+  title: string;
+  category: 'CAR' | 'LIFESTYLE' | 'FINANCE';
+  is_completed: boolean;
 }
 
 export type MaintenanceFsmStatus = 'SAFE' | 'CHECK_SOON' | 'IMMINENT' | 'URGENT' | 'OVERDUE';
