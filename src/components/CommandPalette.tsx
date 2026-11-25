@@ -14,10 +14,15 @@ import {
   Wifi,
   WifiOff,
   KeyRound,
-  X,
   Sun,
   Moon,
   Monitor,
+  Calendar,
+  Repeat,
+  Scale,
+  UserCheck,
+  Target,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -33,6 +38,8 @@ interface CommandPaletteProps {
   isOffline: boolean;
   onOpenSettings: () => void;
   onOpenSampleGallery?: () => void;
+  onNavigateScreen?: (screenId: string) => void;
+  onOpenDashboardCustomize?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -48,6 +55,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOffline,
   onOpenSettings,
   onOpenSampleGallery,
+  onNavigateScreen,
+  onOpenDashboardCustomize,
 }) => {
   const { setTheme } = useTheme();
   const [query, setQuery] = useState('');
@@ -129,6 +138,74 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         onSelectTab('LOANS');
       },
     },
+    ...(onNavigateScreen
+      ? [
+          {
+            id: 'nav-day',
+            icon: Calendar,
+            label: '모아데이: 전역 일정 허브 & 스마트 다이어리 (SCR-DAY-01)',
+            category: '신규 라이프 허브',
+            run: () => {
+              onClose();
+              onNavigateScreen('SCR-DAY-01');
+            },
+          },
+          {
+            id: 'nav-routine',
+            icon: Repeat,
+            label: '모아루틴: 4대 루틴·스트릭 & 자산이동 연동 (SCR-ROU-01)',
+            category: '신규 라이프 허브',
+            run: () => {
+              onClose();
+              onNavigateScreen('SCR-ROU-01');
+            },
+          },
+          {
+            id: 'nav-money',
+            icon: Scale,
+            label: '모아머니: 가족 간 대차대조표 & 1초 송금 (SCR-MON-01)',
+            category: '신규 라이프 허브',
+            run: () => {
+              onClose();
+              onNavigateScreen('SCR-MON-01');
+            },
+          },
+          {
+            id: 'nav-mypage',
+            icon: UserCheck,
+            label: '마이페이지: 개인 프로필 & 대표 송금계좌 (SCR-MYP-01)',
+            category: '신규 라이프 허브',
+            run: () => {
+              onClose();
+              onNavigateScreen('SCR-MYP-01');
+            },
+          },
+          {
+            id: 'nav-goal',
+            icon: Target,
+            label: '모아목표: 동행원 챌린지 관리 (SCR-GOL-01)',
+            category: '모아 3종 라이프',
+            run: () => {
+              onClose();
+              onNavigateScreen('SCR-GOL-01');
+            },
+          },
+        ]
+      : []),
+    ...(onOpenDashboardCustomize
+      ? [
+          {
+            id: 'dsh-customize',
+            icon: SlidersHorizontal,
+            label: '대시보드: 벤토 위젯 배치 · 숨김 스위처 열기',
+            category: '대시보드 설정',
+            run: () => {
+              onClose();
+              onOpenDashboardCustomize();
+            },
+          },
+        ]
+      : []),
     {
       id: 'offline-toggle',
       icon: isOffline ? Wifi : WifiOff,
@@ -247,15 +324,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={action.id}
                     onClick={action.run}
-                    className="w-full flex items-center justify-between p-2 rounded-xl text-left text-xs hover:bg-slate-800 text-slate-200 transition-colors"
+                    className="w-full min-h-[44px] flex items-center justify-between gap-2 p-2 rounded-xl text-left text-xs hover:bg-slate-800 text-slate-200 transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-blue-400">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-blue-400 shrink-0">
                         <Icon className="w-4 h-4" />
                       </div>
-                      <span className="font-medium">{action.label}</span>
+                      <span className="font-medium truncate">{action.label}</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-mono">실행</span>
+                    <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap shrink-0">실행</span>
                   </button>
                 );
               })}

@@ -32,7 +32,6 @@ import {
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
-  RotateCcw,
   BookOpen,
   Book,
   ArrowUpDown,
@@ -61,6 +60,21 @@ import { SCR_QCK_01_빠른머니등록 } from './SCR_QCK_01_빠른머니등록';
 import { SCR_QCK_02_빠른수행등록 } from './SCR_QCK_02_빠른수행등록';
 import { NewLedgerModal } from '../../components/NewLedgerModal';
 import {
+  DashboardModuleId,
+  DashboardPreset,
+  ModuleConfig,
+  DEFAULT_MODULES,
+  STORAGE_KEY,
+  loadDashboardModules,
+  loadDashboardPreset,
+  saveDashboardModules,
+  saveDashboardPreset,
+  applyDashboardPreset,
+} from '../data/dashboardConfigPool';
+import { DayBentoCard, RoutineBentoCard } from './dashboard/BentoLifeServiceCards';
+import { MoneyBalanceBentoCard, MyPageBentoCard } from './dashboard/BentoFinanceProfileCards';
+import { DashboardCustomizeSheet } from './dashboard/DashboardCustomizeSheet';
+import {
   loadUserPersonalLadderPresets,
   loadUserPersonalRoulettePresets,
   UserLadderPreset,
@@ -72,30 +86,9 @@ import {
 } from '../data/systemGovernancePool';
 
 // ============================================================================
-// Types & Module Identifiers (AGENTS.md & PRD UC-04 사양 준수)
+// Types & Module Identifiers (SSOT: dashboardConfigPool.ts 재노출)
 // ============================================================================
-export type DashboardModuleId =
-  | 'bookshelf' // 📚 가계부 책꽂이 (Bookshelf & Deck - 카드/리스트 듀얼 뷰)
-  | 'inbound_radar' // 💰 요청된 머니 (따뜻한 웜 앰버 골드 톤 & 송금 딥링크 마감)
-  | 'financial_brief' // 💳 종합 자산 & 순수 생활비 현황 (자산이체 분리집계)
-  | 'duty_widget' // ⚡ 모아당번 (직교 3상태머신 & 원클릭 승인/인증)
-  | 'goal_widget' // 🎯 모아목표 (동행원/관람원 & 오늘 체크인)
-  | 'quick_game' // 🎮 게임·정산 퀵런처 (로그인 사용자 맞춤 프리셋 관리)
-  | 'activity_feed'; // ⏱️ 서비스 전체 최근 활동 이력 (통합 타임라인)
-
-export type DashboardPreset =
-  | 'DEFAULT' // 밸런스 균형형
-  | 'FINANCE_FIRST' // 가계부·자산 집중형
-  | 'LIFE_FIRST' // 일상·당번 집중형
-  | 'QUICK_GAME'; // 게임·정산 중심형
-
-export interface ModuleConfig {
-  id: DashboardModuleId;
-  enabled: boolean;
-  title: string;
-  category: '가계부' | '요청머니' | '일상' | '게임' | '활동이력';
-  description: string;
-}
+export type { DashboardModuleId, DashboardPreset, ModuleConfig };
 
 export interface InboundRequestItem {
   id: string;
@@ -146,99 +139,6 @@ export interface ActivityItem {
   amount?: number;
 }
 
-const DEFAULT_MODULES: ModuleConfig[] = [
-  {
-    id: 'bookshelf',
-    enabled: true,
-    title: '가계부 책꽂이 (Bookshelf)',
-    category: '가계부',
-    description: '관리 중인 개인/그룹/인스턴스 가계부 덱 및 카드/목록 전환',
-  },
-  {
-    id: 'inbound_radar',
-    enabled: true,
-    title: '요청된 머니 (Inbound Money)',
-    category: '요청머니',
-    description: '도착한 모임 정산 및 용돈 지급 요청 모니터링 & 간편 송금',
-  },
-  {
-    id: 'financial_brief',
-    enabled: true,
-    title: '가계부 금융 & 순수 생활비 브리핑',
-    category: '가계부',
-    description: '현재 활성 가계부의 순수 생활비(자산이동 분리) 및 예산 소진율',
-  },
-  {
-    id: 'duty_widget',
-    enabled: true,
-    title: '모아당번 일상 위젯',
-    category: '일상',
-    description: '직교 3상태머신 기반 당번 과업 및 대신수행 즉시 승인',
-  },
-  {
-    id: 'goal_widget',
-    enabled: true,
-    title: '모아목표 일상 위젯',
-    category: '일상',
-    description: '동행원/관람원 챌린지 및 오늘 걸음수/저축 1초 체크인',
-  },
-  {
-    id: 'quick_game',
-    enabled: true,
-    title: '게임·정산 즉시실행 퀵런처',
-    category: '게임',
-    description: '로그인 사용자 전용 프리셋(사다리/룰렛) 원클릭 즉시 플레이',
-  },
-  {
-    id: 'activity_feed',
-    enabled: true,
-    title: '활동이력',
-    category: '활동이력',
-    description: '가계부·머니·당번·목표·게임 실시간 통합 타임라인 피드',
-  },
-];
-
-const PRESET_ORDER_MAP: Record<DashboardPreset, DashboardModuleId[]> = {
-  DEFAULT: [
-    'bookshelf',
-    'inbound_radar',
-    'financial_brief',
-    'duty_widget',
-    'goal_widget',
-    'quick_game',
-    'activity_feed',
-  ],
-  FINANCE_FIRST: [
-    'bookshelf',
-    'financial_brief',
-    'inbound_radar',
-    'activity_feed',
-    'duty_widget',
-    'goal_widget',
-    'quick_game',
-  ],
-  LIFE_FIRST: [
-    'duty_widget',
-    'goal_widget',
-    'inbound_radar',
-    'bookshelf',
-    'financial_brief',
-    'quick_game',
-    'activity_feed',
-  ],
-  QUICK_GAME: [
-    'quick_game',
-    'activity_feed',
-    'inbound_radar',
-    'bookshelf',
-    'financial_brief',
-    'duty_widget',
-    'goal_widget',
-  ],
-};
-
-const STORAGE_KEY = 'moabogo_dashboard_config_v3';
-
 // ============================================================================
 // Component
 // ============================================================================
@@ -286,23 +186,27 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark' || resolvedTheme === 'dawn';
 
-  // 1. 대시보드 개인화 모듈 및 프리셋 상태 (localStorage 영속화)
-  const [currentPreset, setCurrentPreset] = useState<DashboardPreset>('DEFAULT');
-  const [modules, setModules] = useState<ModuleConfig[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.modules)) return parsed.modules;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_MODULES;
-  });
+  // 1. 대시보드 개인화 모듈 및 프리셋 상태 (SSOT: dashboardConfigPool 실시간 동기화)
+  const [currentPreset, setCurrentPreset] = useState<DashboardPreset>(() => loadDashboardPreset());
+  const [modules, setModules] = useState<ModuleConfig[]>(() => loadDashboardModules());
 
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [floatingToast, setFloatingToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncDashboardModules = () => {
+      setModules(loadDashboardModules());
+      setCurrentPreset(loadDashboardPreset());
+    };
+    const openCustomizeFromCommand = () => setIsCustomizeOpen(true);
+
+    window.addEventListener('moabogo_dashboard_config_updated', syncDashboardModules);
+    window.addEventListener('moabogo_open_dashboard_customize', openCustomizeFromCommand);
+    return () => {
+      window.removeEventListener('moabogo_dashboard_config_updated', syncDashboardModules);
+      window.removeEventListener('moabogo_open_dashboard_customize', openCustomizeFromCommand);
+    };
+  }, []);
 
   // ExtendedLedgerInfo -> LedgerBook 어댑터 (장부책장 카툰 북 스택 1:1 동일 렌더링용, 요청 2번)
   const asLedgerBook = (item: ExtendedLedgerInfo): LedgerBook => ({
@@ -1048,39 +952,49 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
     }, 1400);
   };
 
-  // 프리셋 적용
+  // 프리셋 적용 (SSOT 동기화)
   const applyPreset = (preset: DashboardPreset) => {
     setCurrentPreset(preset);
-    const order = PRESET_ORDER_MAP[preset];
+    saveDashboardPreset(preset);
     setModules((prev) => {
-      const copy = [...prev];
-      copy.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-      return copy;
+      const updated = applyDashboardPreset(preset, prev);
+      saveDashboardModules(updated);
+      return updated;
     });
     showToast(`✓ [${preset}] 대시보드 배치 프리셋이 적용되었습니다.`);
   };
 
-  // 모듈 On/Off 토글
+  // 모듈 On/Off 토글 (SSOT 동기화)
   const toggleModule = (id: DashboardModuleId) => {
-    setModules((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m))
-    );
+    setModules((prev) => {
+      const updated = prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m));
+      saveDashboardModules(updated);
+      return updated;
+    });
   };
 
-  // 모듈 순서 이동
+  // 모듈 순서 이동 (SSOT 동기화)
   const moveModule = (idx: number, direction: 'UP' | 'DOWN') => {
     const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= modules.length) return;
-    const copy = [...modules];
-    const temp = copy[idx];
-    copy[idx] = copy[targetIdx];
-    copy[targetIdx] = temp;
-    setModules(copy);
+    setModules((prev) => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      saveDashboardModules(copy);
+      return copy;
+    });
   };
 
-  // 모듈 사용 가능 여부 확인
+  // 모듈 사용 가능 여부 및 배치 순서 조회
   const isEnabled = (id: DashboardModuleId) => {
     return modules.find((m) => m.id === id)?.enabled ?? true;
+  };
+
+  const getModuleOrder = (id: DashboardModuleId) => {
+    const idx = modules.findIndex((m) => m.id === id);
+    return idx >= 0 ? idx + 1 : 99;
   };
 
   // 대기 중인 요청 머니 집계
@@ -1106,25 +1020,35 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           badge="SCR-DSH-01"
           subtitle={`${activeLedgerData.ledger.ledger_name} • 맞춤 적응형 벤토 허브`}
           actions={
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
               <button
                 type="button"
                 onClick={() => onNavigate && onNavigate('SCR-DAY-01')}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                 title="모아데이 전역 일정 허브 & 스마트 다이어리 바로가기"
               >
-                <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="hidden sm:inline">모아데이</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('SCR-MYP-01')}
+                className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors bg-sky-50 dark:bg-sky-950/50 border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                title="마이페이지 & 개인 프로필 허브 바로가기"
+              >
+                <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                <span className="hidden sm:inline">마이페이지</span>
               </button>
 
               {onOpenCommand && (
                 <button
                   type="button"
                   onClick={onOpenCommand}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                  className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                   title="검색 및 명령어 바 열기 (⌘K)"
                 >
-                  <Search className="w-4 h-4 text-slate-400" />
+                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
                   <span className="hidden md:inline">검색 / 명령</span>
                   <kbd className="hidden sm:inline font-mono text-[10px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
                     ⌘K
@@ -1135,7 +1059,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               <button
                 type="button"
                 onClick={() => setIsCustomizeOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs whitespace-nowrap shrink-0"
+                className="min-h-[44px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 cursor-pointer text-xs font-semibold shadow-2xs whitespace-nowrap shrink-0"
                 title="대시보드 위젯 및 배치 설정"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-500 shrink-0" />
@@ -1145,7 +1069,7 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
               <button
                 type="button"
                 onClick={() => onNavigate && onNavigate('SCR-SET-01')}
-                className="p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border transition-colors bg-white dark:bg-zinc-800/80 border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-2xs shrink-0"
                 title="사용자 환경설정"
               >
                 <Settings className="w-4 h-4" />
@@ -1172,11 +1096,16 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
       )}
 
       {/* ===================================================================
+          UNIFIED BENTO GRID: 11대 모듈 통합 적응형 그리드 (사용자 설정 순서 실시간 반영)
+          =================================================================== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ===================================================================
           MODULE 1: 📚 가계부 책꽂이 (Bookshelf & Deck - 카드/리스트 듀얼 뷰)
           =================================================================== */}
       {isEnabled('bookshelf') && (
         <section
-          className={`p-4 sm:p-5 rounded-2xl border shadow-xs transition-colors ${
+          style={{ order: getModuleOrder('bookshelf') }}
+          className={`col-span-full p-4 sm:p-5 rounded-2xl border shadow-xs transition-colors ${
             resolvedTheme === 'dawn'
               ? 'bg-[#0d1838] border-[#1e3a6d]'
               : isDark
@@ -1721,7 +1650,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           =================================================================== */}
       {isEnabled('inbound_radar') && (
         <section
-          className={`p-4 sm:p-5 rounded-2xl border shadow-xs transition-colors ${
+          style={{ order: getModuleOrder('inbound_radar') }}
+          className={`col-span-full p-4 sm:p-5 rounded-2xl border shadow-xs transition-colors ${
             resolvedTheme === 'dawn'
               ? 'bg-[#0d1838] border-[#1e3a6d]'
               : isDark
@@ -1953,16 +1883,13 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
     </section>
       )}
 
-      {/* ===================================================================
-          BENTO GRID: 3-Col / 4-Col Adaptive Auto-Reflow Layout
-          =================================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* =================================================================
             MODULE 3: 💳 종합 자산 & 순수 생활비 현황 (2-Col Span)
             ================================================================= */}
         {isEnabled('financial_brief') && (
           <div
-            className={`lg:col-span-2 p-3.5 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
+            style={{ order: getModuleOrder('financial_brief') }}
+            className={`md:col-span-2 lg:col-span-2 p-3.5 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -2120,7 +2047,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             ================================================================= */}
         {isEnabled('duty_widget') && (
           <div
-            className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
+            style={{ order: getModuleOrder('duty_widget') }}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -2278,7 +2206,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
             ================================================================= */}
         {isEnabled('goal_widget') && (
           <div
-            className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
+            style={{ order: getModuleOrder('goal_widget') }}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-indigo-400/50 ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -2450,11 +2379,52 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         )}
 
         {/* =================================================================
+            MODULE 5-1 ~ 5-4: 신규 서비스 4종 벤토 카드 (모아데이/모아루틴/모아머니 대차대조표/마이페이지)
+            ================================================================= */}
+        {isEnabled('day_widget') && (
+          <DayBentoCard
+            resolvedTheme={resolvedTheme}
+            orderStyle={{ order: getModuleOrder('day_widget') }}
+            onNavigate={onNavigate}
+          />
+        )}
+
+        {isEnabled('routine_widget') && (
+          <RoutineBentoCard
+            resolvedTheme={resolvedTheme}
+            orderStyle={{ order: getModuleOrder('routine_widget') }}
+            onNavigate={onNavigate}
+            onNotify={showToast}
+          />
+        )}
+
+        {isEnabled('money_balance_widget') && (
+          <MoneyBalanceBentoCard
+            resolvedTheme={resolvedTheme}
+            orderStyle={{ order: getModuleOrder('money_balance_widget') }}
+            pendingCount={pendingInbounds.length}
+            pendingAmount={totalPendingInboundAmount}
+            onNavigate={onNavigate}
+          />
+        )}
+
+        {isEnabled('mypage_widget') && (
+          <MyPageBentoCard
+            resolvedTheme={resolvedTheme}
+            orderStyle={{ order: getModuleOrder('mypage_widget') }}
+            ledgerCount={extendedLedgers.length}
+            onNavigate={onNavigate}
+            onNotify={(msg) => setFloatingToast(msg)}
+          />
+        )}
+
+        {/* =================================================================
             MODULE 6: 🎮 게임·정산 퀵런처 (2-Col Span - 로그인 전용 프리셋 관리)
             ================================================================= */}
         {isEnabled('quick_game') && (
           <div
-            className={`lg:col-span-2 p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-purple-400/50 ${
+            style={{ order: getModuleOrder('quick_game') }}
+            className={`md:col-span-2 lg:col-span-2 p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-purple-400/50 ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -2696,7 +2666,6 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
         </div>
       </div>
     )}
-  </div>
 
       {/* ===================================================================
           MODULE 7: ⏱️ 활동이력 (Activity Feed - 요청 3번: 목록/카드 뷰어, 5/10/20건, 페이징/5줄 스크롤)
@@ -2710,7 +2679,8 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
 
         return (
           <section
-            className={`p-5 rounded-2xl border shadow-xs space-y-3.5 transition-colors ${
+            style={{ order: getModuleOrder('activity_feed') }}
+            className={`col-span-full p-4 sm:p-5 rounded-2xl border shadow-xs space-y-3.5 transition-colors ${
               resolvedTheme === 'dawn'
                 ? 'bg-[#0d1838] border-[#1e3a6d]'
                 : isDark
@@ -3025,174 +2995,43 @@ export const SCR_DSH_01_로그인메인대시보드: React.FC<{
           </section>
         );
       })()}
+      </div>
 
       {/* ===================================================================
           MODALS & DRAWERS
           =================================================================== */}
 
-      {/* 1. 대시보드 커스터마이징 모달 */}
-      {isCustomizeOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  대시보드 위젯 및 배치 설정
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCustomizeOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* 프리셋 버튼 (추천 프리셋, 요청 3-a-ii) */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400">
-                추천 프리셋
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'DEFAULT', label: '균형형' },
-                  { id: 'FINANCE_FIRST', label: '가계부 집중' },
-                  { id: 'LIFE_FIRST', label: '일상·당번' },
-                  { id: 'QUICK_GAME', label: '게임·정산' },
-                ].map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => applyPreset(p.id as DashboardPreset)}
-                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                      currentPreset === p.id
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-slate-50 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 상세설정 (위젯 On/Off 체크박스 및 노출 순서, 요청 1-c, 1-d, 1-e) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
-                    상세설정
-                  </label>
-                  {/* 전체항목 체크박스 (요청 1-c) */}
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-zinc-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modules.length > 0 && modules.every((m) => m.enabled)}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setModules((prev) => prev.map((m) => ({ ...m, enabled: checked })));
-                      }}
-                      className="w-3.5 h-3.5 rounded border-slate-300 dark:border-zinc-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                    />
-                    <span>전체</span>
-                  </label>
-                  {/* 초기화 아이콘 (요청 1-d) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModules(DEFAULT_MODULES);
-                      setCurrentPreset('DEFAULT');
-                      localStorage.removeItem(STORAGE_KEY);
-                      setFloatingToast('대시보드 배치가 기본값으로 초기화되었습니다.');
-                    }}
-                    className="p-1 rounded-md text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                    title="대시보드 배치 초기화"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  체크박스로 위젯 노출 제어
-                </span>
-              </div>
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                {modules.map((m, idx) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-850/50"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* 체크박스 단독 제어 (눈 아이콘 제거, 요청 1-e) */}
-                      <input
-                        type="checkbox"
-                        id={`widget-chk-${m.id}`}
-                        checked={m.enabled}
-                        onChange={() => toggleModule(m.id)}
-                        className="w-4 h-4 rounded border-slate-300 dark:border-zinc-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
-                      />
-                      <label htmlFor={`widget-chk-${m.id}`} className="cursor-pointer min-w-0">
-                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {m.title}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate">{m.description}</div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => moveModule(idx, 'UP')}
-                        disabled={idx === 0}
-                        className="p-1 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 cursor-pointer"
-                        title="위로 이동"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveModule(idx, 'DOWN')}
-                        disabled={idx === modules.length - 1}
-                        className="p-1 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 cursor-pointer"
-                        title="아래로 이동"
-                      >
-                        ▼
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end items-center gap-2">
-              {/* 저장완료 버튼 옆 '닫기' 버튼 (요청 1-b) */}
-              <button
-                type="button"
-                onClick={() => setIsCustomizeOpen(false)}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700 cursor-pointer transition-colors"
-              >
-                닫기
-              </button>
-              {/* 저장 완료 및 플로팅 팝업 표시 (요청 1-a) */}
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem(
-                    STORAGE_KEY,
-                    JSON.stringify({ preset: currentPreset, modules })
-                  );
-                  setIsCustomizeOpen(false);
-                  setFloatingToast('✓ 대시보드 위젯 및 배치 설정이 영속 저장되었습니다.');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer shadow-xs transition-colors"
-              >
-                저장 완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 1. 대시보드 개인화 위젯 배치/숨김 스위처 (ElmBsh01 고정 3분할 바텀시트) */}
+      <DashboardCustomizeSheet
+        isOpen={isCustomizeOpen}
+        onClose={() => setIsCustomizeOpen(false)}
+        modules={modules}
+        currentPreset={currentPreset}
+        onApplyPreset={applyPreset}
+        onToggleModule={toggleModule}
+        onToggleAll={(checked) => {
+          setModules((prev) => {
+            const updated = prev.map((m) => ({ ...m, enabled: checked }));
+            saveDashboardModules(updated);
+            return updated;
+          });
+        }}
+        onMoveModule={moveModule}
+        onResetDefault={() => {
+          setModules(DEFAULT_MODULES);
+          setCurrentPreset('DEFAULT');
+          localStorage.removeItem(STORAGE_KEY);
+          saveDashboardPreset('DEFAULT');
+          saveDashboardModules(DEFAULT_MODULES);
+          setFloatingToast('대시보드 배치가 기본값으로 초기화되었습니다.');
+        }}
+        onSave={() => {
+          saveDashboardPreset(currentPreset);
+          saveDashboardModules(modules);
+          setIsCustomizeOpen(false);
+          setFloatingToast('✓ 대시보드 위젯 및 배치 설정이 영속 저장되었습니다.');
+        }}
+      />
 
       {/* 2. 신규 정산·머니 요청 등록 모달 (요청 5번) */}
       {isNewRequestModalOpen && (

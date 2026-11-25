@@ -797,6 +797,17 @@ export default function App() {
           setIsCommandOpen(false);
           setCurrentScreen('SCR-SMP-01');
         }}
+        onNavigateScreen={(screenId) => {
+          setIsCommandOpen(false);
+          setCurrentScreen(screenId);
+        }}
+        onOpenDashboardCustomize={() => {
+          setIsCommandOpen(false);
+          setCurrentScreen('SCR-DSH-01');
+          window.setTimeout(() => {
+            window.dispatchEvent(new Event('moabogo_open_dashboard_customize'));
+          }, 50);
+        }}
       />
 
       {/* 6. Global Movable Quick Action Dock (로그인한 모든 메뉴 화면 공통 표시 -> ElmBsh01 팝업 직결) */}
