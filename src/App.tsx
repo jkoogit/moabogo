@@ -30,7 +30,8 @@ import { SCR_CAR_01_모아부릉 } from './sample/screen/SCR_CAR_01_모아부릉
 import { SCR_MYP_01_마이페이지 } from './sample/screen/SCR_MYP_01_마이페이지';
 import { SCR_OFF_01_오프라인동기화 } from './sample/screen/SCR_OFF_01_오프라인동기화';
 import { SCR_SYS_01_시스템운영관리 } from './sample/screen/SCR_SYS_01_시스템운영관리';
-import { getPendingCount } from './sample/data/offlineQueueStore';
+import { getPendingCount, OFFLINE_QUEUE_CHANGED_EVENT } from './sample/data/offlineQueueStore';
+import { initSyncEngine } from './services/syncEngine';
 
 import {
   Layers,
@@ -110,13 +111,17 @@ export default function App() {
     return null;
   });
 
-  // 오프라인 동기화 큐 대기 건수 실시간 감지
+  // 오프라인 동기화 큐 대기 건수 실시간 감지 & 전역 SyncEngine 초기화
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getPendingCount());
 
   useEffect(() => {
+    const cleanupSyncEngine = initSyncEngine();
     const handleQueueChange = () => setPendingQueueCount(getPendingCount());
-    window.addEventListener('moabogo:offline-queue-changed', handleQueueChange);
-    return () => window.removeEventListener('moabogo:offline-queue-changed', handleQueueChange);
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChange);
+    return () => {
+      cleanupSyncEngine();
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChange);
+    };
   }, []);
 
   // Scroll to Top state & ref

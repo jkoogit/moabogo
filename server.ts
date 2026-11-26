@@ -1,6 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import fs from 'fs'; 
+import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
@@ -421,7 +421,7 @@ let MOA_LOANS: MoaLoan[] = [
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '15mb' }));
 
@@ -563,6 +563,271 @@ async function startServer() {
       return res.json({ success: true, deleted_id: id });
     }
     res.status(404).json({ error: '내역을 찾을 수 없습니다.' });
+  });
+
+  // 3-1. Offline-First Sync Queue (Idempotency Key + LWW Conflict Resolution)
+  interface SyncServerEntityState {
+    version: number;
+    updated_at_ms: number;
+    summary_title: string;
+  }
+  interface SyncServerLogEntry {
+    idempotency_key: string;
+    entity_id: string;
+    status: 'SYNCED' | 'STALE_CONFLICT' | 'DISCARDED';
+    server_version: number;
+    server_updated_at_ms: number;
+    conflict_resolution?: string;
+    synced_at: string;
+  }
+
+  const SYNC_ENTITY_VERSIONS = new Map<string, SyncServerEntityState>([
+    [
+      'tx-seed-conflict',
+      {
+        version: 2,
+        updated_at_ms: Date.now() + 60_000,
+        summary_title: '현금 지출: 편의점 생수 (서버 타 구성원 대사 완료본)',
+      },
+    ],
+  ]);
+  const SYNC_IDEMPOTENCY_LOG = new Map<string, SyncServerLogEntry>();
+
+  app.get('/api/v1/sync/queue', (_req, res) => {
+    res.json({
+      processed_count: SYNC_IDEMPOTENCY_LOG.size,
+      items: Array.from(SYNC_IDEMPOTENCY_LOG.values()),
+    });
+  });
+
+  app.post('/api/v1/sync/batch', (req, res) => {
+    const {
+      conflict_policy = 'MANUAL_CONFIRM',
+      items = [],
+    } = req.body as {
+      conflict_policy?: 'MANUAL_CONFIRM' | 'AUTO_OVERWRITE';
+      items?: Array<{
+        id: string;
+        idempotency_key: string;
+        type?: string;
+        operation_type?: string;
+        entity_id?: string;
+        title?: string;
+        amount?: number;
+        ledger_name?: string;
+        category?: string;
+        memo?: string;
+        client_version?: number;
+        client_updated_at_ms?: number;
+        force_overwrite?: boolean;
+      }>;
+    };
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: '동기화 항목 배열(items)이 필요합니다.' });
+    }
+
+    const results = items.map((item) => {
+      const idempotencyKey = item.idempotency_key;
+      const entityKey = item.entity_id || item.id;
+      const clientVersion = Number(item.client_version || 1);
+      const clientUpdatedAtMs = Number(item.client_updated_at_ms || Date.now());
+
+      // 1) 멱등키 중복 전송 방지: 이미 처리된 키는 재적용 없이 멱등 반환
+      const existingLog = idempotencyKey ? SYNC_IDEMPOTENCY_LOG.get(idempotencyKey) : undefined;
+      if (existingLog && existingLog.status === 'SYNCED' && !item.force_overwrite) {
+        return {
+          id: item.id,
+          idempotency_key: idempotencyKey,
+          status: 'SYNCED' as const,
+          idempotent_replay: true,
+          server_version: existingLog.server_version,
+          server_updated_at_ms: existingLog.server_updated_at_ms,
+        };
+      }
+
+      // 2) LWW(Last-Write-Wins) & 서버 버전 대사
+      const serverEntity = SYNC_ENTITY_VERSIONS.get(entityKey);
+      const hasVersionConflict =
+        Boolean(serverEntity && serverEntity.version > clientVersion) ||
+        item.id === 'q-seed-1';
+
+      if (hasVersionConflict && !item.force_overwrite) {
+        const serverVer = serverEntity ? serverEntity.version : clientVersion + 1;
+        const serverTs = serverEntity ? serverEntity.updated_at_ms : Date.now() + 60_000;
+
+        if (conflict_policy === 'AUTO_OVERWRITE' && clientUpdatedAtMs >= serverTs) {
+          const nextVer = serverVer + 1;
+          SYNC_ENTITY_VERSIONS.set(entityKey, {
+            version: nextVer,
+            updated_at_ms: clientUpdatedAtMs,
+            summary_title: item.title || '자동 LWW 병합 항목',
+          });
+          const logEntry: SyncServerLogEntry = {
+            idempotency_key: idempotencyKey,
+            entity_id: entityKey,
+            status: 'SYNCED',
+            server_version: nextVer,
+            server_updated_at_ms: clientUpdatedAtMs,
+            conflict_resolution: 'AUTO_OVERWRITE',
+            synced_at: new Date().toISOString(),
+          };
+          if (idempotencyKey) SYNC_IDEMPOTENCY_LOG.set(idempotencyKey, logEntry);
+          return {
+            id: item.id,
+            idempotency_key: idempotencyKey,
+            status: 'SYNCED' as const,
+            idempotent_replay: false,
+            conflict_resolution: 'AUTO_OVERWRITE',
+            server_version: nextVer,
+            server_updated_at_ms: clientUpdatedAtMs,
+          };
+        }
+
+        return {
+          id: item.id,
+          idempotency_key: idempotencyKey,
+          status: 'STALE_CONFLICT' as const,
+          idempotent_replay: false,
+          server_version: serverVer,
+          server_updated_at_ms: serverTs,
+          conflict_reason:
+            serverEntity?.summary_title ||
+            '서버에 더 최신 버전(v' + serverVer + ')이 존재합니다. (LWW 수동 확인 필요)',
+        };
+      }
+
+      // 3) 정상 신규/갱신 동기화 반영
+      const nextVer = Math.max(clientVersion, serverEntity?.version || 0) + (item.force_overwrite ? 1 : 0);
+      const nowMs = Date.now();
+      SYNC_ENTITY_VERSIONS.set(entityKey, {
+        version: nextVer,
+        updated_at_ms: Math.max(clientUpdatedAtMs, nowMs),
+        summary_title: item.title || '동기화 완료 항목',
+      });
+
+      if (item.type === 'LEDGER_EXPENSE' && Number(item.amount || 0) > 0 && item.title) {
+        const txId = `tx-sync-${idempotencyKey}`;
+        if (!TRANSACTIONS.some((t) => t.transaction_id === txId)) {
+          TRANSACTIONS.unshift({
+            transaction_id: txId,
+            ledger_id: 'led-group-01',
+            user_id: DEFAULT_USER.user_id,
+            transaction_type: 'EXPENSE',
+            amount: Number(item.amount),
+            merchant_name: item.title,
+            category_name: item.category || '기타',
+            transaction_date: new Date().toISOString(),
+            is_asset_transfer: false,
+            created_at: new Date().toISOString(),
+            note: `[오프라인 동기화 멱등키: ${idempotencyKey}]`,
+          });
+        }
+      }
+
+      if (idempotencyKey) {
+        SYNC_IDEMPOTENCY_LOG.set(idempotencyKey, {
+          idempotency_key: idempotencyKey,
+          entity_id: entityKey,
+          status: 'SYNCED',
+          server_version: nextVer,
+          server_updated_at_ms: nowMs,
+          synced_at: new Date().toISOString(),
+        });
+      }
+
+      return {
+        id: item.id,
+        idempotency_key: idempotencyKey,
+        status: 'SYNCED' as const,
+        idempotent_replay: false,
+        server_version: nextVer,
+        server_updated_at_ms: nowMs,
+      };
+    });
+
+    const syncedCount = results.filter((r) => r.status === 'SYNCED').length;
+    const conflictCount = results.filter((r) => r.status === 'STALE_CONFLICT').length;
+
+    res.json({
+      synced_count: syncedCount,
+      conflict_count: conflictCount,
+      results,
+    });
+  });
+
+  app.post('/api/v1/sync/resolve', (req, res) => {
+    const {
+      id,
+      idempotency_key,
+      entity_id,
+      action,
+      summary_title,
+    } = req.body as {
+      id: string;
+      idempotency_key?: string;
+      entity_id?: string;
+      action: 'OVERWRITE' | 'DISCARD';
+      summary_title?: string;
+    };
+
+    if (!id || (action !== 'OVERWRITE' && action !== 'DISCARD')) {
+      return res.status(400).json({ error: '유효한 충돌 해결 대상과 action(OVERWRITE|DISCARD)이 필요합니다.' });
+    }
+
+    const entityKey = entity_id || id;
+    const currentServer = SYNC_ENTITY_VERSIONS.get(entityKey);
+    const baseVer = currentServer?.version || 1;
+    const nowMs = Date.now();
+
+    if (action === 'OVERWRITE') {
+      const nextVer = baseVer + 1;
+      SYNC_ENTITY_VERSIONS.set(entityKey, {
+        version: nextVer,
+        updated_at_ms: nowMs,
+        summary_title: summary_title || currentServer?.summary_title || '로컬 우선 덮어쓰기 완료',
+      });
+      if (idempotency_key) {
+        SYNC_IDEMPOTENCY_LOG.set(idempotency_key, {
+          idempotency_key,
+          entity_id: entityKey,
+          status: 'SYNCED',
+          server_version: nextVer,
+          server_updated_at_ms: nowMs,
+          conflict_resolution: 'MANUAL_OVERWRITE',
+          synced_at: new Date().toISOString(),
+        });
+      }
+      return res.json({
+        success: true,
+        id,
+        status: 'SYNCED',
+        conflict_resolution: 'MANUAL_OVERWRITE',
+        server_version: nextVer,
+        server_updated_at_ms: nowMs,
+      });
+    }
+
+    if (idempotency_key) {
+      SYNC_IDEMPOTENCY_LOG.set(idempotency_key, {
+        idempotency_key,
+        entity_id: entityKey,
+        status: 'DISCARDED',
+        server_version: baseVer,
+        server_updated_at_ms: currentServer?.updated_at_ms || nowMs,
+        conflict_resolution: 'DISCARDED',
+        synced_at: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      id,
+      status: 'DISCARDED',
+      conflict_resolution: 'DISCARDED',
+      server_version: baseVer,
+      server_updated_at_ms: currentServer?.updated_at_ms || nowMs,
+    });
   });
 
   // 4. OCR 2-Stage Engine & Tasks
@@ -1555,7 +1820,7 @@ async function startServer() {
         next(e);
       }
     });
-    
+
   } else {
     const distPath = path.resolve('dist');
     app.use(express.static(distPath));
