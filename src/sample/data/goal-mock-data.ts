@@ -2,6 +2,9 @@
 // 모아목표 (MoaGoal) 도메인 모델 및 샘플 데이터
 // ==========================================
 
+import { OFFLINE_PROOF_WALKING } from '../shared/offlineProofAssets';
+import { maskAccountNumber } from '../shared/securityGuards';
+
 export type GoalCategory = 'HABIT' | 'FINANCE' | 'STUDY' | 'BOOK' | 'SAVING';
 export type GoalRole = 'MANAGER' | 'PARTICIPANT' | 'VIEWER';
 export type GoalStatus = 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED';
@@ -148,12 +151,12 @@ export const INITIAL_GOAL_LIST: GoalItem[] = [
         companionId: 'c3',
         companionName: '구민우(자녀)',
         isAllowanceTarget: true,
-        allowanceAccount: '토스뱅크 1000-8821-3942 (구민우 용돈통장)',
+        allowanceAccount: `토스뱅크 ${maskAccountNumber('1000-8821-3942')} (구민우 용돈통장)`,
         date: '2026.10.26',
         valueText: '10,050보 달성',
         memo: '축구 경기 뛰고 집 올 때 걸어서 만보 넘었어요!',
         hasPhoto: true,
-        photoUrl: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=300&q=80',
+        photoUrl: OFFLINE_PROOF_WALKING,
         cheerCount: 7,
         userCheered: true,
         comments: [
@@ -351,7 +354,7 @@ export const INITIAL_GOAL_LIST: GoalItem[] = [
         companionId: 'c3',
         companionName: '구민우(자녀)',
         isAllowanceTarget: true,
-        allowanceAccount: '토스뱅크 1000-8821-3942 (구민우 용돈통장)',
+        allowanceAccount: `토스뱅크 ${maskAccountNumber('1000-8821-3942')} (구민우 용돈통장)`,
         date: '2026.10.22',
         valueText: '1권 완독',
         memo: '어린이 과학동아 완독하고 서평 썼어요!',

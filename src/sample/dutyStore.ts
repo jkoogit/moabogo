@@ -15,6 +15,20 @@ import {
   SubstituteNettingPair,
   DutyComprehensiveReport,
 } from '../types';
+import {
+  OFFLINE_PROOF_CLEANING,
+  OFFLINE_PROOF_RECYCLING,
+} from './shared/offlineProofAssets';
+import { validateSafeTransferUrl } from './shared/securityGuards';
+
+/**
+ * 송금/초대 링크 안전성 검증 래퍼 (화이트리스트 미통과 시 undefined 반환)
+ */
+export function resolveSafeDutyLink(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined;
+  const result = validateSafeTransferUrl(rawUrl);
+  return result.valid ? result.sanitizedUrl : undefined;
+}
 
 export const INITIAL_DUTY_CATEGORIES: DutyCategory[] = [
   { category_id: 'cat-clean', name: '청소 및 정리', icon: '🧹', is_system: true, mission_type: 'DUTY' },
@@ -75,7 +89,7 @@ export const INITIAL_DUTY_LOGS: DutyExecutionLog[] = [
     executed_by_id: 'u-2',
     is_substitute: true,
     substitute_for_name: '구민우(자녀)',
-    proof_image_url: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80',
+    proof_image_url: OFFLINE_PROOF_CLEANING,
     memo: '자녀 시험기간 대신수행 완수. 거실 및 복도 소독 완료!',
     submitted_at: '2026-10-26 10:15',
     evaluation_status: 'AUTO_APPROVED',
@@ -92,7 +106,7 @@ export const INITIAL_DUTY_LOGS: DutyExecutionLog[] = [
     executed_by_name: '구본영(호스트)',
     executed_by_id: 'u-1',
     is_substitute: false,
-    proof_image_url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=600&auto=format&fit=crop&q=80',
+    proof_image_url: OFFLINE_PROOF_RECYCLING,
     memo: '대형 재활용 박스 정리 및 음식물 종량제 봉투 배출 완료했습니다.',
     submitted_at: '2026-10-25 20:45',
     evaluation_status: 'AUTO_APPROVED',
@@ -413,7 +427,7 @@ export const INITIAL_DUTIES: MoaDuty[] = [
     is_guest: false,
     approval_required: true,
     status: 'COMPLETED',
-    proof_image_url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=400&auto=format&fit=crop&q=60',
+    proof_image_url: OFFLINE_PROOF_RECYCLING,
     created_at: '2026-08-15',
   },
   {
@@ -847,16 +861,17 @@ export function calculateSubstituteNetting(items: SubstituteSettlementItem[]): S
   items.forEach((item) => {
     if (item.amount <= 0) return;
     const key = `${item.requester_name}->${item.substitute_name}`;
+    const safeLink = resolveSafeDutyLink(item.payment_link_url);
     const existing = debtMap.get(key) || {
       from: item.requester_name,
       to: item.substitute_name,
       gross: 0,
       count: 0,
-      paymentLink: item.payment_link_url,
+      paymentLink: safeLink,
     };
     existing.gross += item.amount;
     existing.count += 1;
-    if (item.payment_link_url) existing.paymentLink = item.payment_link_url;
+    if (safeLink) existing.paymentLink = safeLink;
     debtMap.set(key, existing);
   });
 
