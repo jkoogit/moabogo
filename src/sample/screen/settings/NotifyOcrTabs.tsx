@@ -147,16 +147,24 @@ export const OcrSettingsTab: React.FC<OcrSettingsTabProps> = ({ onNotify }) => {
     'GEMINI'
   );
   const [ocrModel, setOcrModel] = useState<string>('gemini-2.0-flash');
-  const [ocrKey, setOcrKey] = useState<string>(
-    () => localStorage.getItem('moabogo_user_ocr_key') || 'sk-proj-user-sample-key-9981'
-  );
+  const [ocrKey, setOcrKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('moabogo_user_ocr_key') || 'sk-proj-user-sample-key-9981';
+    } catch {
+      return 'sk-proj-user-sample-key-9981';
+    }
+  });
   const [showOcrKey, setShowOcrKey] = useState<boolean>(false);
 
   const handleSaveOcrKey = (newKey: string) => {
     setOcrKey(newKey);
-    localStorage.setItem('moabogo_user_ocr_key', newKey);
-    localStorage.setItem('moabogo_user_ocr_engine', ocrEngine);
-    localStorage.setItem('moabogo_user_ocr_model', ocrModel);
+    try {
+      localStorage.setItem('moabogo_user_ocr_key', newKey);
+      localStorage.setItem('moabogo_user_ocr_engine', ocrEngine);
+      localStorage.setItem('moabogo_user_ocr_model', ocrModel);
+    } catch {
+      // ignore storage errors
+    }
     onNotify();
   };
 

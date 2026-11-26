@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, X, RefreshCw, ShieldCheck, AlertTriangle, Check, CheckSquare, Square } from 'lucide-react';
 import { ElmHlp01 } from '../../../sample/elements/Tokens';
-import type { BankStatementImportItem } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { BankStatementImportItem } from '../types';
 
 export interface LedgerBankImportModalProps {
   isOpen: boolean;

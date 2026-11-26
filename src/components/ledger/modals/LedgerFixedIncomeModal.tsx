@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Bell, X, Plus } from 'lucide-react';
 import { ElmInp01, ElmSel01, ElmTip01 } from '../../../sample/elements/Tokens';
-import type { FixedIncomeRule } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { FixedIncomeRule } from '../types';
 
 export interface LedgerFixedIncomeModalProps {
   isOpen: boolean;

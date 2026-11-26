@@ -1037,8 +1037,18 @@ const STORAGE_KEYS = {
   NOTICES: 'moabogo_system_notices_pool',
 };
 
+function safeSetStorageItem(key: string, value: unknown): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch (err) {
+    console.error(`[systemGovernancePool] Failed to save ${key}:`, err);
+  }
+}
+
 function mergeMissingDefaults<T extends { id: string }>(saved: T[], defaults: T[]): T[] {
-  const seen = new Set(saved.map((item) => item.id));
+  const seen = new Set(saved.filter((item) => item && typeof item.id === 'string').map((item) => item.id));
   const missing = defaults.filter((def) => !seen.has(def.id));
   return missing.length > 0 ? [...saved, ...missing] : saved;
 }
@@ -1054,7 +1064,7 @@ export const loadAuthSecurityConfig = (): SystemAuthSecurityConfig => {
 };
 
 export const saveAuthSecurityConfig = (config: SystemAuthSecurityConfig): void => {
-  localStorage.setItem(STORAGE_KEYS.AUTH_SECURITY, JSON.stringify(config));
+  safeSetStorageItem(STORAGE_KEYS.AUTH_SECURITY, config);
 };
 
 // 2. 알림 발송 매트릭스 로드 / 저장
@@ -1068,7 +1078,7 @@ export const loadNotificationMatrix = (): SystemNotificationMatrix => {
 };
 
 export const saveNotificationMatrix = (matrix: SystemNotificationMatrix): void => {
-  localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(matrix));
+  safeSetStorageItem(STORAGE_KEYS.NOTIFICATIONS, matrix);
 };
 
 // 2-1. 스토리지 및 미아데이터 수명주기 정책 로드 / 저장
@@ -1082,7 +1092,7 @@ export const loadRetentionPolicy = (): SystemRetentionPolicy => {
 };
 
 export const saveRetentionPolicy = (policy: SystemRetentionPolicy): void => {
-  localStorage.setItem(STORAGE_KEYS.RETENTION_POLICY, JSON.stringify(policy));
+  safeSetStorageItem(STORAGE_KEYS.RETENTION_POLICY, policy);
 };
 
 // 3. 금융 컴플라이언스 로드 / 저장
@@ -1096,7 +1106,7 @@ export const loadFinancialCompliance = (): SystemFinancialCompliance => {
 };
 
 export const saveFinancialCompliance = (config: SystemFinancialCompliance): void => {
-  localStorage.setItem(STORAGE_KEYS.FINANCE_COMPLIANCE, JSON.stringify(config));
+  safeSetStorageItem(STORAGE_KEYS.FINANCE_COMPLIANCE, config);
 };
 
 // 4. RBAC 메뉴, 화면, 권한, 사용자, 약관 로드 / 저장 (구버전 로컬스토리지 누락분 안전 병합)
@@ -1112,7 +1122,7 @@ export const loadManagedMenus = (): MenuItem[] => {
 };
 
 export const saveManagedMenus = (menus: MenuItem[]): void => {
-  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(menus));
+  safeSetStorageItem(STORAGE_KEYS.MENUS, menus);
 };
 
 export const loadManagedScreens = (): ScreenItem[] => {
@@ -1127,7 +1137,7 @@ export const loadManagedScreens = (): ScreenItem[] => {
 };
 
 export const saveManagedScreens = (screens: ScreenItem[]): void => {
-  localStorage.setItem(STORAGE_KEYS.SCREENS, JSON.stringify(screens));
+  safeSetStorageItem(STORAGE_KEYS.SCREENS, screens);
 };
 
 export const loadManagedRoles = (): RoleGroupItem[] => {
@@ -1138,12 +1148,13 @@ export const loadManagedRoles = (): RoleGroupItem[] => {
     if (!Array.isArray(parsed)) return DEFAULT_ROLE_GROUPS;
     const merged = mergeMissingDefaults(parsed, DEFAULT_ROLE_GROUPS);
     return merged.map((role) => {
+      const safeMappedIds = Array.isArray(role?.mappedScreenIds) ? role.mappedScreenIds : [];
       const def = DEFAULT_ROLE_GROUPS.find((d) => d.id === role.id);
-      if (!def) return role;
-      const missingScreenIds = def.mappedScreenIds.filter((sid) => !role.mappedScreenIds.includes(sid));
-      return missingScreenIds.length > 0 && role.mappedScreenIds.length <= 8
-        ? { ...role, mappedScreenIds: [...role.mappedScreenIds, ...missingScreenIds] }
-        : role;
+      if (!def) return { ...role, mappedScreenIds: safeMappedIds };
+      const missingScreenIds = def.mappedScreenIds.filter((sid) => !safeMappedIds.includes(sid));
+      return missingScreenIds.length > 0 && safeMappedIds.length <= 8
+        ? { ...role, mappedScreenIds: [...safeMappedIds, ...missingScreenIds] }
+        : { ...role, mappedScreenIds: safeMappedIds };
     });
   } catch {
     return DEFAULT_ROLE_GROUPS;
@@ -1151,7 +1162,7 @@ export const loadManagedRoles = (): RoleGroupItem[] => {
 };
 
 export const saveManagedRoles = (roles: RoleGroupItem[]): void => {
-  localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(roles));
+  safeSetStorageItem(STORAGE_KEYS.ROLES, roles);
 };
 
 export const loadManagedUsers = (): ManagedUser[] => {
@@ -1164,7 +1175,7 @@ export const loadManagedUsers = (): ManagedUser[] => {
 };
 
 export const saveManagedUsers = (users: ManagedUser[]): void => {
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitizeForLocalStorage(users)));
+  safeSetStorageItem(STORAGE_KEYS.USERS, sanitizeForLocalStorage(users));
 };
 
 export const loadManagedTerms = (): TermsDocument[] => {
@@ -1177,7 +1188,7 @@ export const loadManagedTerms = (): TermsDocument[] => {
 };
 
 export const saveManagedTerms = (terms: TermsDocument[]): void => {
-  localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(terms));
+  safeSetStorageItem(STORAGE_KEYS.TERMS, terms);
 };
 
 // 5. 28대 마스터 코드 로드 / 저장 / 필터
@@ -1196,7 +1207,7 @@ export const loadMasterDetailCodes = (): MasterDetailCode[] => {
 };
 
 export const saveMasterDetailCodes = (codes: MasterDetailCode[]): void => {
-  localStorage.setItem(STORAGE_KEYS.DETAIL_CODES, JSON.stringify(codes));
+  safeSetStorageItem(STORAGE_KEYS.DETAIL_CODES, codes);
 };
 
 export const getDetailCodesByGroup = (groupCode: string): MasterDetailCode[] => {
@@ -1217,7 +1228,7 @@ export const loadSystemStorePool = (): StorePreset[] => {
 };
 
 export const saveSystemStorePool = (stores: StorePreset[]): void => {
-  localStorage.setItem(STORAGE_KEYS.SYSTEM_STORES, JSON.stringify(stores));
+  safeSetStorageItem(STORAGE_KEYS.SYSTEM_STORES, stores);
 };
 
 export const loadSystemLadderPresets = (): LadderGoalPreset[] => {
@@ -1230,7 +1241,7 @@ export const loadSystemLadderPresets = (): LadderGoalPreset[] => {
 };
 
 export const saveSystemLadderPresets = (presets: LadderGoalPreset[]): void => {
-  localStorage.setItem(STORAGE_KEYS.LADDER_PRESETS, JSON.stringify(presets));
+  safeSetStorageItem(STORAGE_KEYS.LADDER_PRESETS, presets);
 };
 
 export const loadSystemRoulettePresets = (): RoulettePreset[] => {
@@ -1243,7 +1254,7 @@ export const loadSystemRoulettePresets = (): RoulettePreset[] => {
 };
 
 export const saveSystemRoulettePresets = (presets: RoulettePreset[]): void => {
-  localStorage.setItem(STORAGE_KEYS.ROULETTE_PRESETS, JSON.stringify(presets));
+  safeSetStorageItem(STORAGE_KEYS.ROULETTE_PRESETS, presets);
 };
 
 // 7. 긴급 공지 관리 로드 / 저장
@@ -1257,7 +1268,7 @@ export const loadSystemNotices = (): SystemNoticeItem[] => {
 };
 
 export const saveSystemNotices = (notices: SystemNoticeItem[]): void => {
-  localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(notices));
+  safeSetStorageItem(STORAGE_KEYS.NOTICES, notices);
 };
 
 // 8. 전체 시스템 설정 초기화 (기본값 복원)

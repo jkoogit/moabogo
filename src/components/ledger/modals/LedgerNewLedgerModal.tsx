@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BookOpen, X, Palette, PiggyBank } from 'lucide-react';
 import { ElmInp01, ElmSel01, ElmChk01 } from '../../../sample/elements/Tokens';
 import { COVER_COLOR_PRESETS, LedgerDesignStyle } from './LedgerEditCoverModal';
-import type { LedgerType, LedgerPeriodType, LedgerSubType, LedgerBook } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { LedgerType, LedgerPeriodType, LedgerSubType, LedgerBook } from '../types';
 
 export interface LedgerNewLedgerModalProps {
   isOpen: boolean;

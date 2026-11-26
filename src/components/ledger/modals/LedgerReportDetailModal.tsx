@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, DownloadCloud } from 'lucide-react';
-import type { AnalysisReportSnapshot } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { AnalysisReportSnapshot } from '../types';
 
 export interface LedgerReportDetailModalProps {
   report: AnalysisReportSnapshot | null;

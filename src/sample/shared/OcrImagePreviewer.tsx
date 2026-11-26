@@ -17,7 +17,14 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import type { RoutineAttachmentItem } from './routineOcrFields';
+export interface RoutineAttachmentItem {
+  attachmentId: string;
+  fileName: string;
+  uploadedAt: string;
+  ocrSummary: string;
+  previewUrl?: string;
+  isImageOcr?: boolean;
+}
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;

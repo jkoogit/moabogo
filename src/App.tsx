@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from './context/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
 import { GlobalDrawerNav } from './components/GlobalDrawerNav';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { ElmNav01, ElmOff01, ElmQck01, ElmToast01 } from './sample/elements/Tokens';
 import { MoaLogo } from './components/MoaLogo';
 import { CommandPalette } from './components/CommandPalette';
@@ -755,7 +756,16 @@ export default function App() {
           )}
 
           {/* Active Screen Component */}
-          <div className="w-full">{currentScreenObj.comp}</div>
+          <div className="w-full">
+            <AppErrorBoundary
+              key={currentScreen}
+              scopeLabel={currentScreenObj.name}
+              variant="screen"
+              onReset={() => setCurrentScreen('SCR-GNT-01')}
+            >
+              {currentScreenObj.comp}
+            </AppErrorBoundary>
+          </div>
 
           {/* If inside Mobile Frame Simulation (420px), show fixed footer nav inside phone screen */}
           {deviceView === 'MOBILE' && (

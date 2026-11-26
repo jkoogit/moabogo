@@ -20,10 +20,14 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('moabogo_theme') as ThemeMode;
-    return saved === 'light' || saved === 'dark' || saved === 'dawn' || saved === 'system'
-      ? saved
-      : 'dark';
+    try {
+      const saved = typeof window !== 'undefined' ? (localStorage.getItem('moabogo_theme') as ThemeMode) : null;
+      return saved === 'light' || saved === 'dark' || saved === 'dawn' || saved === 'system'
+        ? saved
+        : 'dark';
+    } catch {
+      return 'dark';
+    }
   });
 
   const [systemIsDark, setSystemIsDark] = useState(() => {
@@ -50,7 +54,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setTheme = (mode: ThemeMode) => {
     setThemeState(mode);
-    localStorage.setItem('moabogo_theme', mode);
+    try {
+      localStorage.setItem('moabogo_theme', mode);
+    } catch {
+      // ignore storage access errors in restricted contexts
+    }
   };
 
   const toggleTheme = () => {

@@ -89,7 +89,39 @@ export const RoutineStreakGrass: React.FC<RoutineStreakGrassProps> = ({
     const startDate = new Date(baseDate);
     startDate.setDate(startDate.getDate() - (totalDays - 1));
 
-    const activeCount = Math.max(1, routines.length);
+    if (routines.length === 0) {
+      const emptyCells: DayGrassCell[] = [];
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
+        const dateIso = d.toISOString().slice(0, 10);
+        emptyCells.push({
+          dateIso,
+          dayOfWeek: d.getDay(),
+          monthLabel: d.getDate() === 1 ? `${d.getMonth() + 1}월` : undefined,
+          totalTasks: 0,
+          completedTasks: 0,
+          rate: 0,
+          level: 0,
+          isToday: dateIso === ROUTINE_TODAY_ISO,
+        });
+      }
+      const groupedEmptyWeeks: DayGrassCell[][] = [];
+      for (let w = 0; w < WEEKS_COUNT; w++) {
+        groupedEmptyWeeks.push(emptyCells.slice(w * 7, (w + 1) * 7));
+      }
+      return {
+        weeks: groupedEmptyWeeks,
+        dailyStats: {
+          streakDays: 0,
+          weeklyRate: 0,
+          monthlyRate: 0,
+          totalActive: 0,
+        },
+      };
+    }
+
+    const activeCount = routines.length;
 
     // 오늘 예정 루틴 기준 완수 계산
     const todayCompletedCount = routines.filter((r) => {

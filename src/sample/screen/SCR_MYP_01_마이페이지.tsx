@@ -86,10 +86,28 @@ export const SCR_MYP_01_마이페이지: React.FC<SCR_MYP_01_Props> = ({
     setToastMessage(msg);
   };
 
-  const handleCopyText = (text: string, label: string) => {
-    if (navigator?.clipboard) {
-      navigator.clipboard.writeText(text);
+  const handleCopyText = async (text: string, label: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast(`${label} 복사되었습니다: ${text}`);
+        return;
+      }
+    } catch {
+      // Fallback for unfocused document or restricted clipboard context
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
       showToast(`${label} 복사되었습니다: ${text}`);
+    } catch {
+      showToast(`복사 권한이 제한되어 있습니다. 직접 선택하여 복사해주세요.`);
     }
   };
 

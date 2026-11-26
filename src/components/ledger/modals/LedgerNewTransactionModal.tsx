@@ -10,8 +10,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { ElmInp01, ElmSel01, ElmChk01, ElmSld03 } from '../../../sample/elements/Tokens';
-import { SAMPLE_RECEIPTS } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
-import type { LedgerBook, LedgerTransaction, FixedIncomeRule } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import { SAMPLE_RECEIPTS } from '../types';
+import type { LedgerBook, LedgerTransaction, FixedIncomeRule } from '../types';
 
 export interface LedgerNewTransactionModalProps {
   isOpen: boolean;
