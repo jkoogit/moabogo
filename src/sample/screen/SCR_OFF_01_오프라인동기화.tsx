@@ -15,21 +15,14 @@ import {
 } from 'lucide-react';
 import {
   OfflineQueueItem,
-  getOfflineQueue,
-  addOfflineQueueItem,
-  syncOfflineQueue,
-  resolveOfflineConflict,
-  clearOfflineQueue,
+  OFFLINE_QUEUE_CHANGED_EVENT,
 } from '../data/offlineQueueStore';
 import {
-  extendOfflineSession,
-  getCachedOfflineSession,
-  hydrateOfflineSessionFromIDB,
-  issueOfflineSession,
   OFFLINE_SESSION_CHANGED_EVENT,
   OfflineAuthSession,
-  revokeOfflineSession,
 } from '../data/offlineSessionStore';
+import { offlineRepository, preferencesRepository } from '../../services/repositories';
+import { buildIdempotencyKey } from '../shared/securityGuards';
 import { OfflineSessionTokenCard } from './auth/OfflineSessionTokenCard';
 
 export interface SCR_OFF_01Props {
@@ -48,9 +41,15 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
 
   const [showStaleModal, setShowStaleModal] = useState(false);
   const [staleConflictItem, setStaleConflictItem] = useState<OfflineQueueItem | null>(null);
-  const [pendingQueue, setPendingQueue] = useState<OfflineQueueItem[]>(() => getOfflineQueue());
+  const [pendingQueue, setPendingQueue] = useState<OfflineQueueItem[]>(() =>
+    offlineRepository.getQueue()
+  );
   const [cachedSession, setCachedSession] = useState<OfflineAuthSession | null>(() =>
-    getCachedOfflineSession()
+    offlineRepository.getSession()
+  );
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncPolicy, setSyncPolicy] = useState(() =>
+    preferencesRepository.getOfflineSyncPreferences().defaultConflictPolicy
   );
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
 
@@ -60,22 +59,23 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
   };
 
   const refreshQueue = () => {
-    setPendingQueue(getOfflineQueue());
+    setPendingQueue(offlineRepository.getQueue());
   };
 
   useEffect(() => {
     refreshQueue();
-    void hydrateOfflineSessionFromIDB().then((sess) => setCachedSession(sess));
+    void offlineRepository.hydrateQueue().then((items) => setPendingQueue(items));
+    void offlineRepository.hydrateSession().then((sess) => setCachedSession(sess));
     const handleQueueChange = () => {
       refreshQueue();
     };
     const handleSessionChange = () => {
-      setCachedSession(getCachedOfflineSession());
+      setCachedSession(offlineRepository.getSession());
     };
-    window.addEventListener('moabogo:offline-queue-changed', handleQueueChange);
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChange);
     window.addEventListener(OFFLINE_SESSION_CHANGED_EVENT, handleSessionChange);
     return () => {
-      window.removeEventListener('moabogo:offline-queue-changed', handleQueueChange);
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChange);
       window.removeEventListener(OFFLINE_SESSION_CHANGED_EVENT, handleSessionChange);
     };
   }, []);
@@ -88,45 +88,65 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
     }
   };
 
-  const handleReconnectAndSync = () => {
+  const handleReconnectAndSync = async () => {
     if (onToggleOffline && isOffline) {
       onToggleOffline();
     } else {
       setInternalOffline(false);
     }
 
-    const result = syncOfflineQueue();
-    refreshQueue();
+    setIsSyncing(true);
+    try {
+      const currentPolicy =
+        preferencesRepository.getOfflineSyncPreferences().defaultConflictPolicy;
+      setSyncPolicy(currentPolicy);
+      const result = await offlineRepository.syncNow({ conflictPolicy: currentPolicy });
+      setPendingQueue(result.items);
 
-    if (result.conflictCount > 0) {
-      const conflict = result.items.find((i) => i.status === 'STALE_CONFLICT');
-      setStaleConflictItem(conflict || null);
-      setShowStaleModal(true);
-      showToast(`⚠️ 오프라인 대기열 ${result.syncedCount}건 동기화 완료, ${result.conflictCount}건 충돌(Stale) 감지!`);
-    } else {
-      showToast(`✓ 온라인 재연결 완료: ${result.syncedCount}건의 오프라인 데이터가 무손실 원자적 동기화되었습니다.`);
+      if (result.conflictCount > 0) {
+        const conflict = result.items.find((i) => i.status === 'STALE_CONFLICT');
+        setStaleConflictItem(conflict || null);
+        setShowStaleModal(true);
+        showToast(
+          `⚠️ ${result.syncedCount}건 동기화 완료, ${result.conflictCount}건 LWW 충돌(Stale) 감지!`
+        );
+      } else {
+        const modeTag = result.usedOfflineFallback ? '로컬 폴백' : '서버 API 멱등 검증';
+        showToast(
+          `✓ ${modeTag} 동기화 완료: ${result.syncedCount}건 반영 (멱등 재시도 ${result.replayedCount}건)`
+        );
+      }
+    } finally {
+      setIsSyncing(false);
     }
   };
 
   // 모아게임 사다리 결제 오프라인 지출 모의 적재 핸들러
   const handleAddGameExpenseMock = () => {
-    const idempKey = `idemp_game_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const newItem = addOfflineQueueItem({
+    const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const idempKey = buildIdempotencyKey('game-exp', ['led-group-01', 32000, nonce]);
+    const newItem = offlineRepository.enqueueItem({
       idempotencyKey: idempKey,
       type: 'LEDGER_EXPENSE',
+      operationType: 'CREATE',
+      entityId: `tx-game-${nonce}`,
       title: '모아게임 사다리 결제 (PLUS CAFE)',
       amount: 32000,
       ledgerName: '우리집 가계부 (가족 공유)',
       payerName: '구본영(호스트/나)',
       category: '식비/간식',
       memo: '오프라인 상태에서 모아게임 사다리 당첨 후 가계부 기안',
+      clientVersion: 1,
+      clientUpdatedAtMs: Date.now(),
     });
     refreshQueue();
-    showToast(`✓ 모아게임 지출 (₩32,000원)이 멱등키(${newItem.idempotencyKey})와 함께 오프라인 큐에 적재되었습니다.`);
+    showToast(
+      `✓ 모아게임 지출 (₩32,000원)이 멱등키(${newItem.idempotencyKey})와 함께 IndexedDB 큐에 적재되었습니다.`
+    );
   };
 
   const handleResetQueue = () => {
-    clearOfflineQueue();
+    offlineRepository.clearQueue();
     refreshQueue();
     showToast('오프라인 동기화 대기열이 초기화되었습니다.');
   };
@@ -161,15 +181,22 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
 
           <button
             type="button"
+            disabled={isSyncing}
             onClick={isOffline ? handleReconnectAndSync : handleToggleMode}
-            className={`min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
+            className={`min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0 whitespace-nowrap active:scale-95 disabled:opacity-60 ${
               isOffline
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 : 'bg-amber-600 hover:bg-amber-500 text-white'
             }`}
           >
             {isOffline ? <Wifi className="w-4 h-4 shrink-0" /> : <WifiOff className="w-4 h-4 shrink-0" />}
-            <span>{isOffline ? '온라인으로 재연결 (동기화 검증)' : '오프라인 모드 시뮬레이션'}</span>
+            <span>
+              {isSyncing
+                ? '동기화 진행중...'
+                : isOffline
+                ? '온라인으로 재연결 (동기화 검증)'
+                : '오프라인 모드 시뮬레이션'}
+            </span>
           </button>
         </div>
       </section>
@@ -196,12 +223,12 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
           isOffline={isOffline}
           cachedSession={cachedSession}
           onExtendSession={() => {
-            const updated = extendOfflineSession();
+            const updated = offlineRepository.extendSession();
             setCachedSession(updated);
             showToast('✓ 오프라인 세션 유효기간이 7일 연장되었습니다.');
           }}
           onReissueSession={() => {
-            const issued = issueOfflineSession({
+            const issued = offlineRepository.issueSession({
               email: 'jkok2j2m@gmail.com',
               nickname: '구본영(호스트)',
               provider: 'EMAIL',
@@ -210,7 +237,7 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
             showToast(`✓ 오프라인 세션(${issued.maskedToken})이 발급되었습니다.`);
           }}
           onRevokeSession={() => {
-            revokeOfflineSession();
+            offlineRepository.revokeSession();
             setCachedSession(null);
             showToast('오프라인 세션 토큰이 폐기되었습니다.');
           }}
@@ -281,6 +308,11 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
                   <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
                     <span>{item.timestamp}</span>
                     <span>•</span>
+                    <span>
+                      {item.operationType || 'CREATE'} v{item.clientVersion || 1}
+                      {item.serverVersion ? ` ↔ Srv v${item.serverVersion}` : ''}
+                    </span>
+                    <span>•</span>
                     <span className="text-indigo-600 dark:text-indigo-400">
                       멱등키: {item.idempotencyKey}
                     </span>
@@ -311,35 +343,66 @@ export const SCR_OFF_01_오프라인동기화: React.FC<SCR_OFF_01Props> = ({
             </div>
 
             <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-2">
-              <div className="font-bold text-amber-800 dark:text-amber-300 text-sm">
-                "네트워크 연결 후 확인 결과 이미 변경/삭제된 내역입니다"
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="font-bold text-amber-800 dark:text-amber-300 text-sm">
+                  "네트워크 연결 후 확인 결과 이미 변경/삭제된 내역입니다"
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200">
+                  정책: {syncPolicy === 'AUTO_OVERWRITE' ? '자동 덮어쓰기' : '수동 확인 우선'}
+                </span>
               </div>
               <p className="leading-relaxed">
-                오프라인 상태에서 로컬 캐시에 보관 중이던 항목{' '}
+                오프라인 상태에서 로컬 IndexedDB에 보관 중이던 항목{' '}
                 <strong className="font-mono text-amber-900 dark:text-amber-100">
                   [{staleConflictItem?.title || '생수 지출'}]
                 </strong>
-                이 다른 구성원에 의해 서버에서 이미 대사되었음을 확인하였습니다.
+                (로컬 v{staleConflictItem?.clientVersion || 1})이 서버 최신 버전(v
+                {staleConflictItem?.serverVersion || 2})과 충돌했습니다.
               </p>
+              {staleConflictItem?.conflictReason && (
+                <p className="text-[11px] font-mono text-amber-800 dark:text-amber-300">
+                  상세: {staleConflictItem.conflictReason}
+                </p>
+              )}
               <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                🛡️ 정합성 가드레일: 서버 데이터 훼손을 방지하기 위해 로컬 덮어쓰기를 취소하고 서버 최신 원장 상태를 보존합니다.
+                🛡️ 정합성 가드레일: 서버 최신 상태를 보존하고 로컬 내역을 폐기하거나, 로컬 내용으로 LWW 덮어쓰기를 명시 선택할 수 있습니다.
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (staleConflictItem) {
-                    resolveOfflineConflict(staleConflictItem.id, 'DISCARD');
-                    refreshQueue();
+                    const updated = await offlineRepository.resolveConflict(
+                      staleConflictItem.id,
+                      'OVERWRITE'
+                    );
+                    setPendingQueue(updated);
+                  }
+                  setShowStaleModal(false);
+                  showToast('✓ LWW 로컬 우선 덮어쓰기로 서버 원장이 최신화되었습니다.');
+                }}
+                className="min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-bold border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 cursor-pointer transition-all"
+              >
+                로컬 내용으로 덮어쓰기 (LWW)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (staleConflictItem) {
+                    const updated = await offlineRepository.resolveConflict(
+                      staleConflictItem.id,
+                      'DISCARD'
+                    );
+                    setPendingQueue(updated);
                   }
                   setShowStaleModal(false);
                   showToast('✓ 충돌 항목이 안전하게 무효화되고 서버 최신 상태가 유지되었습니다.');
                 }}
                 className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 active:scale-95 text-white shadow-sm cursor-pointer transition-all"
               >
-                확인 및 서버 최신상태 갱신
+                서버 최신 유지 및 폐기
               </button>
             </div>
           </div>
