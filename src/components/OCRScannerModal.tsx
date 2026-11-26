@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { User, Ledger } from '../types';
+import { ApiError } from '../services/apiClient';
+import {
+  financeRepository,
+  ledgerRepository,
+  toLegacyTransaction,
+} from '../services/repositories';
+import { buildIdempotencyKey } from '../sample/shared/securityGuards';
 import {
   X,
   Upload,
@@ -52,6 +59,15 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [duplicateWarningData, setDuplicateWarningData] = useState<{ message: string } | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -95,40 +111,48 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
     try {
       const fileName = simulateError ? 'blur_failed_receipt.jpg' : selectedFile?.name || 'receipt.jpg';
 
-      const res = await fetch('/api/v1/ocr/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image_name: fileName,
-          user_ocr_key: currentUser?.personal_ocr_key || '',
-        }),
+      const uploadData = await financeRepository.uploadOcrReceipt({
+        imageName: fileName,
+        userOcrKey: currentUser?.personal_ocr_key || '',
       });
 
-      const data = await res.json();
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current);
+      }
 
       // Poll task result
-      setTimeout(async () => {
-        const taskRes = await fetch(`/api/v1/ocr/tasks/${data.task_id}`);
-        const taskData = await taskRes.json();
-        setIsProcessing(false);
+      pollTimerRef.current = window.setTimeout(async () => {
+        try {
+          const taskData = await financeRepository.getOcrTask(uploadData.taskId);
+          setIsProcessing(false);
 
-        if (taskData.ocr_result) {
-          const resObj = taskData.ocr_result;
-          setMerchantName(resObj.merchant_name || '');
-          setAmount(resObj.amount ? String(resObj.amount) : '');
-          setDate(resObj.transaction_date ? resObj.transaction_date.slice(0, 10) : new Date().toISOString().slice(0, 10));
-          setFlaggedFields(resObj.flagged_fields || []);
-          setEngineUsed(resObj.engine_used);
-          setImageHash(taskData.image_hash?.slice(0, 16) || '7f9a2b...');
-          setParsedItems(resObj.items || []);
-          setStep('REVIEW');
+          if (taskData.ocrResult) {
+            const resObj = taskData.ocrResult;
+            setMerchantName(resObj.merchantName || '');
+            setAmount(resObj.amount ? String(resObj.amount) : '');
+            setDate(
+              resObj.transactionDate
+                ? resObj.transactionDate.slice(0, 10)
+                : new Date().toISOString().slice(0, 10)
+            );
+            setFlaggedFields(resObj.flaggedFields || []);
+            setEngineUsed(resObj.engineUsed);
+            setImageHash(taskData.imageHash?.slice(0, 16) || '7f9a2b...');
+            setParsedItems(resObj.items || []);
+            setStep('REVIEW');
 
-          if (resObj.flagged_fields && resObj.flagged_fields.length > 0) {
-            setWarningMessage('영수증의 일부 항목이 불명확합니다. 주황색/붉은색으로 강조된 항목을 직접 확인 및 보정해주세요.');
+            if (resObj.flaggedFields && resObj.flaggedFields.length > 0) {
+              setWarningMessage(
+                '영수증의 일부 항목이 불명확합니다. 주황색/붉은색으로 강조된 항목을 직접 확인 및 보정해주세요.'
+              );
+            }
           }
+        } catch {
+          setIsProcessing(false);
+          setErrorMessage('OCR 결과 조회 중 오류가 발생했습니다.');
         }
       }, 700);
-    } catch (err) {
+    } catch {
       setIsProcessing(false);
       setErrorMessage('OCR 분석 요청 중 오류가 발생했습니다.');
     }
@@ -136,31 +160,39 @@ export const OCRScannerModal: React.FC<OCRScannerModalProps> = ({
 
   const executeSaveTransaction = async (force: boolean = false) => {
     try {
-      const res = await fetch(`/api/v1/ledgers/${activeLedger?.ledger_id}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_type: 'EXPENSE',
+      const ledgerId = activeLedger?.ledger_id || 'led-personal-01';
+      const savedTx = await ledgerRepository.createTransaction(
+        ledgerId,
+        {
+          transactionType: 'EXPENSE',
           amount: Number(amount),
-          merchant_name: merchantName,
-          category_name: category,
-          transaction_date: date ? new Date(date).toISOString() : new Date().toISOString(),
-          is_asset_transfer: isAssetTransfer,
-          note: force ? '[중복 강제등록 OCR]' : `[2단계 OCR 인증: ${engineUsed === 'USER_KEY_OCR' ? '개인 Key' : '로컬 EasyOCR'}]`,
+          merchantName,
+          categoryName: category,
+          transactionDate: date ? new Date(date).toISOString() : new Date().toISOString(),
+          isAssetTransfer,
+          note: force
+            ? '[중복 강제등록 OCR]'
+            : `[2단계 OCR 인증: ${engineUsed === 'USER_KEY_OCR' ? '개인 Key' : '로컬 EasyOCR'}]`,
           force,
-        }),
-      });
+        },
+        {
+          idempotencyKey: buildIdempotencyKey('ocr-tx', [
+            ledgerId,
+            amount,
+            merchantName,
+            date,
+            force ? 'force' : 'normal',
+          ]),
+        }
+      );
 
-      if (res.status === 409) {
-        const errData = await res.json();
-        setDuplicateWarningData({ message: errData.message });
-        return;
-      }
-
-      const savedTx = await res.json();
-      onSuccessTransaction(savedTx);
+      onSuccessTransaction(toLegacyTransaction(savedTx));
       onClose();
     } catch (err) {
+      if (err instanceof ApiError && err.isConflict) {
+        setDuplicateWarningData({ message: err.message });
+        return;
+      }
       setErrorMessage('내역 등록 중 오류가 발생했습니다.');
     }
   };

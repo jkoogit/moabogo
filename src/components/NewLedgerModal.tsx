@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Ledger } from '../types';
 import { Plus, X, Users, Wallet } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { ledgerRepository, toLegacyLedger } from '../services/repositories';
 
 interface NewLedgerModalProps {
   isOpen: boolean;
@@ -28,38 +29,12 @@ export const NewLedgerModal: React.FC<NewLedgerModalProps> = ({
     e.preventDefault();
     if (!ledgerName.trim()) return;
 
-    try {
-      const res = await fetch('/api/v1/ledgers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ledger_name: ledgerName.trim(),
-          ledger_type: ledgerType,
-          is_instance: isInstance,
-        }),
-      });
-
-      if (res.ok) {
-        const newLedger = await res.json();
-        onCreated(newLedger);
-        onClose();
-        return;
-      }
-    } catch {
-      // offline or mock fallback
-    }
-
-    // Fallback: create mock Ledger on client
-    const fallbackLedger: Ledger = {
-      ledger_id: `led-${Date.now()}`,
-      owner_id: 'u-1001-koo',
-      ledger_name: ledgerName.trim(),
-      ledger_type: ledgerType,
-      is_instance: isInstance,
-      role: 'OWNER',
-      created_at: new Date().toISOString().split('T')[0],
-    };
-    onCreated(fallbackLedger);
+    const created = await ledgerRepository.createLedger({
+      ledgerName: ledgerName.trim(),
+      ledgerType,
+      isInstance,
+    });
+    onCreated(toLegacyLedger(created));
     onClose();
   };
 

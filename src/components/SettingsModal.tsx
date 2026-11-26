@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { KeyRound, X, Check, Cpu, ShieldCheck, Database, Server } from 'lucide-react';
+import { financeRepository } from '../services/repositories';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,15 +26,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
     try {
-      await fetch('/api/v1/user/ocr-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personal_ocr_key: ocrKey }),
-      });
+      await financeRepository.updateUserOcrKey(ocrKey);
       onUpdateKey(ocrKey);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
+    } catch {
       setErrorMsg('설정 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
