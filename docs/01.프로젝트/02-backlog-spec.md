@@ -25,7 +25,7 @@
 | :---: | :---: | :---: | :--- | :---: | :--- |
 | **`BKL-DATA-01`** | **P0** | 데이터/백엔드 | PostgreSQL 16 실제 원장 테이블 마이그레이션 & ORM 연동 | 세션 0009 | • 현재 프론트 목업 상태인 지출원장 및 보고서 스냅샷을 실제 PostgreSQL `ledgers`, `atomic_expenses`, `ledger_reports` 테이블과 1:1 바인딩<br>• Drizzle ORM 또는 pg client 쿼리 파이프라인 구축 |
 | **`BKL-SYNC-02`** | **P0** | 오프라인/FSD | 오프라인 우선 IndexedDB 동기화 큐 및 멱등키 일괄 동기화 | 세션 0009 | • 네트워크 두절 또는 홈서버 재기동 시 오프라인 지출 입력 보존 (`IndexedDB`)<br>• 재연결 시 멱등키(`idempotency_key`) 기반으로 충돌 없는 일괄 동기화 |
-| **`BKL-OCR-03`** | **P1** | 인프라/ML | EasyOCR 2GB RAM 상한 OOM 격리 비동기 파이프라인 연계 | 세션 0009 | • 영수증 사진 업로드 시 단일지출 3대 뷰 하단 OCR 패널과 백엔드 비동기 큐 연동<br>• 2GB RAM 상한 감시 및 OOM 격리 프로세스 가동 |
+| **`BKL-OCR-03`** | **P1** | 인프라/ML/보안 | PDFit·PDFgpu 기반 하이브리드 PDF OCR(텍스트레이어·ROI클립·2GB OOM 격리) 및 증빙처리 백엔드 고도화 | 세션 0009 (0052 확장) | • 디지털 PDF 텍스트 레이어 우선 추출(`pdfjs-dist` 워커) + `garbleSignals` 품질 검증 후 스캔본/저품질 레이어만 1600px JPEG 재렌더링 ➔ Docker EasyOCR(2GB/2CPU, `tmpfs`) 우선순위 큐 처리<br>• 영역 클립(ROI 절대좌표) 국소 OCR, DB Base64 저장 금지(파일 볼륨 + 30일 `tar.gz` 아카이빙), PG16 `pg_trgm`+초성 통합 검색<br>• 6대 보안 가드레일(암호화 금융 PDF 로컬 복호화, BYO VLM SSRF 차단·PII 마스킹, PDF 폭탄/Magic Bytes/RBAC 격리) — 상세: `docs/06.백로그/BKL-OCR-03_PDFit_PDFgpu_기반_PDF_OCR_및_증빙처리_백엔드_고도화_스펙.md` |
 | **`BKL-FIX-04`** | **P1** | 스케줄러/자동화 | 고정수입 자동 스케줄러(Cron) 및 카드사 명세서 파서 확장 | 세션 0009 | • 매월 지정일 고정수입 자동 기장 알림 발행<br>• 6대 카드사(신한, 삼성, 현대, KB국민, 롯데, 우리) 명세서 CSV 파싱 룰셋 확대 |
 | **`BKL-UX-05`** | **P1** | 프론트엔드/UX | 모바일 뷰포트 터치 타겟(44px) 및 레이어 팝업 반응형 최적화 | 세션 0010 | • 모바일 모드 가로 폭 초과 시 레이어 팝업이 화면 밖으로 이탈하지 않도록 `fixed inset-x-3` 정렬 적용 완료<br>• 향후 모든 모달 닫기 버튼 및 탭의 44px 이상 터치 영역 전수 검증 |
 | **`BKL-EXP-06`** | **P2** | 배치/데이터 | 통장 거래내역서 다중 파일 드롭존 및 대용량 배치 처리 | 세션 0010 | • 여러 계좌의 엑셀/CSV 내역을 동시에 드래그앤드롭하여 파싱하는 대용량 큐 처리<br>• 중복 거래 자동 필터링 및 대사 엔진 고도화 |
@@ -52,6 +52,6 @@
 2. **`BKL-DATA-01`**: 홈서버 PostgreSQL 16 실제 원장 테이블 DDL 마이그레이션 및 API 연동 (P0)
 3. **`BKL-SYNC-02`**: IndexedDB 오프라인 동기화 큐 및 멱등키 트랜잭션 보장 (P0)
 4. **`BKL-DUT-01`**: 모아당번 단축 URL 백엔드 리다이렉트 API 및 QR코드 생성 연계 (P1)
-5. **`BKL-OCR-03`**: EasyOCR 2GB RAM 상한 OOM 격리 비동기 파이프라인 실제 구동 연계 (P1)
+5. **`BKL-OCR-03`**: PDFit·PDFgpu 기반 하이브리드 PDF OCR(텍스트레이어·`garbleSignals`·ROI클립·2GB OOM 격리·6대 보안 가드레일) 백엔드 구현 연계 (P1, `docs/06.백로그/BKL-OCR-03_PDFit_PDFgpu_기반_PDF_OCR_및_증빙처리_백엔드_고도화_스펙.md`)
 
 
