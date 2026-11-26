@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Ledger } from '../types';
 import { Plus, X, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { ApiError } from '../services/apiClient';
+import { ledgerRepository } from '../services/repositories';
+import { buildIdempotencyKey } from '../sample/shared/securityGuards';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -35,30 +38,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
 
     try {
-      const res = await fetch(`/api/v1/ledgers/${activeLedger?.ledger_id}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_type: txType,
+      const ledgerId = activeLedger?.ledger_id || 'led-personal-01';
+      await ledgerRepository.createTransaction(
+        ledgerId,
+        {
+          transactionType: txType,
           amount: Number(amount),
-          merchant_name: merchantName,
-          category_name: categoryName,
-          transaction_date: new Date(txDate).toISOString(),
-          is_asset_transfer: isAssetTransfer,
+          merchantName,
+          categoryName,
+          transactionDate: new Date(txDate).toISOString(),
+          isAssetTransfer,
           note,
           force,
-        }),
-      });
-
-      if (res.status === 409) {
-        const err = await res.json();
-        setDuplicateWarning(err.message);
-        return;
-      }
+        },
+        {
+          idempotencyKey: buildIdempotencyKey('tx', [
+            ledgerId,
+            txType,
+            amount,
+            merchantName,
+            txDate,
+            force ? 'force' : 'normal',
+          ]),
+        }
+      );
 
       onSuccess();
       onClose();
     } catch (err) {
+      if (err instanceof ApiError && err.isConflict) {
+        setDuplicateWarning(err.message);
+        return;
+      }
       setFormError('내역 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }
   };

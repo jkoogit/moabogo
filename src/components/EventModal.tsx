@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Ledger, StandaloneEvent } from '../types';
+import { financeRepository, toLegacyStandaloneEvent } from '../services/repositories';
 import {
   X,
   Users,
@@ -130,26 +131,24 @@ export const EventModal: React.FC<EventModalProps> = ({
     }
 
     try {
-      const res = await fetch('/api/v1/events/settle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_type: eventType,
-          event_title: eventTitle,
-          total_amount: Number(totalAmount),
+      const dto = await financeRepository.settleEvent(
+        {
+          eventType,
+          eventTitle,
+          totalAmount: Number(totalAmount),
           participants: activeParticipants.map((p) => ({
             name: p.name,
-            is_guest: p.is_guest,
-            user_id: p.is_guest ? undefined : currentUser?.user_id,
+            isGuest: p.is_guest,
+            userId: p.is_guest ? undefined : currentUser?.user_id,
           })),
-          binding_option: bindingOption,
-        }),
-      });
+          bindingOption,
+        },
+        { isOffline }
+      );
 
-      const data = await res.json();
-      setCreatedEvent(data);
+      setCreatedEvent(toLegacyStandaloneEvent(dto));
       onEventCreated();
-    } catch (err) {
+    } catch {
       setModalError('정산 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
@@ -159,18 +158,15 @@ export const EventModal: React.FC<EventModalProps> = ({
     setIsLinking(true);
     setModalError(null);
     try {
-      const res = await fetch(`/api/v1/events/${createdEvent.event_id}/link-to-ledger`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ledger_id: activeLedger?.ledger_id,
-        }),
-      });
-      await res.json();
+      await financeRepository.linkEventToLedger(
+        createdEvent.event_id,
+        activeLedger?.ledger_id,
+        { isOffline }
+      );
       setIsLinking(false);
       setLinkSuccess(true);
       onEventCreated();
-    } catch (err) {
+    } catch {
       setIsLinking(false);
       setModalError('가계부 연동 중 오류가 발생했습니다.');
     }
