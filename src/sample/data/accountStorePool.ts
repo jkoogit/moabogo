@@ -1,7 +1,10 @@
 // ============================================================================
 // 모아보고 공통 계좌 저장소 풀 (Account Store Pool)
 // SSOT: docs/04.데이터 / SCR-SET-01, SCR-LED-01, SCR-GOL-02, SCR-DSH-01 공유
+// 보안: localStorage 저장 전 sanitizeForLocalStorage 민감 계좌번호 자동 마스킹
 // ============================================================================
+
+import { maskAccountNumber, sanitizeForLocalStorage } from '../shared/securityGuards';
 
 export type AccountServicePurpose =
   | 'GOAL_ALLOWANCE' // 목표 달성 보상 및 용돈
@@ -143,7 +146,10 @@ export const loadUserBankAccounts = (userId: string = 'u-1001-koo'): UserBankAcc
   try {
     const raw = localStorage.getItem(USER_ACCOUNTS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(USER_ACCOUNTS_STORAGE_KEY, JSON.stringify(INITIAL_USER_ACCOUNTS));
+      localStorage.setItem(
+        USER_ACCOUNTS_STORAGE_KEY,
+        JSON.stringify(sanitizeForLocalStorage(INITIAL_USER_ACCOUNTS))
+      );
       return INITIAL_USER_ACCOUNTS.filter((a) => a.userId === userId);
     }
     const parsed: UserBankAccount[] = JSON.parse(raw);
@@ -161,7 +167,10 @@ export const saveUserBankAccounts = (accounts: UserBankAccount[], userId: string
     const existing: UserBankAccount[] = raw ? JSON.parse(raw) : INITIAL_USER_ACCOUNTS;
     const filtered = existing.filter((a) => a.userId !== userId);
     const updated = [...filtered, ...accounts];
-    localStorage.setItem(USER_ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(
+      USER_ACCOUNTS_STORAGE_KEY,
+      JSON.stringify(sanitizeForLocalStorage(updated))
+    );
   } catch (e) {
     console.error('Failed to save user bank accounts to localStorage:', e);
   }
@@ -172,7 +181,10 @@ export const loadAllUserBankAccounts = (): UserBankAccount[] => {
   try {
     const raw = localStorage.getItem(USER_ACCOUNTS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(USER_ACCOUNTS_STORAGE_KEY, JSON.stringify(INITIAL_USER_ACCOUNTS));
+      localStorage.setItem(
+        USER_ACCOUNTS_STORAGE_KEY,
+        JSON.stringify(sanitizeForLocalStorage(INITIAL_USER_ACCOUNTS))
+      );
       return INITIAL_USER_ACCOUNTS;
     }
     return JSON.parse(raw);
@@ -186,7 +198,10 @@ export const loadLedgerAllowanceMembers = (ledgerId: string = 'led-group-01'): L
   try {
     const raw = localStorage.getItem(LEDGER_MEMBERS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(LEDGER_MEMBERS_STORAGE_KEY, JSON.stringify(INITIAL_LEDGER_ALLOWANCE_MEMBERS));
+      localStorage.setItem(
+        LEDGER_MEMBERS_STORAGE_KEY,
+        JSON.stringify(sanitizeForLocalStorage(INITIAL_LEDGER_ALLOWANCE_MEMBERS))
+      );
       return INITIAL_LEDGER_ALLOWANCE_MEMBERS.filter((m) => m.ledgerId === ledgerId);
     }
     const parsed: LedgerAllowanceMember[] = JSON.parse(raw);
@@ -204,7 +219,10 @@ export const saveLedgerAllowanceMembers = (ledgerId: string, members: LedgerAllo
     const existing: LedgerAllowanceMember[] = raw ? JSON.parse(raw) : INITIAL_LEDGER_ALLOWANCE_MEMBERS;
     const filtered = existing.filter((m) => m.ledgerId !== ledgerId);
     const updated = [...filtered, ...members];
-    localStorage.setItem(LEDGER_MEMBERS_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(
+      LEDGER_MEMBERS_STORAGE_KEY,
+      JSON.stringify(sanitizeForLocalStorage(updated))
+    );
   } catch (e) {
     console.error('Failed to save ledger allowance members to localStorage:', e);
   }
@@ -261,14 +279,10 @@ export const getCurrentUserDefaultAccount = (userId: string = 'u-1001-koo'): Use
 };
 
 /**
- * 계좌번호 마스킹 (프라이버시 보호)
- * 예: 3333-01-9988776 -> 3333-01-***8776
+ * 계좌번호 마스킹 (프라이버시 보호 — Shared Core securityGuards.maskAccountNumber 일원화)
+ * 예: 3333-01-9988776 -> 3333-****-8776
  */
 export const maskAccountNo = (accountNo: string): string => {
   if (!accountNo) return '';
-  const cleaned = accountNo.trim();
-  if (cleaned.length <= 6) return cleaned;
-  const start = cleaned.slice(0, Math.min(8, Math.floor(cleaned.length / 2)));
-  const end = cleaned.slice(-4);
-  return `${start}***${end}`;
+  return maskAccountNumber(accountNo);
 };
