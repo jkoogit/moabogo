@@ -21,7 +21,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { ElmTip01 } from '../../../sample/elements/Tokens';
-import type { LedgerTransaction, LedgerBook } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { LedgerTransaction, LedgerBook } from '../types';
 
 export interface LedgerProofReconcileModalProps {
   selectedTx: LedgerTransaction | null;

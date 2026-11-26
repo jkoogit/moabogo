@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, X, Plus, Trash2 } from 'lucide-react';
-import type { CardStatementIntakeReview } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { CardStatementIntakeReview } from '../types';
 
 export interface LedgerStatementEditModalProps {
   isOpen: boolean;

@@ -99,238 +99,57 @@ import {
   LedgerEditCoverModal,
 } from "../../components/ledger/modals";
 
-// ============================================================================
-// 도메인 타입 정의 (회계 프로세스, 전역 원자 지출 SSOT & 멀티 증빙)
-// ============================================================================
-export type LedgerType = 'PERSONAL' | 'GROUP' | 'INSTANCE';
-export type LedgerPeriodType = 'LONG_TERM' | 'SHORT_TERM';
-export type LedgerSubType = 'STANDARD' | 'POCKET_MONEY';
-export type LedgerClosingStatus = 'OPEN' | 'CLOSED' | 'SETTLED';
-export type LedgerRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' | 'GUEST';
+import {
+  SAMPLE_RECEIPTS,
+  type LedgerType,
+  type LedgerPeriodType,
+  type LedgerSubType,
+  type LedgerClosingStatus,
+  type LedgerRole,
+  type MainAxisTab,
+  type WriteSubTab,
+  type DeckTab,
+  type ExpenseSubTab,
+  type IncomeSubTab,
+  type AnalysisSubTab,
+  type AnalysisReportSnapshot,
+  type DynamicBannerItem,
+  type ExpenseProofItem,
+  type LedgerMember,
+  type LedgerBook,
+  type LedgerTransaction,
+  type CardStatementSummary,
+  type CardStatementIntakeReview,
+  type FixedIncomeRule,
+  type BankStatementImportItem,
+  type DailyAggregationItem,
+} from '../../components/ledger/types';
 
-// 2대 대메뉴 대축: 1. 장부작성(수입·지출) / 2. 분석(현황·보고서)
-export type MainAxisTab = 'WRITE' | 'ANALYSIS';
-export type WriteSubTab = 'EXPENSE' | 'INCOME';
-export type DeckTab = 'EXPENSE' | 'INCOME' | 'ANALYTICS';
-export type ExpenseSubTab = 'GENERAL' | 'STATEMENT';
-export type IncomeSubTab = 'LIST' | 'FIXED';
-export type AnalysisSubTab = 'STATUS' | 'REPORT';
-
-// 보고서 스냅샷 이력 관리 타입
-export interface AnalysisReportSnapshot {
-  id: string;
-  version: string;
-  title: string;
-  period: string;
-  createdAt: string;
-  totalIncome: number;
-  totalExpense: number;
-  netSavings: number;
-  cardBilledTotal: number;
-  txCount: number;
-  summaryNotes: string[];
-  status: 'VERIFIED' | 'NEEDS_RECOLLECT';
-}
-
-// 유동정보 서류철 인덱스 슬라이드 배너 아이템
-export interface DynamicBannerItem {
-  id: string;
-  tabLabel: string;
-  title: string;
-  amount: number;
-  badge: string;
-  badgeColor: string;
-  description: string;
-  icon: string;
-  details: {
-    label: string;
-    value: string;
-  }[];
-  note: string;
-}
-
-// N개 무제한 멀티 증빙 자료 아이템 (수집방법별 세부 속성 확장)
-export interface ExpenseProofItem {
-  id: string;
-  type: 'MANUAL' | 'RECEIPT_OCR' | 'SMS_NOTIFICATION' | 'STATEMENT_LINE';
-  title: string;
-  amount: number;
-  date: string;
-  source: string;
-  thumbnailUrl?: string;
-  receiptImageUrl?: string;
-  merchant?: string;
-  details?: string[];
-  isArchived?: boolean; // 30일 경과 tarball 압축 아카이브 여부 (운영비 0원)
-  // [태스크 0009 신규] 수집 방법별 확장 상세 속성
-  cardName?: string;
-  approvalNo?: string;
-  installmentMonths?: string;
-  statementDiscount?: number;
-  paymentDueDate?: string;
-  paymentAccount?: string;
-  businessNumber?: string;
-  ceoName?: string;
-  taxAmount?: number;
-  supplyAmount?: number;
-  cashReceiptNo?: string;
-  rawFileName?: string;
-  itemsList?: Array<{ name: string; qty: number; unitPrice: number; totalPrice: number }>;
-}
-
-export interface LedgerMember {
-  id: string;
-  name: string;
-  role: LedgerRole;
-  isGuest: boolean;
-  guestId?: string;
-  joinedAt: string;
-  avatar: string;
-}
-
-export interface LedgerBook {
-  id: string;
-  title: string;
-  type: LedgerType;
-  periodType: LedgerPeriodType;
-  subType: LedgerSubType;
-  closingStatus: LedgerClosingStatus;
-  budgetCap?: number;
-  spentAmount?: number;
-  resetCycle?: 'MONTHLY' | 'WEEKLY' | 'NONE';
-  allowReopen?: boolean;
-  closedAt?: string;
-  closedBy?: string;
-  description: string;
-  balance: number;
-  currency: string;
-  // 2.5 책별 고유 디자인 (가죽, 하드커버, 크라프트, 패브릭 등 다양한 텍스처/디자인)
-  designStyle: 'LEATHER' | 'HARDCOVER' | 'KRAFT' | 'FABRIC' | 'SLATE' | 'VINTAGE_BURGUNDY';
-  customCoverColor?: string; // 사용자 지정 북커버 색상 (Hex 코드)
-  colorTheme: {
-    bg: string;
-    border: string;
-    spineGrad: string;
-    labelBg: string;
-    labelText: string;
-    bookmarkColor: string;
-    accent: string;
-  };
-  membersCount: number;
-  createdAt: string;
-  settlementCycle?: string;
-}
-
-export interface LedgerTransaction {
-  id: string;
-  ledgerId: string;
-  title: string;
-  type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
-  amount: number;
-  category: string;
-  date: string;
-  payerName: string;
-  isAssetTransfer: boolean;
-  relatedTransferId?: string;
-  tagNames: string[];
-  note?: string;
-  // [태스크 0008-02] 원자 지출 SSOT 대사 상태 및 N개 멀티 증빙
-  reconciliationStatus?: 'CONFIRMED' | 'PENDING' | 'DISPUTED';
-  proofs?: ExpenseProofItem[];
-  statementDiscount?: number; // 카드사 청구할인 혜택
-  statementCardName?: string; // 대사된 카드명
-  // [태스크 0009 신규] 지출원장 단방향 참조 및 타서비스 관계 링크
-  expenseRecordId?: string; // 단방향 기준정보 식별자 (원장은 장부를 모름)
-  crossServiceLinks?: {
-    dutyId?: string;
-    dutyTitle?: string;
-    goalId?: string;
-    goalTitle?: string;
-    guestId?: string;
-    guestEventName?: string;
-    transferPairId?: string;
-  };
-}
-
-// 10월 6대 카드사 명세서 요약 인터페이스
-export interface CardStatementSummary {
-  cardCode: string;
-  cardName: string;
-  cardAlias: string;
-  logoColor: string;
-  paymentDate: string;
-  account: string;
-  totalBilled: number;
-  lumpSum: number;
-  installment: number;
-  revolving?: number;
-  fees: number;
-  benefitDiscount: number;
-  notableItems: string[];
-  installmentAlert?: string;
-}
-
-// [태스크 0009 신규] 명세서 등록 및 수집 리뷰 인터페이스
-export interface CardStatementIntakeReview {
-  id: string;
-  cardName: string;
-  statementMonth: string;
-  totalBilled: number;
-  txCount: number;
-  installmentCount: number;
-  lumpSumCount: number;
-  needsReview: boolean;
-  rawFileName: string;
-  lines: Array<{
-    id: string;
-    date: string;
-    merchant: string;
-    amount: number;
-    installment: string;
-    approvalNo: string;
-    discount: number;
-    isFixedExpense?: boolean;
-    fixedExpenseType?: string;
-  }>;
-}
-
-// [태스크 0009 신규] 고정수입 설정 인터페이스
-export interface FixedIncomeRule {
-  id: string;
-  name: string;
-  amount: number;
-  dayOfMonth: number;
-  category: '급여' | '배당금' | '이자' | '임대료' | '기타';
-  targetLedgerTitle: string;
-  targetLedgerId: string;
-  notifyEnabled: boolean;
-  account: string;
-}
-
-// [태스크 0009 신규] 통장 거래내역 첨부 및 파싱 인터페이스
-export interface BankStatementImportItem {
-  id: string;
-  date: string;
-  bankName: string;
-  accountNoMasked: string;
-  description: string;
-  depositAmount: number;
-  withdrawAmount: number;
-  inferredType: 'INCOME' | 'EXPENSE' | 'TRANSFER';
-  targetCategory: string;
-  selected: boolean;
-}
-
-// [태스크 0009 신규] 일간 집계 인터페이스
-export interface DailyAggregationItem {
-  date: string;
-  dayNum: number;
-  dayOfWeek: string;
-  totalIncome: number;
-  totalExpense: number;
-  txCount: number;
-  notableItems: string[];
-}
+export {
+  SAMPLE_RECEIPTS,
+  type LedgerType,
+  type LedgerPeriodType,
+  type LedgerSubType,
+  type LedgerClosingStatus,
+  type LedgerRole,
+  type MainAxisTab,
+  type WriteSubTab,
+  type DeckTab,
+  type ExpenseSubTab,
+  type IncomeSubTab,
+  type AnalysisSubTab,
+  type AnalysisReportSnapshot,
+  type DynamicBannerItem,
+  type ExpenseProofItem,
+  type LedgerMember,
+  type LedgerBook,
+  type LedgerTransaction,
+  type CardStatementSummary,
+  type CardStatementIntakeReview,
+  type FixedIncomeRule,
+  type BankStatementImportItem,
+  type DailyAggregationItem,
+};
 
 interface SCR_LED_01_Props {
   onBack?: () => void;
@@ -356,53 +175,7 @@ export const COVER_COLOR_PRESETS = [
   { name: '피치 코랄', color: '#f97316' },
 ];
 
-// 지출 등록 영수증 OCR 원클릭 샘플 프리셋
-export const SAMPLE_RECEIPTS = [
-  {
-    id: 'rc-1',
-    icon: '🛒',
-    merchant: '이마트 역삼점',
-    amount: 46500,
-    amountStr: '46,500원',
-    category: '식료품/마트',
-    cardName: '현대카드',
-    itemSummary: '신선식품 및 생필품 장보기',
-    fileName: 'emart_receipt_20261014.jpg',
-  },
-  {
-    id: 'rc-2',
-    icon: '☕',
-    merchant: '스타벅스 강남R점',
-    amount: 12400,
-    amountStr: '12,400원',
-    category: '외식/식음료',
-    cardName: '우리카드',
-    itemSummary: '아메리카노 2잔 & 베이글',
-    fileName: 'starbucks_receipt.png',
-  },
-  {
-    id: 'rc-3',
-    icon: '⛽',
-    merchant: 'GS칼텍스 삼화주유소',
-    amount: 50000,
-    amountStr: '50,000원',
-    category: '교통/차량',
-    cardName: '신한카드',
-    itemSummary: '휘발유 50,000원 주유',
-    fileName: 'gs_gas_receipt.jpg',
-  },
-  {
-    id: 'rc-4',
-    icon: '🥐',
-    merchant: '파리바게뜨 판교점',
-    amount: 18200,
-    amountStr: '18,200원',
-    category: '외식/식음료',
-    cardName: 'KB국민카드',
-    itemSummary: '식빵, 샌드위치 간식',
-    fileName: 'paris_baguette_rec.png',
-  },
-];
+// (SAMPLE_RECEIPTS는 components/ledger/types.ts에서 통합 관리)
 
 export interface CartoonBookObjectProps {
   book: LedgerBook;

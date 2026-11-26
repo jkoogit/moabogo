@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserPlus, UserX } from 'lucide-react';
 import { ElmBsh01, ElmInp01, ElmSel01, ElmChk01 } from '../../../sample/elements/Tokens';
-import type { LedgerRole, LedgerBook } from '../../../sample/screen/SCR_LED_01_그룹가계부관리상세';
+import type { LedgerRole, LedgerBook } from '../types';
 
 export interface LedgerMember {
   id: string;

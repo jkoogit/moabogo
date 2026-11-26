@@ -19,7 +19,9 @@ import {
 } from './routine/types';
 import { getEnabledRoutinePlugins } from './routine/plugins/registry';
 import {
+  DEFAULT_ROUTINE_PLUGIN_SETTINGS,
   loadRoutinePluginSettings,
+  saveRoutinePluginSettings,
   RoutinePluginSettings,
   ROUTINE_PLUGIN_SETTINGS_EVENT,
 } from './routine/plugins/pluginSettings';
@@ -133,6 +135,23 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
     [filteredRoutines, activeCategorySet]
   );
 
+  const activeTotalCount = useMemo(
+    () =>
+      enabledPlugins.reduce(
+        (sum, p) => sum + (categoryCounts[p.category as RoutineFilterCategory] ?? 0),
+        0
+      ),
+    [enabledPlugins, categoryCounts]
+  );
+
+  const handleEnableAllPlugins = () => {
+    const next = { ...DEFAULT_ROUTINE_PLUGIN_SETTINGS };
+    saveRoutinePluginSettings(next);
+    setPluginSettings(next);
+    setSelectedCategory('ALL');
+    showToast('4대 루틴 플러그인이 모두 활성화되었습니다.', 'success');
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
       {/* 1. 상단 타이틀 및 루틴 등록 헤더 */}
@@ -165,7 +184,7 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
         >
           {filterOptions.map((opt) => {
             const active = selectedCategory === opt.id;
-            const count = categoryCounts[opt.id];
+            const count = opt.id === 'ALL' ? activeTotalCount : categoryCounts[opt.id];
             return (
               <button
                 key={opt.id}
@@ -247,8 +266,31 @@ export const SCR_ROU_01_모아루틴: React.FC<SCR_ROU_01_Props> = ({
         selectedCategory={selectedCategory}
       />
 
-      {/* 3. 메인 루틴 콘텐츠 (카드 그리드 vs 고밀도 리스트 vs 빈 상태) */}
-      {visibleRoutines.length === 0 ? (
+      {/* 3. 메인 루틴 콘텐츠 (플러그인 전체 OFF 안내 vs 카드 그리드 vs 고밀도 리스트 vs 빈 상태) */}
+      {enabledPlugins.length === 0 ? (
+        <section className="bg-white dark:bg-[#131926] border border-amber-200/90 dark:border-amber-800/70 rounded-xl p-10 text-center space-y-3">
+          <div className="w-11 h-11 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+            <RotateCcw className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+              활성화된 루틴 플러그인이 없습니다
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              사용자 설정에서 약복용·알뜰폰·세금계산서·급여카드 플러그인이 모두 비활성화되어 있습니다.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleEnableAllPlugins}
+              className="min-h-[40px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold whitespace-nowrap cursor-pointer"
+            >
+              4대 루틴 모두 켜기
+            </button>
+          </div>
+        </section>
+      ) : visibleRoutines.length === 0 ? (
         <section className="bg-white dark:bg-[#131926] border border-slate-200/90 dark:border-zinc-800 rounded-xl p-10 text-center space-y-3">
           <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 mx-auto flex items-center justify-center">
             <SearchX className="w-5 h-5" />

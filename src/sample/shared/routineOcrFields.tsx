@@ -16,20 +16,17 @@ import {
   X,
 } from 'lucide-react';
 import { ElmSld03 } from '../elements/Tokens';
-import { OcrInlineImagePreview, OcrResizableImagePopup } from './OcrImagePreviewer';
+import {
+  OcrInlineImagePreview,
+  OcrResizableImagePopup,
+  type RoutineAttachmentItem,
+} from './OcrImagePreviewer';
+
+export type { RoutineAttachmentItem };
 
 export type OcrReviewState = 'AUTO_UNCONFIRMED' | 'CONFIRMED' | 'EDITED';
 
 export type OcrFieldReviewMap = Record<string, OcrReviewState>;
-
-export interface RoutineAttachmentItem {
-  attachmentId: string;
-  fileName: string;
-  uploadedAt: string;
-  ocrSummary: string;
-  previewUrl?: string;
-  isImageOcr?: boolean;
-}
 
 export interface RoutineUploadedFile {
   fileName: string;
