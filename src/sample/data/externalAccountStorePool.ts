@@ -8,6 +8,7 @@
 // ============================================================================
 
 import type { TreeNodeItem } from '../elements/Tokens';
+import { sanitizeForLocalStorage } from '../shared/securityGuards';
 
 // 1. 서비스별 계좌 용도 타입
 export type AccountServiceType =
@@ -259,7 +260,7 @@ export function loadExternalAccounts(): ExternalTransactionAccount[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ACCOUNTS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(INITIAL_SLIM_ACCOUNTS));
+      localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(sanitizeForLocalStorage(INITIAL_SLIM_ACCOUNTS)));
       return INITIAL_SLIM_ACCOUNTS;
     }
     return JSON.parse(raw);
@@ -271,7 +272,7 @@ export function loadExternalAccounts(): ExternalTransactionAccount[] {
 export function saveExternalAccounts(accounts: ExternalTransactionAccount[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
+    localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(sanitizeForLocalStorage(accounts)));
   } catch (err) {
     console.error('Failed to save external accounts:', err);
   }

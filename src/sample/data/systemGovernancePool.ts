@@ -11,6 +11,8 @@ import {
   RoulettePreset,
   LadderGoalPreset,
 } from './systemStorePool';
+import { createOfflineProofPlaceholder } from '../shared/offlineProofAssets';
+import { sanitizeForLocalStorage } from '../shared/securityGuards';
 
 /* =========================================================================
    1. 로그인 인증 및 보안 설정 (Auth & Security Governance)
@@ -736,7 +738,7 @@ export const DEFAULT_NOTICES: SystemNoticeItem[] = [
     isEnabled: false,
     mode: 'MD',
     content: `### ☕ PLUS CAFE 45층 단골 매장 특별 프로모션\n- 사내 임직원 스타벅스 WPS 원두 전 메뉴 **10% 모아머니 환급**\n- 모아당번 수행 완료 시 아메리카노 교환권 지급`,
-    imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600&auto=format&fit=crop',
+    imageUrl: createOfflineProofPlaceholder('DEFAULT', 'PLUS CAFE 45F', '단골 매장 10% 모아머니 환급 프로모션'),
     hasButton: true,
     buttonText: '단골 매장 설정 바로가기',
     buttonTargetType: 'INTERNAL_SCREEN',
@@ -1162,7 +1164,7 @@ export const loadManagedUsers = (): ManagedUser[] => {
 };
 
 export const saveManagedUsers = (users: ManagedUser[]): void => {
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitizeForLocalStorage(users)));
 };
 
 export const loadManagedTerms = (): TermsDocument[] => {
