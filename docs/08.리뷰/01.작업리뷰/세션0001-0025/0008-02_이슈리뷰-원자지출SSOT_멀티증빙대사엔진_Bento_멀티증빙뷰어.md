@@ -30,7 +30,7 @@
 | **아키텍처** | `docs/02.아키텍처/01-architecture-spec.md` | **Section 6 & 7 신설**: 불변 원자 지출 SSOT, 대사 엔진, tarball 온디맨드 해제 및 파기 운영정책 옵션 |
 | **데이터** | `docs/04.데이터/01.데이터설계.md` | **4.12 `atomic_expenses`**, **4.13 `expense_proofs`**, **4.14 `retention_policies`** 스키마 및 복합 인덱스 3종 추가 |
 | **화면(UI)** | `src/sample/screen/SCR_LED_01_그룹가계부관리상세.tsx` | - 10월 카드명세서 분석 Bento 대시보드 (`STATEMENT_BENTO`)<br>- 거래 내역 내 명세서 대사 뱃지 및 증빙 체인 버튼<br>- N개 멀티 증빙 인스펙터 모달 (`selectedTxForProofs`)<br>- 고해상도 메모리 스트림 파기 운영정책 옵션(즉시/1일/1달) 선택 UI |
-| **리뷰** | `docs/08.리뷰/0008-02_이슈리뷰-원자지출SSOT_멀티증빙대사엔진_Bento_멀티증빙뷰어.md` | 본 리뷰 문서 발행 |
+| **리뷰** | `docs/08.리뷰/01.작업리뷰/세션0001-0025/0008-02_이슈리뷰-원자지출SSOT_멀티증빙대사엔진_Bento_멀티증빙뷰어.md` | 본 리뷰 문서 발행 |
 
 ---
 
