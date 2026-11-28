@@ -5,7 +5,7 @@
 - **관련 파일**:
   - `src/sample/elements/Tokens.tsx`
   - `src/sample/screen/SCR_GNT_01_비로그인게스트홈.tsx`
-  - `docs/08.리뷰/0017-01_이슈리뷰-즐겨보고_정산_사다리_룰렛_UI개선_토스트토큰_ElmToast01_초기값정리.md`
+  - `docs/08.리뷰/01.작업리뷰/세션0001-0025/0017-01_이슈리뷰-즐겨보고_정산_사다리_룰렛_UI개선_토스트토큰_ElmToast01_초기값정리.md`
 - **세션 번호**: [0017]
 - **태스크 ID**: `TASK-GNT-17-01`
 - **GitHub Issue**: Issue #42 (세션 0017)
